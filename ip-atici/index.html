@@ -108,7 +108,7 @@
       <span style="display:block;margin-top:8px;color:#ddd6ff">Watch out:</span>
       🔫 <b>Turrets</b> shoot at you from the ceilings. Dodge when they flash red!<br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Crash into a turret to break it: <b>+3 🪙</b><br>
-      🤖 <b>Drones</b> fly by now and then. Don't touch them! A red <b>!</b> warns you first.
+      🤖 <b>Drones</b> come from behind now and then. Don't touch them! A red <b>!</b> on the left warns you first.
     </div>
   </div>
 </div>
@@ -207,7 +207,7 @@
   let p, rope, blocks, gems, parts, trail, camX, genX, maxDist, gemCount, deadT, time, shake;
   // ---------- taretler (sarkıtlardan ateş eden silahlar) ----------
   let turrets = [], bullets = [];
-  // ---------- dronlar (arada bir sağdan sola geçer, çarparsan yanarsın) ----------
+  // ---------- dronlar (arada bir arkadan/soldan gelip geçer, çarparsan yanarsın) ----------
   let drones = [], droneTimer = 0;
   const DRONE_START = 1500;     // ilk dronun çıkabileceği mesafe (150 m)
   const DRONE_WARN = 1.0;       // ekrana girmeden önce sağ kenarda "!" uyarısı (sn)
@@ -711,19 +711,20 @@
       if (p.x > DRONE_START) {
         droneTimer -= dt;
         if (droneTimer <= 0) {
-          drones.push({ x: camX + viewW + 70, baseY: rand(130, 540), y: 0, vx: -rand(230, 330) - k * 120,
+          // arkadan (soldan) gelir; oyuncudan hep biraz hızlı gider ki yetişip geçsin
+          drones.push({ x: camX - 70, baseY: rand(130, 470), y: 0, rel: rand(180, 280) + k * 120,
                         warn: DRONE_WARN, ph: Math.random() * 6, dead: false });
           droneTimer = rand(6, 10) - k * 3.5;
         }
       }
       for (const d of drones) {
         d.y = d.baseY + Math.sin(time * 2.2 + d.ph) * 18;
-        if (d.warn > 0) {                       // uyarı: ekranın hemen sağında bekler
-          d.warn -= dt; d.x = camX + viewW + 70;
+        if (d.warn > 0) {                       // uyarı: ekranın hemen solunda (arkada) bekler
+          d.warn -= dt; d.x = camX - 70;
           if (d.warn <= 0) beep(520, 0.12, 'sawtooth', 0.025, 380);
           continue;
         }
-        d.x += d.vx * dt;
+        d.x += (Math.max(p.vx, 0) + d.rel) * dt;
         if (Math.hypot(d.x - p.x, d.y - p.y) < PR + DRONE_R) {
           if (active.shield > 0) {              // kalkan dronu patlatır
             d.dead = true; gemCount += 3; shake = 6;
@@ -733,7 +734,7 @@
           } else { die('drone'); break; }
         }
       }
-      drones = drones.filter(d => !d.dead && d.x > camX - 300);
+      drones = drones.filter(d => !d.dead && d.x < camX + viewW + 300);
 
       maxDist = Math.max(maxDist, (p.x - 180) / 10);
       if (p.y + PR > LAVA_Y + 6) {
@@ -938,15 +939,16 @@
       if (d.warn > 0) {
         // sağ kenarda yanıp sönen uyarı
         if (Math.floor(time * 8) % 2) continue;
-        const wx = camX + viewW - 26;
+        const wx = camX + 26;   // sol kenar: dron arkadan geliyor
         ctx.fillStyle = 'rgba(255,59,59,.9)'; ctx.shadowColor = '#ff3b3b'; ctx.shadowBlur = 14;
-        ctx.beginPath(); ctx.moveTo(wx - 14, d.y); ctx.lineTo(wx + 8, d.y - 14); ctx.lineTo(wx + 8, d.y + 14); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(wx + 14, d.y); ctx.lineTo(wx - 8, d.y - 14); ctx.lineTo(wx - 8, d.y + 14); ctx.closePath(); ctx.fill();
         ctx.shadowBlur = 0; ctx.fillStyle = '#fff'; ctx.font = 'bold 16px system-ui,sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('!', wx + 1, d.y + 1);
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('!', wx - 1, d.y + 1);
         continue;
       }
       if (d.x < camX - 60 || d.x > camX + viewW + 60) continue;
-      ctx.save(); ctx.translate(d.x, d.y); ctx.scale(1.4, 1.4); ctx.rotate(Math.sin(time * 2.2 + d.ph) * 0.08 - 0.08);
+      // sağa doğru uçtuğu için aynala: kamera gözü önde (sağda) olsun
+      ctx.save(); ctx.translate(d.x, d.y); ctx.scale(-1.4, 1.4); ctx.rotate(Math.sin(time * 2.2 + d.ph) * 0.08 - 0.08);
       // kollar
       ctx.strokeStyle = '#4a4f6b'; ctx.lineWidth = 3; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(-8, -3); ctx.lineTo(-20, -9); ctx.moveTo(8, -3); ctx.lineTo(20, -9); ctx.stroke();
