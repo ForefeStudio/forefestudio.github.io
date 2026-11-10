@@ -155,7 +155,7 @@
   };
   const reelAmount = () => (mouseReel || keys.ShiftLeft || keys.ShiftRight || keys.KeyE) ? 1 : vDrag();
   const reeling = () => reelAmount() !== 0;
-  const REEL_SPEED = 420;
+  const REEL_SPEED = 210;   // ip kısalma hızı
   // basılı tutarken parmağın/farenin başlangıç noktasına göre yatay kaydırma: -1..1
   const dragDir = () => {
     if (!pointer.down) return 0;
@@ -406,7 +406,7 @@
       // ip boyu: yukarı kaydırınca kısalır, aşağı kaydırınca uzar (sadece basılı tutulduğu sürece)
       const ra = rope.st === 'attached' ? reelAmount() : 0;
       if (ra < 0) {
-        rope.len = Math.min(ROPE_MAX, rope.len - ra * 320 * dt);
+        rope.len = Math.min(ROPE_MAX, rope.len - ra * 160 * dt);   // ip uzama hızı
         reelTick -= dt;
         if (reelTick <= 0) { reelTick = 0.09; beep(300 + (ROPE_MAX - rope.len) * 0.5, 0.03, 'square', 0.015); }
       }
