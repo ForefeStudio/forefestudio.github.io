@@ -28,6 +28,17 @@
     box-shadow:0 6px 0 #b3612f}
   button:active{transform:translateY(3px);box-shadow:0 3px 0 #b3612f}
   .hidden{display:none}
+  .menuTop{margin:6px 0 4px}
+  .menuTop p{margin:6px 0}
+  .menuTop p:empty{display:none}
+  /* küçük ekranlar: daha sıkışık menü */
+  @media (max-width:480px), (max-height:500px){
+    h1{font-size:34px}
+    .panel{padding:18px 16px}
+    .keys{font-size:13px}
+    button{font-size:18px;padding:12px 28px}
+    button.sec{font-size:15px;padding:10px 16px}
+  }
   /* ikincil buton ve mağaza */
   button.sec{background:rgba(255,255,255,.08);color:#ffd166;border:2px solid #ffd16688;box-shadow:none;
     font-size:17px;padding:12px 22px;margin-left:6px}
@@ -72,6 +83,13 @@
   <div class="panel">
     <h1>İP ATICI</h1>
     <p>Tavanlara ve bloklara ip fırlat, sallan, bırak ve uç!<br>Lavlara düşmeden olabildiğince ileri git.</p>
+    <!-- butonlar en üstte: küçük ekranlarda da hep görünsün -->
+    <div class="menuTop">
+      <button id="playBtn">OYNA</button>
+      <button id="shopBtn" class="sec">🛒 MAĞAZA</button>
+      <p id="menuBest"></p>
+      <p id="menuWallet"></p>
+    </div>
     <div class="keys">
       🖱️ <b>Tıkla / dokun ve basılı tut</b> → o yöne ip at<br>
       👉 <b>Basılı tutarken sağa / sola kaydır</b> → o yöne sallan<br>
@@ -91,10 +109,6 @@
       🔫 <b>Taretler</b> sarkıtlardan sana ateş eder. Kırmızı yanıp sönünce kaç!<br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Tarete çarparsan kırılır: <b>+3 🪙</b>
     </div>
-    <p id="menuBest"></p>
-    <p id="menuWallet"></p>
-    <button id="playBtn">OYNA</button>
-    <button id="shopBtn" class="sec">🛒 MAĞAZA</button>
   </div>
 </div>
 
