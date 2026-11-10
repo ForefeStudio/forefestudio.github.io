@@ -44,6 +44,8 @@
     <div class="keys">
       🖱️ <b>Tıkla / dokun ve basılı tut</b> → o yöne ip at<br>
       👉 <b>Basılı tutarken sağa / sola kaydır</b> → o yöne sallan<br>
+      ✌️ <b>İkinci parmakla basılı tut</b> → kendini ipe doğru çek<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(fare: <b>sağ tık</b>, klavye: <b>Shift / E</b>)<br>
       ✋ <b>Bırak</b> → ipi bırak, havada süzül<br>
       ⌨️ <b>Boşluk / W / ↑</b> → otomatik nişanla ip at<br>
       ↔️ <b>A / D / ← →</b> → sallanmayı güçlendir<br>
@@ -114,7 +116,12 @@
   let state = 'menu';
   let p, rope, blocks, gems, parts, trail, camX, genX, maxDist, gemCount, deadT, time, shake;
   const keys = {};
-  let pointer = { x: 0, y: 0, sx: 0, mouse: false, down: false };
+  let pointer = { id: null, x: 0, y: 0, sx: 0, mouse: false, down: false };
+  // ikinci parmak(lar) / sağ tık / Shift: basili tuttukca ipi kendine çeker
+  const reelIds = new Set();
+  let mouseReel = false, reelTick = 0;
+  const reeling = () => reelIds.size > 0 || mouseReel || keys.ShiftLeft || keys.ShiftRight || keys.KeyE;
+  const REEL_SPEED = 420;
   // basılı tutarken parmağın/farenin başlangıç noktasına göre yatay kaydırma: -1..1
   const dragDir = () => {
     if (!pointer.down) return 0;
@@ -221,15 +228,33 @@
   const toWorld = (cx, cy) => ({ x: cx / scale + camX, y: cy / scale - offY });
   cv.addEventListener('pointerdown', e => {
     e.preventDefault();
+    if (e.pointerType === 'mouse' && e.button === 2) { mouseReel = true; return; }
+    // ilk parmak zaten basılıysa: bu ikinci parmak -> çekme
+    if (pointer.down && e.pointerId !== pointer.id) { reelIds.add(e.pointerId); return; }
     pointer.mouse = e.pointerType === 'mouse';
+    pointer.id = e.pointerId;
     pointer.down = true; pointer.x = pointer.sx = e.clientX; pointer.y = e.clientY;
     if (state !== 'play') return;
     const w = toWorld(e.clientX, e.clientY);
     fire(w.x - p.x, w.y - p.y);
   });
-  addEventListener('pointermove', e => { pointer.x = e.clientX; pointer.y = e.clientY; if (e.pointerType === 'mouse') pointer.mouse = true; });
-  addEventListener('pointerup', () => { pointer.down = false; if (state === 'play') release(); });
-  addEventListener('pointercancel', () => { pointer.down = false; if (state === 'play') release(); });
+  // fare: sol tuş basılıyken sağ tuş pointerdown üretmez, mousedown ile yakala
+  cv.addEventListener('mousedown', e => { if (e.button === 2) mouseReel = true; });
+  addEventListener('mouseup', e => { if (e.button === 2) mouseReel = false; });
+  addEventListener('pointermove', e => {
+    if (e.pointerType === 'mouse') { pointer.mouse = true; if (!(e.buttons & 2)) mouseReel = false; }
+    if (!pointer.down || e.pointerId === pointer.id) { pointer.x = e.clientX; pointer.y = e.clientY; }
+  });
+  function pointerEnd(e) {
+    if (reelIds.delete(e.pointerId)) return;
+    if (e.pointerType === 'mouse' && e.button === 2) { mouseReel = false; return; }
+    if (e.pointerId !== pointer.id) return;
+    pointer.down = false; pointer.id = null;
+    if (state === 'play') release();
+  }
+  addEventListener('pointerup', pointerEnd);
+  addEventListener('pointercancel', pointerEnd);
+  addEventListener('blur', () => { reelIds.clear(); mouseReel = false; });
   cv.addEventListener('contextmenu', e => e.preventDefault());
 
   const FIRE_KEYS = ['Space', 'KeyW', 'ArrowUp'];
@@ -311,6 +336,26 @@
       else if (p.ground) p.vx += dir * 1400 * dt;
       else p.vx += dir * 280 * dt;
       if (keys.KeyS || keys.ArrowDown) { if (rope.st === 'attached') rope.len = Math.min(ROPE_MAX, rope.len + 200 * dt); }
+
+      // çekme: sadece basılı tutulduğu sürece ip kısalır
+      if (rope.st === 'attached' && reeling() && rope.len > 40) {
+        const newLen = Math.max(40, rope.len - REEL_SPEED * dt);
+        const dx = p.x - rope.ax, dy = p.y - rope.ay, d = Math.hypot(dx, dy) || 1;
+        if (d >= rope.len - 2) {
+          // açısal momentum korunur: ip kısaldıkça sallanma hızlanır
+          const nx = dx / d, ny = dy / d;
+          const vr = p.vx * nx + p.vy * ny;
+          let tx = p.vx - nx * vr, ty = p.vy - ny * vr;
+          const k = rope.len / newLen;
+          tx *= k; ty *= k;
+          p.vx = tx + nx * Math.min(vr, 0); p.vy = ty + ny * Math.min(vr, 0);
+          const sp = Math.hypot(p.vx, p.vy);
+          if (sp > 1500) { p.vx *= 1500 / sp; p.vy *= 1500 / sp; }
+        }
+        rope.len = newLen;
+        reelTick -= dt;
+        if (reelTick <= 0) { reelTick = 0.07; beep(500 + (ROPE_MAX - rope.len), 0.03, 'square', 0.02); }
+      }
 
       p.vy += GRAV * dt;
       p.vx *= 0.9995; p.vy *= 0.9995;
@@ -502,7 +547,8 @@
     // ip
     if (rope.st !== 'none' && state === 'play') {
       const ex = rope.st === 'attached' ? rope.ax : rope.hx, ey = rope.st === 'attached' ? rope.ay : rope.hy;
-      ctx.strokeStyle = '#f1e3c6'; ctx.lineWidth = 2.5;
+      const reelOn = rope.st === 'attached' && reeling();
+      ctx.strokeStyle = reelOn ? '#ffd166' : '#f1e3c6'; ctx.lineWidth = reelOn ? 3.5 : 2.5;
       ctx.beginPath(); ctx.moveTo(p.x, p.y);
       if (rope.st === 'shoot') {
         // fırlatırken dalgalı ip
