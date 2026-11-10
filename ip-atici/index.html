@@ -44,8 +44,9 @@
     <div class="keys">
       🖱️ <b>Tıkla / dokun ve basılı tut</b> → o yöne ip at<br>
       👉 <b>Basılı tutarken sağa / sola kaydır</b> → o yöne sallan<br>
-      ✌️ <b>İkinci parmakla basılı tut</b> → kendini ipe doğru çek<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(fare: <b>sağ tık</b>, klavye: <b>Shift / E</b>)<br>
+      ☝️ <b>Basılı tutarken yukarı kaydır</b> → ip kısalır, kendini çekersin<br>
+      👇 <b>Basılı tutarken aşağı kaydır</b> → ip uzar<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(klavye: <b>Shift / E</b> kısalt, <b>S / ↓</b> uzat)<br>
       ✋ <b>Bırak</b> → ipi bırak, havada süzül<br>
       ⌨️ <b>Boşluk / W / ↑</b> → otomatik nişanla ip at<br>
       ↔️ <b>A / D / ← →</b> → sallanmayı güçlendir<br>
@@ -141,11 +142,19 @@
   const TEST_ZONE = 4500;
   const TEST_ORDER = ['jet', 'magnet', 'shoes'];
   const keys = {};
-  let pointer = { id: null, x: 0, y: 0, sx: 0, mouse: false, down: false };
+  let pointer = { id: null, x: 0, y: 0, sx: 0, sy: 0, mouse: false, down: false };
   // ikinci parmak(lar) / sağ tık / Shift: basili tuttukca ipi kendine çeker
   const reelIds = new Set();
   let mouseReel = false, reelTick = 0;
-  const reeling = () => reelIds.size > 0 || mouseReel || keys.ShiftLeft || keys.ShiftRight || keys.KeyE;
+  // tek parmak: basılı tutarken yukarı kaydır -> ip kısalır (+), aşağı kaydır -> uzar (-)
+  const vDrag = () => {
+    if (!pointer.down) return 0;
+    const dv = pointer.sy - pointer.y, dh = pointer.x - pointer.sx;
+    if (Math.abs(dv) < 18 || Math.abs(dv) < Math.abs(dh) * 0.6) return 0;   // sallanırken yanlışlıkla tetiklenmesin
+    return clamp(dv / 80, -1, 1);
+  };
+  const reelAmount = () => (mouseReel || keys.ShiftLeft || keys.ShiftRight || keys.KeyE) ? 1 : vDrag();
+  const reeling = () => reelAmount() !== 0;
   const REEL_SPEED = 420;
   // basılı tutarken parmağın/farenin başlangıç noktasına göre yatay kaydırma: -1..1
   const dragDir = () => {
@@ -275,10 +284,10 @@
     e.preventDefault();
     if (e.pointerType === 'mouse' && e.button === 2) { mouseReel = true; return; }
     // ilk parmak zaten basılıysa: bu ikinci parmak -> çekme
-    if (pointer.down && e.pointerId !== pointer.id) { reelIds.add(e.pointerId); return; }
+    if (pointer.down && e.pointerId !== pointer.id) return;   // ikinci parmak bir şey yapmaz
     pointer.mouse = e.pointerType === 'mouse';
     pointer.id = e.pointerId;
-    pointer.down = true; pointer.x = pointer.sx = e.clientX; pointer.y = e.clientY;
+    pointer.down = true; pointer.x = pointer.sx = e.clientX; pointer.y = pointer.sy = e.clientY;
     if (state !== 'play') return;
     const w = toWorld(e.clientX, e.clientY);
     fire(w.x - p.x, w.y - p.y);
@@ -394,9 +403,15 @@
       else p.vx += dir * 280 * dt;
       if (keys.KeyS || keys.ArrowDown) { if (rope.st === 'attached') rope.len = Math.min(ROPE_MAX, rope.len + 200 * dt); }
 
-      // çekme: sadece basılı tutulduğu sürece ip kısalır
-      if (rope.st === 'attached' && reeling() && rope.len > 40) {
-        const newLen = Math.max(40, rope.len - REEL_SPEED * dt);
+      // ip boyu: yukarı kaydırınca kısalır, aşağı kaydırınca uzar (sadece basılı tutulduğu sürece)
+      const ra = rope.st === 'attached' ? reelAmount() : 0;
+      if (ra < 0) {
+        rope.len = Math.min(ROPE_MAX, rope.len - ra * 320 * dt);
+        reelTick -= dt;
+        if (reelTick <= 0) { reelTick = 0.09; beep(300 + (ROPE_MAX - rope.len) * 0.5, 0.03, 'square', 0.015); }
+      }
+      if (ra > 0 && rope.len > 40) {
+        const newLen = Math.max(40, rope.len - REEL_SPEED * ra * dt);
         const dx = p.x - rope.ax, dy = p.y - rope.ay, d = Math.hypot(dx, dy) || 1;
         if (d >= rope.len - 2) {
           // açısal momentum korunur: ip kısaldıkça sallanma hızlanır
@@ -779,7 +794,7 @@
     // ip
     if (rope.st !== 'none' && state === 'play') {
       const ex = rope.st === 'attached' ? rope.ax : rope.hx, ey = rope.st === 'attached' ? rope.ay : rope.hy;
-      const reelOn = rope.st === 'attached' && reeling();
+      const reelOn = rope.st === 'attached' && reelAmount() > 0;
       ctx.strokeStyle = reelOn ? '#ffd166' : '#f1e3c6'; ctx.lineWidth = reelOn ? 3.5 : 2.5;
       ctx.beginPath(); ctx.moveTo(p.x, p.y);
       if (rope.st === 'shoot') {
@@ -806,6 +821,18 @@
         const x = p.x + s * (26 + i * 10);
         ctx.globalAlpha = 0.9 - i * 0.2;
         ctx.beginPath(); ctx.moveTo(x - s * 5, p.y - 7); ctx.lineTo(x, p.y); ctx.lineTo(x - s * 5, p.y + 7); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+    // ip kısaltma/uzatma göstergesi: yukarı/aşağı oklar
+    const vd = vDrag();
+    if (state === 'play' && rope.st === 'attached' && vd) {
+      const s = -Math.sign(vd), n = Math.ceil(Math.abs(vd) * 3);   // yukarı kaydırma -> yukarı ok
+      ctx.strokeStyle = vd > 0 ? '#ffd166' : '#8fd3ff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      for (let i = 0; i < n; i++) {
+        const y = p.y + s * (26 + i * 10);
+        ctx.globalAlpha = 0.9 - i * 0.2;
+        ctx.beginPath(); ctx.moveTo(p.x - 7, y - s * 5); ctx.lineTo(p.x, y); ctx.lineTo(p.x + 7, y - s * 5); ctx.stroke();
       }
       ctx.globalAlpha = 1;
     }
