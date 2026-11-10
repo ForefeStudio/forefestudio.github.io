@@ -77,9 +77,9 @@
       👉 <b>Basılı tutarken sağa / sola kaydır</b> → o yöne sallan<br>
       ⬆️ <b>Soldaki ▲ ÇEK butonuna basılı tut</b> → ip kısalır, kendini çekersin<br>
       ⬇️ <b>▼ UZAT butonuna basılı tut</b> → ip uzar, aşağı inersin<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(klavye: <b>Shift / E</b> kısalt, <b>S / ↓</b> uzat)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(klavye: <b>W</b> ipi yukarı çek, <b>S</b> ipi uzat)<br>
       ✋ <b>Bırak</b> → ipi bırak, havada süzül<br>
-      ⌨️ <b>Boşluk / W / ↑</b> → otomatik nişanla ip at<br>
+      ⌨️ <b>Boşluk / ↑</b> → otomatik nişanla ip at<br>
       ↔️ <b>A / D / ← →</b> → sallanmayı güçlendir<br>
       🪙 Altınları topla: her biri <b>+10 puan</b><br>
       <span style="display:block;margin-top:8px;color:#ddd6ff">Süreli güçlendiriciler:</span>
@@ -222,7 +222,7 @@
   };
   // sol alttaki butonlar: ÇEK = +1 (kısalt), UZAT = -1 (uzat)
   let btnReel = 0;
-  const reelAmount = () => (mouseReel || keys.ShiftLeft || keys.ShiftRight || keys.KeyE) ? 1 : btnReel;
+  const reelAmount = () => (keys.KeyW || mouseReel || keys.ShiftLeft || keys.ShiftRight || keys.KeyE) ? 1 : btnReel;
   const reeling = () => reelAmount() !== 0;
   const REEL_SPEED = 210;   // ip kısalma hızı
   // basılı tutarken parmağın/farenin başlangıç noktasına göre yatay kaydırma: -1..1
@@ -380,7 +380,7 @@
   addEventListener('blur', () => { reelIds.clear(); mouseReel = false; btnReel = 0; });
   cv.addEventListener('contextmenu', e => e.preventDefault());
 
-  const FIRE_KEYS = ['Space', 'KeyW', 'ArrowUp'];
+  const FIRE_KEYS = ['Space', 'ArrowUp'];   // W artık ipi yukarı çeker
   addEventListener('keydown', e => {
     if (FIRE_KEYS.includes(e.code) || e.code.startsWith('Arrow')) e.preventDefault();
     if (e.repeat) return;
