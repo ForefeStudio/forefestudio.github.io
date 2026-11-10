@@ -107,7 +107,8 @@
       🛒 Spend coins in the <b>Shop</b> to make the magnet and jetpack last longer!<br>
       <span style="display:block;margin-top:8px;color:#ddd6ff">Watch out:</span>
       🔫 <b>Turrets</b> shoot at you from the ceilings. Dodge when they flash red!<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Crash into a turret to break it: <b>+3 🪙</b>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Crash into a turret to break it: <b>+3 🪙</b><br>
+      🤖 <b>Drones</b> fly by now and then. Don't touch them! A red <b>!</b> warns you first.
     </div>
   </div>
 </div>
@@ -206,6 +207,11 @@
   let p, rope, blocks, gems, parts, trail, camX, genX, maxDist, gemCount, deadT, time, shake;
   // ---------- taretler (sarkıtlardan ateş eden silahlar) ----------
   let turrets = [], bullets = [];
+  // ---------- dronlar (arada bir sağdan sola geçer, çarparsan yanarsın) ----------
+  let drones = [], droneTimer = 0;
+  const DRONE_START = 1500;     // ilk dronun çıkabileceği mesafe (150 m)
+  const DRONE_WARN = 1.0;       // ekrana girmeden önce sağ kenarda "!" uyarısı (sn)
+  const DRONE_R = 22;           // çarpışma yarıçapı
   const TURRET_START = 1800;    // ilk taretin çıkabileceği mesafe
   const TURRET_RANGE = 750;     // bu mesafeden yakınsan ateş eder
   const BULLET_SPEED = 430;
@@ -249,6 +255,7 @@
   function reset() {
     p = { x: 180, y: 500, vx: 0, vy: 0, ground: false, face: 1, jetY: 440, glide: 0 };
     pows = []; texts = []; testIdx = 0; turrets = []; bullets = [];
+    drones = []; droneTimer = rand(4, 7);
     // test modu: ilk roket, başlangıçtaki ilk sallanışın tam geçtiği yerde
     if (TEST_POWERUPS) { pows.push({ x: 440, y: 498, t: 'jet', taken: false, ph: 0 }); testIdx = 1; }
     active = { magnet: 0, jet: 0, shield: 0 };
@@ -488,7 +495,8 @@
 
   function die(reason = 'lava') {
     if (state !== 'play') return;
-    $('oTitle').textContent = reason === 'shot' ? 'You got shot! 💥' : 'You fell into the lava! 🔥';
+    $('oTitle').textContent = reason === 'shot' ? 'You got shot! 💥'
+      : reason === 'drone' ? 'Hit by a drone! 💥' : 'You fell into the lava! 🔥';
     $('ctrl').classList.add('hidden'); btnReel = 0;
     $('btnUp').classList.remove('on'); $('btnDown').classList.remove('on');
     state = 'dead'; deadT = 0; rope.st = 'none'; shake = 14;
@@ -699,6 +707,34 @@
       }
       bullets = bullets.filter(b => b.life > 0);
 
+      // dronlar
+      if (p.x > DRONE_START) {
+        droneTimer -= dt;
+        if (droneTimer <= 0) {
+          drones.push({ x: camX + viewW + 70, baseY: rand(130, 540), y: 0, vx: -rand(230, 330) - k * 120,
+                        warn: DRONE_WARN, ph: Math.random() * 6, dead: false });
+          droneTimer = rand(6, 10) - k * 3.5;
+        }
+      }
+      for (const d of drones) {
+        d.y = d.baseY + Math.sin(time * 2.2 + d.ph) * 18;
+        if (d.warn > 0) {                       // uyarı: ekranın hemen sağında bekler
+          d.warn -= dt; d.x = camX + viewW + 70;
+          if (d.warn <= 0) beep(520, 0.12, 'sawtooth', 0.025, 380);
+          continue;
+        }
+        d.x += d.vx * dt;
+        if (Math.hypot(d.x - p.x, d.y - p.y) < PR + DRONE_R) {
+          if (active.shield > 0) {              // kalkan dronu patlatır
+            d.dead = true; gemCount += 3; shake = 6;
+            texts.push({ x: d.x, y: d.y - 20, txt: '💥 +3 🪙', life: 1.2, c: '#ffd166' });
+            beep(180, 0.25, 'sawtooth', 0.06, 50);
+            for (let i = 0; i < 24; i++) parts.push({ x: d.x, y: d.y, vx: rand(-350, 350), vy: rand(-350, 200), life: rand(.4, .8), max: .8, c: Math.random() < .5 ? '#5ef0ff' : '#ff8c42', s: rand(2, 5) });
+          } else { die('drone'); break; }
+        }
+      }
+      drones = drones.filter(d => !d.dead && d.x > camX - 300);
+
       maxDist = Math.max(maxDist, (p.x - 180) / 10);
       if (p.y + PR > LAVA_Y + 6) {
         if (active.shield > 0) {
@@ -895,6 +931,44 @@
       ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - b.vx * 0.05, b.y - b.vy * 0.05); ctx.stroke();
       ctx.fillStyle = '#ffd1a8'; ctx.shadowColor = '#ff4d2e'; ctx.shadowBlur = 12;
       ctx.beginPath(); ctx.arc(b.x, b.y, 6, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+    }
+
+    // dronlar
+    for (const d of drones) {
+      if (d.warn > 0) {
+        // sağ kenarda yanıp sönen uyarı
+        if (Math.floor(time * 8) % 2) continue;
+        const wx = camX + viewW - 26;
+        ctx.fillStyle = 'rgba(255,59,59,.9)'; ctx.shadowColor = '#ff3b3b'; ctx.shadowBlur = 14;
+        ctx.beginPath(); ctx.moveTo(wx - 14, d.y); ctx.lineTo(wx + 8, d.y - 14); ctx.lineTo(wx + 8, d.y + 14); ctx.closePath(); ctx.fill();
+        ctx.shadowBlur = 0; ctx.fillStyle = '#fff'; ctx.font = 'bold 16px system-ui,sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('!', wx + 1, d.y + 1);
+        continue;
+      }
+      if (d.x < camX - 60 || d.x > camX + viewW + 60) continue;
+      ctx.save(); ctx.translate(d.x, d.y); ctx.scale(1.4, 1.4); ctx.rotate(Math.sin(time * 2.2 + d.ph) * 0.08 - 0.08);
+      // kollar
+      ctx.strokeStyle = '#4a4f6b'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-8, -3); ctx.lineTo(-20, -9); ctx.moveTo(8, -3); ctx.lineTo(20, -9); ctx.stroke();
+      // pervaneler (hızlı dönüyormuş gibi titrer)
+      const pw = 9 + Math.abs(Math.sin(time * 60 + d.ph)) * 5;
+      ctx.fillStyle = 'rgba(200,220,255,.55)';
+      ctx.beginPath(); ctx.ellipse(-20, -11, pw, 2, 0, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(20, -11, pw, 2, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#6b7194'; ctx.fillRect(-21, -12, 2, 4); ctx.fillRect(19, -12, 2, 4);
+      // gövde
+      ctx.fillStyle = '#2b2f45'; ctx.beginPath(); ctx.ellipse(0, 0, 15, 9, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#5ef0ff'; ctx.lineWidth = 2; ctx.shadowColor = '#5ef0ff'; ctx.shadowBlur = 10;
+      ctx.beginPath(); ctx.moveTo(-11, 2); ctx.lineTo(11, 2); ctx.stroke(); ctx.shadowBlur = 0;
+      // kamera gözü (yanıp söner)
+      const on = Math.floor(time * 5 + d.ph) % 2 === 0;
+      ctx.fillStyle = on ? '#ff3b3b' : '#7a1f1f';
+      if (on) { ctx.shadowColor = '#ff3b3b'; ctx.shadowBlur = 12; }
+      ctx.beginPath(); ctx.arc(-9, 4, 3.5, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+      // alt anten
+      ctx.strokeStyle = '#4a4f6b'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(4, 8); ctx.lineTo(4, 13); ctx.stroke();
+      ctx.restore();
     }
 
     // altın paralar (kendi ekseninde döner)
