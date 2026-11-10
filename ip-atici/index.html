@@ -39,6 +39,26 @@
     button{font-size:18px;padding:12px 28px}
     button.sec{font-size:15px;padding:10px 16px}
   }
+  /* karakter seçimi */
+  .panel.wide{width:calc(100% - 32px);max-width:600px;box-sizing:border-box;position:relative}
+  .back-top{position:absolute;left:12px;top:12px;margin:0 !important;padding:7px 12px !important;font-size:14px !important}
+  .cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:10px;margin:12px 0}
+  .ccard{background:rgba(255,255,255,.06);border:2px solid #ffffff18;border-radius:14px;padding:8px 6px;
+    display:flex;flex-direction:column;align-items:center;gap:4px}
+  .ccard.sel{border-color:#ffd166;background:rgba(255,209,102,.12)}
+  .ccard canvas{width:76px;height:76px}
+  .ccard .cn{font-weight:800;color:#fff}
+  .ccard button{margin:0;padding:8px 6px;font-size:13px;width:100%;border-radius:10px;box-shadow:0 3px 0 #b3612f}
+  .ccard button.own{background:rgba(255,255,255,.12);color:#fff;box-shadow:none}
+  .ccard button:disabled{opacity:.5;cursor:default}
+  .ccard button.selb:disabled{opacity:1;background:transparent;color:#ffd166;box-shadow:none}
+  @media (max-width:480px), (max-height:500px){
+    .cgrid{grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;margin:8px 0}
+    .ccard{padding:6px 4px}
+    .ccard canvas{width:60px;height:60px}
+    .ccard button{font-size:12px;padding:6px 4px}
+    .panel.wide h2{margin-top:30px}
+  }
   /* ikincil buton ve mağaza */
   button.sec{background:rgba(255,255,255,.08);color:#ffd166;border:2px solid #ffd16688;box-shadow:none;
     font-size:17px;padding:12px 22px;margin-left:6px}
@@ -87,6 +107,7 @@
     <div class="menuTop">
       <button id="playBtn">PLAY</button>
       <button id="shopBtn" class="sec">🛒 SHOP</button>
+      <button id="charBtn" class="sec">🥷 NINJAS</button>
       <p id="menuBest"></p>
       <p id="menuWallet"></p>
     </div>
@@ -105,11 +126,22 @@
       🚀 <b>Jetpack</b> → flies you forward; hold and move your finger up/down to steer (W/S) (5 s)<br>
       🛡️ <b>Shield</b> → blocks bullets and saves you from the lava once (8 s)<br>
       🛒 Spend coins in the <b>Shop</b> to make the magnet and jetpack last longer!<br>
+      🥷 Unlock new <b>Ninjas</b> with your coins!<br>
       <span style="display:block;margin-top:8px;color:#ddd6ff">Watch out:</span>
       🔫 <b>Turrets</b> shoot at you from the ceilings. Dodge when they flash red!<br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Crash into a turret to break it: <b>+3 🪙</b><br>
       🤖 <b>Drones</b> come from behind now and then. Don't touch them! A red <b>!</b> on the left warns you first.
     </div>
+  </div>
+</div>
+
+<div id="chars" class="overlay hidden">
+  <div class="panel wide">
+    <button id="charBack" class="sec back-top">← BACK</button>
+    <h2 style="color:#ffd166">🥷 Ninjas</h2>
+    <p class="big" id="charWallet"></p>
+    <p style="font-size:14px">Unlock new ninjas with your coins.</p>
+    <div id="charList" class="cgrid"></div>
   </div>
 </div>
 
@@ -132,6 +164,7 @@
     <p id="oWallet" style="color:#ffd166"></p>
     <button id="againBtn">PLAY AGAIN</button>
     <button id="shopBtn2" class="sec">🛒 SHOP</button>
+    <button id="charBtn2" class="sec">🥷 NINJAS</button>
     <p style="font-size:13px;color:#9a90cc">(or press R / Enter)</p>
   </div>
 </div>
@@ -184,6 +217,28 @@
   function saveProgress() {
     try { localStorage.setItem('ipAticiWallet', wallet); localStorage.setItem('ipAticiUpg', JSON.stringify(upg)); } catch (e) {}
   }
+  // ---------- karakterler (altınla açılır) ----------
+  const CHARS = [
+    { id: 'shadow', name: 'Shadow', price: 0,    body: '#1d1d3a', band: '#ff4d6d', scarf: '#ff4d6d', eye: '#fff',    acc: null },
+    { id: 'frost',  name: 'Frost',  price: 100,  body: '#1b2a4a', band: '#5ef0ff', scarf: '#8fd3ff', eye: '#fff',    acc: null },
+    { id: 'neko',   name: 'Neko',   price: 200,  body: '#2a2238', band: '#ff9ad5', scarf: '#ff9ad5', eye: '#fff',    acc: 'ears' },
+    { id: 'jade',   name: 'Jade',   price: 300,  body: '#16302a', band: '#5ee6a8', scarf: '#5ee6a8', eye: '#fff',    acc: null },
+    { id: 'robo',   name: 'Robo',   price: 400,  body: '#4a4f6b', band: '#5ef0ff', scarf: '#c0c4d6', eye: '#5ef0ff', acc: 'antenna' },
+    { id: 'ember',  name: 'Ember',  price: 500,  body: '#3a1414', band: '#ffb703', scarf: '#ff6b1a', eye: '#fff',    acc: 'horns' },
+    { id: 'ghost',  name: 'Ghost',  price: 700,  body: '#e9e6ff', band: '#9b5de5', scarf: '#c7b8ff', eye: '#1d1d3a', acc: null },
+    { id: 'king',   name: 'King',   price: 1000, body: '#1d1d3a', band: '#ffd166', scarf: '#ffd166', eye: '#fff',    acc: 'crown' },
+  ];
+  let owned = ['shadow'], charId = 'shadow';
+  try {
+    const o = JSON.parse(localStorage.getItem('ipAticiChars') || '[]');
+    if (Array.isArray(o)) for (const id of o) if (CHARS.some(c => c.id === id) && !owned.includes(id)) owned.push(id);
+    const sel = localStorage.getItem('ipAticiChar');
+    if (sel && owned.includes(sel)) charId = sel;
+  } catch (e) {}
+  function saveChars() {
+    try { localStorage.setItem('ipAticiChars', JSON.stringify(owned)); localStorage.setItem('ipAticiChar', charId); } catch (e) {}
+  }
+  const curChar = () => CHARS.find(c => c.id === charId) || CHARS[0];
   const upgDur = (k, lv) => UPG[k].base + UPG[k].step * lv;
   const durOf = t => UPG[t] ? upgDur(t, upg[t]) : PW[t].dur;
   const fmtSec = s => s.toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' s';
@@ -209,7 +264,7 @@
   let turrets = [], bullets = [];
   // ---------- dronlar (arada bir arkadan/soldan gelip geçer, çarparsan yanarsın) ----------
   let drones = [], droneTimer = 0;
-  const DRONE_START = 1500;     // ilk dronun çıkabileceği mesafe (150 m)
+  const DRONE_START = 2500;     // ilk dronun çıkabileceği mesafe (250 m)
   const DRONE_WARN = 1.0;       // ekrana girmeden önce sağ kenarda "!" uyarısı (sn)
   const DRONE_R = 22;           // çarpışma yarıçapı
   const TURRET_START = 1800;    // ilk taretin çıkabileceği mesafe
@@ -255,7 +310,7 @@
   function reset() {
     p = { x: 180, y: 500, vx: 0, vy: 0, ground: false, face: 1, jetY: 440, glide: 0 };
     pows = []; texts = []; testIdx = 0; turrets = []; bullets = [];
-    drones = []; droneTimer = rand(4, 7);
+    drones = []; droneTimer = rand(10, 16);
     // test modu: ilk roket, başlangıçtaki ilk sallanışın tam geçtiği yerde
     if (TEST_POWERUPS) { pows.push({ x: 440, y: 498, t: 'jet', taken: false, ph: 0 }); testIdx = 1; }
     active = { magnet: 0, jet: 0, shield: 0 };
@@ -427,7 +482,7 @@
   showMenuBest();
   function start() {
     reset(); state = 'play';
-    $('menu').classList.add('hidden'); $('over').classList.add('hidden'); $('shop').classList.add('hidden'); $('hud').classList.remove('hidden');
+    $('menu').classList.add('hidden'); $('over').classList.add('hidden'); $('shop').classList.add('hidden'); $('chars').classList.add('hidden'); $('hud').classList.remove('hidden');
     $('ctrl').classList.remove('hidden');
     beep(440, 0.1, 'triangle', 0.05, 880);
   }
@@ -467,6 +522,51 @@
     shopFrom = from; renderShop();
     $(from).classList.add('hidden'); $('shop').classList.remove('hidden');
   }
+  // ---------- karakter seçimi ----------
+  let charFrom = 'menu';
+  function renderChars() {
+    $('charWallet').textContent = `Coins: ${wallet} 🪙`;
+    const list = $('charList'); list.innerHTML = '';
+    for (const C of CHARS) {
+      const has = owned.includes(C.id), sel = C.id === charId;
+      const card = document.createElement('div'); card.className = 'ccard' + (sel ? ' sel' : '');
+      const cv2 = document.createElement('canvas'); cv2.width = 152; cv2.height = 152;
+      const g = cv2.getContext('2d');
+      g.setTransform(2, 0, 0, 2, 0, 0); g.translate(42, 45); g.scale(1.45, 1.45);   // taç, kulak ve boynuz da sığsın
+      // atkı
+      g.strokeStyle = C.scarf; g.lineCap = 'round';
+      for (let i = 0; i < 6; i++) {
+        g.lineWidth = 5 * (1 - i / 6);
+        g.beginPath(); g.moveTo(-4 - i * 3, -6 + Math.sin(i) * 1.5); g.lineTo(-7 - i * 3, -6 + Math.sin(i + 1) * 1.5); g.stroke();
+      }
+      drawNinja(g, C, 1, 4);
+      const nm = document.createElement('div'); nm.className = 'cn'; nm.textContent = C.name;
+      const btn = document.createElement('button');
+      if (sel) { btn.textContent = '✓ SELECTED'; btn.disabled = true; btn.className = 'selb'; }
+      else if (has) { btn.textContent = 'SELECT'; btn.className = 'own'; }
+      else { btn.textContent = `🔒 ${C.price} 🪙`; btn.disabled = wallet < C.price; }
+      btn.onclick = () => {
+        if (!owned.includes(C.id)) {
+          if (wallet < C.price) return;
+          wallet -= C.price; owned.push(C.id); saveProgress();
+          beep(660, 0.08, 'triangle', 0.05, 990); setTimeout(() => beep(1320, 0.12, 'triangle', 0.05, 1760), 90);
+        } else beep(880, 0.06, 'triangle', 0.04, 1200);
+        charId = C.id; saveChars(); renderChars(); showMenuBest();
+      };
+      card.append(cv2, nm, btn); list.appendChild(card);
+    }
+  }
+  function openChars(from) {
+    charFrom = from; renderChars();
+    $(from).classList.add('hidden'); $('chars').classList.remove('hidden');
+  }
+  $('charBtn').onclick = () => openChars('menu');
+  $('charBtn2').onclick = () => openChars('over');
+  $('charBack').onclick = () => {
+    $('chars').classList.add('hidden'); $(charFrom).classList.remove('hidden');
+    if (charFrom === 'over') $('oWallet').textContent = `Coins: ${wallet} 🪙`;
+  };
+
   $('shopBtn').onclick = () => openShop('menu');
   $('shopBtn2').onclick = () => openShop('over');
   $('shopBack').onclick = () => {
@@ -714,7 +814,7 @@
           // arkadan (soldan) gelir; oyuncudan hep biraz hızlı gider ki yetişip geçsin
           drones.push({ x: camX - 70, baseY: rand(130, 470), y: 0, rel: rand(180, 280) + k * 120,
                         warn: DRONE_WARN, ph: Math.random() * 6, dead: false });
-          droneTimer = rand(6, 10) - k * 3.5;
+          droneTimer = rand(14, 22) - k * 5;   // seyrek: oyuncuyu sıkmasın (en az ~9 sn)
         }
       }
       for (const d of drones) {
@@ -833,11 +933,50 @@
     }
   }
 
+  // ninjayı (0,0) merkezli çizer; oyunda ve karakter seçim kartlarında kullanılır
+  function drawNinja(g, C, face, sw) {
+    // aksesuar (arkada kalanlar)
+    if (C.acc === 'ears') {
+      g.fillStyle = C.body;
+      g.beginPath(); g.moveTo(-11, -8); g.lineTo(-9, -24); g.lineTo(-1, -13); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(11, -8); g.lineTo(9, -24); g.lineTo(1, -13); g.closePath(); g.fill();
+      g.fillStyle = C.band;
+      g.beginPath(); g.moveTo(-9, -12); g.lineTo(-8.5, -20); g.lineTo(-4, -14); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(9, -12); g.lineTo(8.5, -20); g.lineTo(4, -14); g.closePath(); g.fill();
+    } else if (C.acc === 'horns') {
+      g.fillStyle = C.band;
+      g.beginPath(); g.moveTo(-9, -12); g.quadraticCurveTo(-16, -20, -12, -27); g.quadraticCurveTo(-10, -19, -4, -14); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(9, -12); g.quadraticCurveTo(16, -20, 12, -27); g.quadraticCurveTo(10, -19, 4, -14); g.closePath(); g.fill();
+    } else if (C.acc === 'antenna') {
+      g.strokeStyle = '#9aa0b8'; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(0, -PR); g.lineTo(0, -PR - 9); g.stroke();
+      g.fillStyle = Math.floor(time * 3) % 2 ? C.band : '#ff3b3b';
+      g.beginPath(); g.arc(0, -PR - 10, 3, 0, 7); g.fill();
+    }
+    // gövde
+    g.fillStyle = C.body; g.beginPath(); g.arc(0, 0, PR, 0, 7); g.fill();
+    g.fillStyle = C.band; g.fillRect(-PR, -5, PR * 2, 5);
+    // göz bandı
+    g.fillStyle = C.eye; g.beginPath(); g.ellipse(face * 5, -10, 3.2, 2.2, 0, 0, 7); g.fill();
+    g.fillStyle = C.body; g.beginPath(); g.arc(0, -11, PR - 4, Math.PI, 0); g.fill();
+    g.fillStyle = C.eye; g.beginPath(); g.ellipse(face * 6, -11, 3.5, 2.2, 0, 0, 7); g.fill();
+    g.fillStyle = C.band; g.fillRect(-PR + 3, -17, (PR - 3) * 2, 3);
+    if (C.acc === 'crown') {
+      g.fillStyle = '#ffd166'; g.strokeStyle = '#e0a100'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(-8, -17); g.lineTo(-9, -26); g.lineTo(-4, -21); g.lineTo(0, -28); g.lineTo(4, -21); g.lineTo(9, -26); g.lineTo(8, -17); g.closePath();
+      g.fill(); g.stroke();
+      g.fillStyle = '#ff4d6d'; g.beginPath(); g.arc(0, -20, 1.6, 0, 7); g.fill();
+    }
+    // bacaklar
+    g.strokeStyle = C.body; g.lineWidth = 4; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(-5, PR - 3); g.lineTo(-5 - sw, PR + 7); g.moveTo(5, PR - 3); g.lineTo(5 + sw, PR + 7); g.stroke();
+  }
+
   function drawPlayer() {
     // atkı izi
     trail.unshift({ x: p.x, y: p.y - 6 });
     if (trail.length > 14) trail.pop();
-    ctx.strokeStyle = '#ff4d6d'; ctx.lineCap = 'round';
+    ctx.strokeStyle = curChar().scarf; ctx.lineCap = 'round';
     for (let i = 1; i < trail.length; i++) {
       ctx.lineWidth = 7 * (1 - i / trail.length);
       ctx.beginPath(); ctx.moveTo(trail[i - 1].x - p.face * 3, trail[i - 1].y + Math.sin(time * 20 + i) * 1.5);
@@ -856,23 +995,13 @@
     if (active.jet > 0) {
       const bx = p.face > 0 ? -PR - 7 : PR - 1;
       ctx.fillStyle = '#c0c4d6'; ctx.fillRect(bx, -9, 8, 18);
-      ctx.fillStyle = '#ff4d6d'; ctx.fillRect(bx, -9, 8, 4);
+      ctx.fillStyle = curChar().band; ctx.fillRect(bx, -9, 8, 4);
       ctx.fillStyle = Math.random() < .5 ? '#ffb703' : '#ff6b1a';
       const fl = 10 + Math.random() * 10;
       ctx.beginPath(); ctx.moveTo(bx, 9); ctx.lineTo(bx + 8, 9); ctx.lineTo(bx + 4, 9 + fl); ctx.fill();
     }
-    // gövde
-    ctx.fillStyle = '#1d1d3a'; ctx.beginPath(); ctx.arc(0, 0, PR, 0, 7); ctx.fill();
-    ctx.fillStyle = '#ff4d6d'; ctx.fillRect(-PR, -5, PR * 2, 5);
-    // göz bandı
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(p.face * 5, -10, 3.2, 2.2, 0, 0, 7); ctx.fill();
-    ctx.fillStyle = '#1d1d3a'; ctx.beginPath(); ctx.arc(0, -11, PR - 4, Math.PI, 0); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(p.face * 6, -11, 3.5, 2.2, 0, 0, 7); ctx.fill();
-    ctx.fillStyle = '#ff4d6d'; ctx.fillRect(-PR + 3, -17, (PR - 3) * 2, 3);
-    // bacaklar
-    ctx.strokeStyle = '#1d1d3a'; ctx.lineWidth = 4;
     const sw = p.ground ? Math.sin(time * 18) * Math.min(1, Math.abs(p.vx) / 200) * 6 : 4;
-    ctx.beginPath(); ctx.moveTo(-5, PR - 3); ctx.lineTo(-5 - sw, PR + 7); ctx.moveTo(5, PR - 3); ctx.lineTo(5 + sw, PR + 7); ctx.stroke();
+    drawNinja(ctx, curChar(), p.face, sw);
     ctx.restore();
     // kalkan baloncuğu (bitmeye yakın yanıp söner)
     if (active.shield > 0 && !(active.shield < 2 && Math.floor(time * 8) % 2)) {
