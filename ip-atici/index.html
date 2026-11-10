@@ -28,6 +28,19 @@
     box-shadow:0 6px 0 #b3612f}
   button:active{transform:translateY(3px);box-shadow:0 3px 0 #b3612f}
   .hidden{display:none}
+  /* sol alttaki ip kontrol butonları */
+  #ctrl{position:fixed;left:max(16px,env(safe-area-inset-left));bottom:max(18px,env(safe-area-inset-bottom));
+    display:flex;flex-direction:column;gap:14px;z-index:5;user-select:none;-webkit-user-select:none}
+  #ctrl.hidden{display:none}
+  .cbtn{width:78px;height:78px;margin:0;padding:0;border-radius:50%;border:2px solid #ffffff40;
+    background:rgba(28,20,66,.55);color:#ffd166;font-size:26px;font-weight:800;line-height:1;box-shadow:none;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    touch-action:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;cursor:pointer}
+  .cbtn small{font-size:12px;color:#fff;letter-spacing:1px}
+  .cbtn:active{transform:none;box-shadow:none}
+  .cbtn.on{background:rgba(255,209,102,.38);border-color:#ffd166;transform:scale(.95)}
+  #btnDown{color:#8fd3ff}
+  #btnDown.on{background:rgba(143,211,255,.32);border-color:#8fd3ff}
 </style>
 </head>
 <body>
@@ -35,6 +48,10 @@
 <div id="hud" class="hidden">
   <span id="hDist">0 m</span>
   <span id="hGem">🪙 0 · 🏆 0</span>
+</div>
+<div id="ctrl" class="hidden">
+  <button class="cbtn" id="btnUp" aria-label="İpi çek">▲<small>ÇEK</small></button>
+  <button class="cbtn" id="btnDown" aria-label="İpi uzat">▼<small>UZAT</small></button>
 </div>
 
 <div id="menu" class="overlay">
@@ -44,8 +61,8 @@
     <div class="keys">
       🖱️ <b>Tıkla / dokun ve basılı tut</b> → o yöne ip at<br>
       👉 <b>Basılı tutarken sağa / sola kaydır</b> → o yöne sallan<br>
-      ☝️ <b>Basılı tutarken yukarı kaydır</b> → ip kısalır, kendini çekersin<br>
-      👇 <b>Basılı tutarken aşağı kaydır</b> → ip uzar<br>
+      ⬆️ <b>Soldaki ▲ ÇEK butonuna basılı tut</b> → ip kısalır, kendini çekersin<br>
+      ⬇️ <b>▼ UZAT butonuna basılı tut</b> → ip uzar, aşağı inersin<br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(klavye: <b>Shift / E</b> kısalt, <b>S / ↓</b> uzat)<br>
       ✋ <b>Bırak</b> → ipi bırak, havada süzül<br>
       ⌨️ <b>Boşluk / W / ↑</b> → otomatik nişanla ip at<br>
@@ -153,7 +170,9 @@
     if (Math.abs(dv) < 18 || Math.abs(dv) < Math.abs(dh) * 0.6) return 0;   // sallanırken yanlışlıkla tetiklenmesin
     return clamp(dv / 80, -1, 1);
   };
-  const reelAmount = () => (mouseReel || keys.ShiftLeft || keys.ShiftRight || keys.KeyE) ? 1 : vDrag();
+  // sol alttaki butonlar: ÇEK = +1 (kısalt), UZAT = -1 (uzat)
+  let btnReel = 0;
+  const reelAmount = () => (mouseReel || keys.ShiftLeft || keys.ShiftRight || keys.KeyE) ? 1 : btnReel;
   const reeling = () => reelAmount() !== 0;
   const REEL_SPEED = 210;   // ip kısalma hızı
   // basılı tutarken parmağın/farenin başlangıç noktasına göre yatay kaydırma: -1..1
@@ -308,7 +327,7 @@
   }
   addEventListener('pointerup', pointerEnd);
   addEventListener('pointercancel', pointerEnd);
-  addEventListener('blur', () => { reelIds.clear(); mouseReel = false; });
+  addEventListener('blur', () => { reelIds.clear(); mouseReel = false; btnReel = 0; });
   cv.addEventListener('contextmenu', e => e.preventDefault());
 
   const FIRE_KEYS = ['Space', 'KeyW', 'ArrowUp'];
@@ -335,15 +354,36 @@
   function start() {
     reset(); state = 'play';
     $('menu').classList.add('hidden'); $('over').classList.add('hidden'); $('hud').classList.remove('hidden');
+    $('ctrl').classList.remove('hidden');
     beep(440, 0.1, 'triangle', 0.05, 880);
   }
   $('playBtn').onclick = start;
   $('againBtn').onclick = start;
+
+  // ÇEK / UZAT butonları: basılı tuttukça çalışır, bırakınca durur
+  function bindBtn(id, val) {
+    const el = $(id);
+    const on = e => {
+      e.preventDefault(); e.stopPropagation();
+      try { el.setPointerCapture(e.pointerId); } catch (_) {}
+      btnReel = val; el.classList.add('on');
+    };
+    const off = () => { if (btnReel === val) btnReel = 0; el.classList.remove('on'); };
+    el.addEventListener('pointerdown', on);
+    el.addEventListener('pointerup', off);
+    el.addEventListener('pointercancel', off);
+    el.addEventListener('lostpointercapture', off);
+    el.addEventListener('contextmenu', e => e.preventDefault());
+  }
+  bindBtn('btnUp', 1);
+  bindBtn('btnDown', -1);
   const score = () => Math.floor(maxDist) + gemCount * 10;
 
   function die(reason = 'lava') {
     if (state !== 'play') return;
     $('oTitle').textContent = reason === 'shot' ? 'Vuruldun! 💥' : 'Lava düştün! 🔥';
+    $('ctrl').classList.add('hidden'); btnReel = 0;
+    $('btnUp').classList.remove('on'); $('btnDown').classList.remove('on');
     state = 'dead'; deadT = 0; rope.st = 'none'; shake = 14;
     for (let i = 0; i < 40; i++)
       parts.push({ x: p.x, y: p.y, vx: rand(-400, 400), vy: rand(-700, -100), life: rand(0.6, 1.2), max: 1.2, c: Math.random() < .5 ? '#ffb703' : '#ff4d4d', s: rand(2, 5) });
@@ -825,7 +865,7 @@
       ctx.globalAlpha = 1;
     }
     // ip kısaltma/uzatma göstergesi: yukarı/aşağı oklar
-    const vd = vDrag();
+    const vd = reelAmount();
     if (state === 'play' && rope.st === 'attached' && vd) {
       const s = -Math.sign(vd), n = Math.ceil(Math.abs(vd) * 3);   // yukarı kaydırma -> yukarı ok
       ctx.strokeStyle = vd > 0 ? '#ffd166' : '#8fd3ff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
