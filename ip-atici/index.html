@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>İp Atıcı</title>
+<title>Rope Ninja</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#0b0820;color:#fff;
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -75,63 +75,63 @@
   <span id="hGem">🪙 0 · 🏆 0</span>
 </div>
 <div id="ctrl" class="hidden">
-  <button class="cbtn" id="btnUp" aria-label="İpi çek">▲<small>ÇEK</small></button>
-  <button class="cbtn" id="btnDown" aria-label="İpi uzat">▼<small>UZAT</small></button>
+  <button class="cbtn" id="btnUp" aria-label="Pull rope">▲<small>PULL</small></button>
+  <button class="cbtn" id="btnDown" aria-label="Extend rope">▼<small>LOWER</small></button>
 </div>
 
 <div id="menu" class="overlay">
   <div class="panel">
-    <h1>İP ATICI</h1>
-    <p>Tavanlara ve bloklara ip fırlat, sallan, bırak ve uç!<br>Lavlara düşmeden olabildiğince ileri git.</p>
+    <h1>ROPE NINJA</h1>
+    <p>Shoot your rope, swing, let go and fly!<br>Get as far as you can without falling into the lava.</p>
     <!-- butonlar en üstte: küçük ekranlarda da hep görünsün -->
     <div class="menuTop">
-      <button id="playBtn">OYNA</button>
-      <button id="shopBtn" class="sec">🛒 MAĞAZA</button>
+      <button id="playBtn">PLAY</button>
+      <button id="shopBtn" class="sec">🛒 SHOP</button>
       <p id="menuBest"></p>
       <p id="menuWallet"></p>
     </div>
     <div class="keys">
-      🖱️ <b>Tıkla / dokun ve basılı tut</b> → o yöne ip at<br>
-      👉 <b>Basılı tutarken sağa / sola kaydır</b> → o yöne sallan<br>
-      ⬆️ <b>Soldaki ▲ ÇEK butonuna basılı tut</b> → ip kısalır, kendini çekersin<br>
-      ⬇️ <b>▼ UZAT butonuna basılı tut</b> → ip uzar, aşağı inersin<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(klavye: <b>W</b> ipi yukarı çek, <b>S</b> ipi uzat)<br>
-      ✋ <b>Bırak</b> → ipi bırak, havada süzül<br>
-      ⌨️ <b>Boşluk / ↑</b> → otomatik nişanla ip at<br>
-      ↔️ <b>A / D / ← →</b> → sallanmayı güçlendir<br>
-      🪙 Altınları topla: her biri <b>+10 puan</b><br>
-      <span style="display:block;margin-top:8px;color:#ddd6ff">Süreli güçlendiriciler:</span>
-      🧲 <b>Mıknatıs</b> → yakındaki altınlar sana uçar (10 sn)<br>
-      🚀 <b>Roket çanta</b> → ileri uçurur; basılı tutup parmağınla yukarı/aşağı yönlendir (W/S) (5 sn)<br>
-      🛡️ <b>Kalkan</b> → mermileri durdurur, lava düşersen seni bir kez kurtarır (8 sn)<br>
-      🛒 Altınlarla <b>Mağaza</b>'dan mıknatıs ve roket süresini uzat!<br>
-      <span style="display:block;margin-top:8px;color:#ddd6ff">Dikkat:</span>
-      🔫 <b>Taretler</b> sarkıtlardan sana ateş eder. Kırmızı yanıp sönünce kaç!<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Tarete çarparsan kırılır: <b>+3 🪙</b>
+      🖱️ <b>Click / tap and hold</b> → shoot your rope there<br>
+      👉 <b>Hold and slide left / right</b> → swing that way<br>
+      ⬆️ <b>Hold the ▲ PULL button</b> (bottom left) → pull yourself up<br>
+      ⬇️ <b>Hold the ▼ LOWER button</b> → let out rope, go down<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(keyboard: <b>W</b> pull up, <b>S</b> let out)<br>
+      ✋ <b>Release</b> → let go and glide<br>
+      ⌨️ <b>Space / ↑</b> → auto-aim rope<br>
+      ↔️ <b>A / D / ← →</b> → swing harder<br>
+      🪙 Collect coins: <b>+10 points</b> each<br>
+      <span style="display:block;margin-top:8px;color:#ddd6ff">Timed power-ups:</span>
+      🧲 <b>Magnet</b> → nearby coins fly to you (10 s)<br>
+      🚀 <b>Jetpack</b> → flies you forward; hold and move your finger up/down to steer (W/S) (5 s)<br>
+      🛡️ <b>Shield</b> → blocks bullets and saves you from the lava once (8 s)<br>
+      🛒 Spend coins in the <b>Shop</b> to make the magnet and jetpack last longer!<br>
+      <span style="display:block;margin-top:8px;color:#ddd6ff">Watch out:</span>
+      🔫 <b>Turrets</b> shoot at you from the ceilings. Dodge when they flash red!<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Crash into a turret to break it: <b>+3 🪙</b>
     </div>
   </div>
 </div>
 
 <div id="shop" class="overlay hidden">
   <div class="panel">
-    <h2 style="color:#ffd166">🛒 Mağaza</h2>
+    <h2 style="color:#ffd166">🛒 Shop</h2>
     <p class="big" id="shopWallet"></p>
-    <p style="font-size:14px">Topladığın altınlarla güçlendiricilerin süresini uzat.</p>
+    <p style="font-size:14px">Spend your coins to make power-ups last longer.</p>
     <div id="shopList"></div>
-    <button id="shopBack" class="sec">← GERİ</button>
+    <button id="shopBack" class="sec">← BACK</button>
   </div>
 </div>
 
 <div id="over" class="overlay hidden">
   <div class="panel">
-    <h2 id="oTitle">Lava düştün! 🔥</h2>
+    <h2 id="oTitle">You fell into the lava! 🔥</h2>
     <p class="big" id="oScore"></p>
     <p id="oDetail"></p>
     <p id="oBest"></p>
     <p id="oWallet" style="color:#ffd166"></p>
-    <button id="againBtn">TEKRAR OYNA</button>
-    <button id="shopBtn2" class="sec">🛒 MAĞAZA</button>
-    <p style="font-size:13px;color:#9a90cc">(R veya Enter ile de başlatabilirsin)</p>
+    <button id="againBtn">PLAY AGAIN</button>
+    <button id="shopBtn2" class="sec">🛒 SHOP</button>
+    <p style="font-size:13px;color:#9a90cc">(or press R / Enter)</p>
   </div>
 </div>
 
@@ -185,7 +185,7 @@
   }
   const upgDur = (k, lv) => UPG[k].base + UPG[k].step * lv;
   const durOf = t => UPG[t] ? upgDur(t, upg[t]) : PW[t].dur;
-  const fmtSec = s => s.toLocaleString('tr-TR', { maximumFractionDigits: 1 }) + ' sn';
+  const fmtSec = s => s.toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' s';
 
   // ---------- ses ----------
   let ac = null;
@@ -212,9 +212,9 @@
   const WARN_TIME = 0.5;        // ateşten önce kırmızı yanıp sönme süresi
   // ---------- süreli güçlendiriciler ----------
   const PW = {
-    magnet: { icon: '🧲', name: 'Mıknatıs', dur: 10, col: '#ff6b9d' },
-    jet:    { icon: '🚀', name: 'Roket Çanta', dur: 5, col: '#ffb703' },
-    shield: { icon: '🛡️', name: 'Kalkan', dur: 8, col: '#7ec8ff' },
+    magnet: { icon: '🧲', name: 'Magnet', dur: 10, col: '#ff6b9d' },
+    jet:    { icon: '🚀', name: 'Jetpack', dur: 5, col: '#ffb703' },
+    shield: { icon: '🛡️', name: 'Shield', dur: 8, col: '#7ec8ff' },
   };
   let pows, active, texts, testIdx = 0;
   // TEST MODU: true iken oyunun başında (ilk ~350 m) her boşlukta bir güçlendirici çıkar.
@@ -414,8 +414,8 @@
   // ---------- arayüz ----------
   const $ = id => document.getElementById(id);
   function showMenuBest() {
-    $('menuBest').textContent = best ? `🏆 En iyi skor: ${best}` : '';
-    $('menuWallet').textContent = `👛 Kasan: ${wallet} 🪙`;
+    $('menuBest').textContent = best ? `🏆 Best score: ${best}` : '';
+    $('menuWallet').textContent = `👛 Coins: ${wallet} 🪙`;
   }
   showMenuBest();
   function start() {
@@ -429,23 +429,23 @@
 
   // ---------- mağaza ----------
   const SHOP_ITEMS = [
-    { k: 'magnet', icon: '🧲', name: 'Mıknatıs süresi' },
-    { k: 'jet',    icon: '🚀', name: 'Roket süresi' },
+    { k: 'magnet', icon: '🧲', name: 'Magnet duration' },
+    { k: 'jet',    icon: '🚀', name: 'Jetpack duration' },
   ];
   let shopFrom = 'menu';
   function renderShop() {
-    $('shopWallet').textContent = `Kasan: ${wallet} 🪙`;
+    $('shopWallet').textContent = `Coins: ${wallet} 🪙`;
     const list = $('shopList'); list.innerHTML = '';
     for (const it of SHOP_ITEMS) {
       const lv = upg[it.k], maxed = lv >= UPG_MAX, cost = maxed ? 0 : UPG_COST[lv];
       const row = document.createElement('div'); row.className = 'srow';
       const dots = '●'.repeat(lv) + '<i>' + '●'.repeat(UPG_MAX - lv) + '</i>';
-      const durTxt = maxed ? `${fmtSec(upgDur(it.k, lv))} · en yüksek seviye`
+      const durTxt = maxed ? `${fmtSec(upgDur(it.k, lv))} · max level`
                            : `${fmtSec(upgDur(it.k, lv))} → <b style="color:#fff">${fmtSec(upgDur(it.k, lv + 1))}</b>`;
       row.innerHTML = `<div class="ic">${it.icon}</div>
         <div class="info"><div class="nm">${it.name}</div><div class="dur">${durTxt}</div><div class="dots">${dots}</div></div>`;
       const btn = document.createElement('button'); btn.className = 'buy';
-      btn.innerHTML = maxed ? 'TAMAM ✓' : `YÜKSELT<br>${cost} 🪙`;
+      btn.innerHTML = maxed ? 'MAXED ✓' : `UPGRADE<br>${cost} 🪙`;
       btn.disabled = maxed || wallet < cost;
       btn.onclick = () => {
         if (upg[it.k] >= UPG_MAX || wallet < cost) return;
@@ -464,7 +464,7 @@
   $('shopBtn2').onclick = () => openShop('over');
   $('shopBack').onclick = () => {
     $('shop').classList.add('hidden'); $(shopFrom).classList.remove('hidden');
-    if (shopFrom === 'over') $('oWallet').textContent = `Kasan: ${wallet} 🪙`;
+    if (shopFrom === 'over') $('oWallet').textContent = `Coins: ${wallet} 🪙`;
   };
 
   // ÇEK / UZAT butonları: basılı tuttukça çalışır, bırakınca durur
@@ -488,7 +488,7 @@
 
   function die(reason = 'lava') {
     if (state !== 'play') return;
-    $('oTitle').textContent = reason === 'shot' ? 'Vuruldun! 💥' : 'Lava düştün! 🔥';
+    $('oTitle').textContent = reason === 'shot' ? 'You got shot! 💥' : 'You fell into the lava! 🔥';
     $('ctrl').classList.add('hidden'); btnReel = 0;
     $('btnUp').classList.remove('on'); $('btnDown').classList.remove('on');
     state = 'dead'; deadT = 0; rope.st = 'none'; shake = 14;
@@ -500,10 +500,10 @@
     wallet += gemCount; saveProgress();   // toplanan altınlar kasaya
     if (nb) { best = s; try { localStorage.setItem('ipAticiBest', best); } catch (e) {} }
     setTimeout(() => {
-      $('oScore').textContent = `Skor: ${s}`;
-      $('oDetail').textContent = `📏 ${Math.floor(maxDist)} m  ·  🪙 ${gemCount} altın`;
-      $('oBest').textContent = nb ? '🎉 Yeni rekor!' : `🏆 En iyi: ${best}`;
-      $('oWallet').textContent = `+${gemCount} 🪙 kasaya eklendi · Kasan: ${wallet} 🪙`;
+      $('oScore').textContent = `Score: ${s}`;
+      $('oDetail').textContent = `📏 ${Math.floor(maxDist)} m  ·  🪙 ${gemCount} coins`;
+      $('oBest').textContent = nb ? '🎉 New best!' : `🏆 Best: ${best}`;
+      $('oWallet').textContent = `+${gemCount} 🪙 saved · Total: ${wallet} 🪙`;
       $('over').classList.remove('hidden'); $('hud').classList.add('hidden');
       showMenuBest();
     }, 900);
@@ -539,7 +539,7 @@
       if (wasJet && active.jet === 0) {
         // roket bitince hafifçe yukarı fırla ve kısa süre süzül, ip atmaya zaman olsun
         p.vy = Math.min(p.vy, -520); p.glide = 1.0;
-        texts.push({ x: p.x, y: p.y - 30, txt: 'İp at!', life: 1.0, c: '#ffd166' });
+        texts.push({ x: p.x, y: p.y - 30, txt: 'Shoot!', life: 1.0, c: '#ffd166' });
       }
 
       let dir = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
@@ -706,7 +706,7 @@
           active.shield = 0; rope.st = 'none';
           p.y = LAVA_Y - PR - 4; p.vy = -1150; p.glide = 0.8; shake = 8;
           p.ghost = 0.35;   // üstte platform varsa içinden geçip yukarı çıksın
-          texts.push({ x: p.x, y: p.y - 40, txt: '🛡️ Kalkan kurtardı!', life: 1.4, c: '#7ec8ff' });
+          texts.push({ x: p.x, y: p.y - 40, txt: '🛡️ Shield saved you!', life: 1.4, c: '#7ec8ff' });
           beep(400, 0.25, 'triangle', 0.06, 1200);
           for (let i = 0; i < 24; i++) parts.push({ x: p.x, y: LAVA_Y, vx: rand(-300, 300), vy: rand(-500, -100), life: .7, max: .7, c: Math.random() < .5 ? '#7ec8ff' : '#ffb703', s: rand(2, 5) });
         } else die('lava');
