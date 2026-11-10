@@ -43,6 +43,7 @@
     <p>Tavanlara ve bloklara ip fırlat, sallan, bırak ve uç!<br>Lavlara düşmeden olabildiğince ileri git.</p>
     <div class="keys">
       🖱️ <b>Tıkla / dokun ve basılı tut</b> → o yöne ip at<br>
+      👉 <b>Basılı tutarken sağa / sola kaydır</b> → o yöne sallan<br>
       ✋ <b>Bırak</b> → ipi bırak, havada süzül<br>
       ⌨️ <b>Boşluk / W / ↑</b> → otomatik nişanla ip at<br>
       ↔️ <b>A / D / ← →</b> → sallanmayı güçlendir<br>
@@ -113,7 +114,13 @@
   let state = 'menu';
   let p, rope, blocks, gems, parts, trail, camX, genX, maxDist, gemCount, deadT, time, shake;
   const keys = {};
-  let pointer = { x: 0, y: 0, mouse: false, down: false };
+  let pointer = { x: 0, y: 0, sx: 0, mouse: false, down: false };
+  // basılı tutarken parmağın/farenin başlangıç noktasına göre yatay kaydırma: -1..1
+  const dragDir = () => {
+    if (!pointer.down) return 0;
+    const dd = pointer.x - pointer.sx;
+    return Math.abs(dd) < 10 ? 0 : clamp(dd / 60, -1, 1);
+  };
 
   function reset() {
     p = { x: 180, y: 500, vx: 0, vy: 0, ground: false, face: 1 };
@@ -215,7 +222,7 @@
   cv.addEventListener('pointerdown', e => {
     e.preventDefault();
     pointer.mouse = e.pointerType === 'mouse';
-    pointer.down = true; pointer.x = e.clientX; pointer.y = e.clientY;
+    pointer.down = true; pointer.x = pointer.sx = e.clientX; pointer.y = e.clientY;
     if (state !== 'play') return;
     const w = toWorld(e.clientX, e.clientY);
     fire(w.x - p.x, w.y - p.y);
@@ -297,8 +304,10 @@
     }
 
     if (state === 'play') {
-      const dir = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
-      if (rope.st === 'attached') p.vx += dir * 650 * dt;
+      let dir = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+      const dd = dragDir();
+      if (dd) dir = dd;
+      if (rope.st === 'attached') p.vx += dir * 800 * dt;
       else if (p.ground) p.vx += dir * 1400 * dt;
       else p.vx += dir * 280 * dt;
       if (keys.KeyS || keys.ArrowDown) { if (rope.st === 'attached') rope.len = Math.min(ROPE_MAX, rope.len + 200 * dt); }
@@ -509,6 +518,19 @@
     }
 
     if (state === 'play' || state === 'menu') drawPlayer();
+
+    // kaydırma göstergesi: sallanma yönünü oklarla göster
+    const sd = dragDir();
+    if (state === 'play' && rope.st === 'attached' && sd) {
+      const s = Math.sign(sd), n = Math.ceil(Math.abs(sd) * 3);
+      ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      for (let i = 0; i < n; i++) {
+        const x = p.x + s * (26 + i * 10);
+        ctx.globalAlpha = 0.9 - i * 0.2;
+        ctx.beginPath(); ctx.moveTo(x - s * 5, p.y - 7); ctx.lineTo(x, p.y); ctx.lineTo(x - s * 5, p.y + 7); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
 
     for (const q of parts) { ctx.globalAlpha = clamp(q.life / q.max, 0, 1); ctx.fillStyle = q.c; ctx.fillRect(q.x - q.s / 2, q.y - q.s / 2, q.s, q.s); }
     ctx.globalAlpha = 1;
