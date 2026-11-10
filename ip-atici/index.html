@@ -34,7 +34,7 @@
 <canvas id="c"></canvas>
 <div id="hud" class="hidden">
   <span id="hDist">0 m</span>
-  <span id="hGem">💎 0 · 🏆 0</span>
+  <span id="hGem">🪙 0 · 🏆 0</span>
 </div>
 
 <div id="menu" class="overlay">
@@ -49,9 +49,9 @@
       ✋ <b>Bırak</b> → ipi bırak, havada süzül<br>
       ⌨️ <b>Boşluk / W / ↑</b> → otomatik nişanla ip at<br>
       ↔️ <b>A / D / ← →</b> → sallanmayı güçlendir<br>
-      💎 Elmasları topla: her biri <b>+10 puan</b><br>
+      🪙 Altınları topla: her biri <b>+10 puan</b><br>
       <span style="display:block;margin-top:8px;color:#ddd6ff">Süreli güçlendiriciler:</span>
-      🧲 <b>Mıknatıs</b> → yakındaki elmaslar sana uçar (10 sn)<br>
+      🧲 <b>Mıknatıs</b> → yakındaki altınlar sana uçar (10 sn)<br>
       🚀 <b>Roket çanta</b> → seni otomatik ileri uçurur (5 sn)<br>
       👟 <b>Yapışkan ayakkabı</b> → blokların altında baş aşağı yürü (12 sn)
     </div>
@@ -125,7 +125,12 @@
     jet:    { icon: '🚀', name: 'Roket Çanta', dur: 5, col: '#ffb703' },
     shoes:  { icon: '👟', name: 'Yapışkan Ayakkabı', dur: 12, col: '#5ee6a8' },
   };
-  let pows, active, texts;
+  let pows, active, texts, testIdx = 0;
+  // TEST MODU: true iken oyunun başında (ilk ~350 m) her boşlukta bir güçlendirici çıkar.
+  // Denemeler bitince false yap, güçlendiriciler yine ara sıra çıkar.
+  const TEST_POWERUPS = true;
+  const TEST_ZONE = 4500;
+  const TEST_ORDER = ['jet', 'magnet', 'shoes'];
   const keys = {};
   let pointer = { id: null, x: 0, y: 0, sx: 0, mouse: false, down: false };
   // ikinci parmak(lar) / sağ tık / Shift: basili tuttukca ipi kendine çeker
@@ -142,7 +147,9 @@
 
   function reset() {
     p = { x: 180, y: 500, vx: 0, vy: 0, ground: false, face: 1, ceil: null };
-    pows = []; texts = [];
+    pows = []; texts = []; testIdx = 0;
+    // test modu: ilk roket, başlangıçtaki ilk sallanışın tam geçtiği yerde
+    if (TEST_POWERUPS) { pows.push({ x: 440, y: 498, t: 'jet', taken: false, ph: 0 }); testIdx = 1; }
     active = { magnet: 0, jet: 0, shoes: 0 };
     rope = { st: 'none', hx: 0, hy: 0, dx: 0, dy: 0, trav: 0, ax: 0, ay: 0, len: 0 };
     blocks = [
@@ -163,6 +170,8 @@
       if (r < restChance) {
         w = rand(140, 240);
         blocks.push({ x: genX, y: rand(470, 560), w, h: 32, t: 'plat' });
+        // platforma inen oyuncu mahsur kalmasın: hemen üstüne ip atılabilecek bir sarkıt koy
+        blocks.push({ x: genX + w * 0.45, y: -800, w: rand(90, 140), h: 800 + rand(150, 220), t: 'ceil' });
       } else if (r < 0.6) {
         w = rand(70, 220 - k * 80);
         const bottom = rand(60, 210);
@@ -172,7 +181,14 @@
         blocks.push({ x: genX, y: rand(110, 360), w, h: rand(26, 42), t: 'float' });
       }
       const gap = rand(150, 260) + k * 170;
-      if (genX > 1500 && Math.random() < 0.09) {
+      if (TEST_POWERUPS && genX < TEST_ZONE) {
+        // test modu: başta her boşlukta bir güçlendirici, ilki roket
+        const t = TEST_ORDER[testIdx++ % TEST_ORDER.length];
+        pows.push({ x: genX + w + gap / 2, y: rand(360, 430), t, taken: false, ph: Math.random() * 6 });
+        // güçlendiricinin üstüne 3 altın
+        for (let i = 0; i < 3; i++)
+          gems.push({ x: genX + w + gap / 2 + (i - 1) * 40, y: 270 - (i === 1 ? 20 : 0), taken: false, ph: Math.random() * 6 });
+      } else if (genX > 1500 && Math.random() < 0.09) {
         const r2 = Math.random();
         const t = r2 < 0.4 ? 'magnet' : r2 < 0.75 ? 'shoes' : 'jet';
         pows.push({ x: genX + w + gap / 2, y: rand(260, 420), t, taken: false, ph: Math.random() * 6 });
@@ -185,7 +201,7 @@
       genX += w + gap;
     }
     // Bloklar silinmez: geri sallanınca her şey yerinde dursun.
-    // Sadece toplanmış elmaslar ve güçlendiriciler listeden çıkarılır.
+    // Sadece toplanmış altınlar ve güçlendiriciler listeden çıkarılır.
     gems = gems.filter(g => !g.taken);
     pows = pows.filter(q => !q.taken);
   }
@@ -315,7 +331,7 @@
     if (nb) { best = s; try { localStorage.setItem('ipAticiBest', best); } catch (e) {} }
     setTimeout(() => {
       $('oScore').textContent = `Skor: ${s}`;
-      $('oDetail').textContent = `📏 ${Math.floor(maxDist)} m  ·  💎 ${gemCount} elmas`;
+      $('oDetail').textContent = `📏 ${Math.floor(maxDist)} m  ·  🪙 ${gemCount} altın`;
       $('oBest').textContent = nb ? '🎉 Yeni rekor!' : `🏆 En iyi: ${best}`;
       $('over').classList.remove('hidden'); $('hud').classList.add('hidden');
       showMenuBest();
@@ -448,7 +464,7 @@
 
       // güçlendiricileri topla
       for (const q of pows) {
-        if (!q.taken && Math.hypot(q.x - p.x, q.y - p.y) < PR + 22) {
+        if (!q.taken && Math.hypot(q.x - p.x, q.y - p.y) < PR + 28) {
           q.taken = true;
           const d = PW[q.t];
           active[q.t] = d.dur;
@@ -458,7 +474,7 @@
         }
       }
 
-      // elmaslar (mıknatıs varken yakındakiler sana uçar)
+      // altınlar (mıknatıs varken yakındakiler sana uçar)
       for (const g of gems) {
         if (active.magnet > 0 && !g.taken) {
           const dx = p.x - g.x, dy = p.y - g.y, d = Math.hypot(dx, dy);
@@ -467,7 +483,7 @@
         if (!g.taken && Math.hypot(g.x - p.x, g.y - p.y) < PR + 14) {
           g.taken = true; gemCount++;
           beep(1200, 0.12, 'triangle', 0.05, 2000);
-          for (let i = 0; i < 10; i++) parts.push({ x: g.x, y: g.y, vx: rand(-250, 250), vy: rand(-250, 250), life: .5, max: .5, c: '#7ef9ff', s: 3 });
+          for (let i = 0; i < 10; i++) parts.push({ x: g.x, y: g.y, vx: rand(-250, 250), vy: rand(-250, 250), life: .5, max: .5, c: '#ffd166', s: 3 });
         }
       }
 
@@ -629,14 +645,28 @@
 
     for (const b of blocks) if (b.x < camX + viewW + 50 && b.x + b.w > camX - 50) drawBlock(b, (aimHit && aimHit.b === b) || (rope.st === 'attached' && rope.ab === b));
 
-    // elmaslar
+    // altın paralar (kendi ekseninde döner)
     for (const g of gems) {
-      if (g.taken) continue;
+      if (g.taken || g.x < camX - 40 || g.x > camX + viewW + 40) continue;
       const y = g.y + Math.sin(time * 3 + g.ph) * 6;
-      ctx.save(); ctx.translate(g.x, y); ctx.rotate(Math.sin(time * 2 + g.ph) * 0.2);
-      ctx.shadowColor = '#7ef9ff'; ctx.shadowBlur = 14; ctx.fillStyle = '#7ef9ff';
-      ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(9, -3); ctx.lineTo(0, 12); ctx.lineTo(-9, -3); ctx.closePath(); ctx.fill();
-      ctx.shadowBlur = 0; ctx.fillStyle = '#ffffffaa'; ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(4, -3); ctx.lineTo(-4, -3); ctx.fill();
+      const sx = Math.cos(time * 4 + g.ph);            // dönme: -1..1
+      const w = Math.max(0.12, Math.abs(sx));
+      ctx.save(); ctx.translate(g.x, y); ctx.scale(w, 1);
+      ctx.shadowColor = '#ffd166'; ctx.shadowBlur = 12;
+      ctx.fillStyle = sx > 0 ? '#e0a100' : '#c98a00';   // kenar
+      ctx.beginPath(); ctx.arc(0, 0, 12, 0, 7); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#ffd166'; ctx.beginPath(); ctx.arc(0, 0, 9.5, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#e0a100'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, 7, 0, 7); ctx.stroke();
+      if (w > 0.4) {   // ön yüzde yıldız işareti
+        ctx.fillStyle = '#e0a100'; ctx.beginPath();
+        for (let i = 0; i < 10; i++) {
+          const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? 2 : 4.6;
+          ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+        }
+        ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.ellipse(-4, -5, 2.2, 3.4, -0.5, 0, 7); ctx.fill();
       ctx.restore();
     }
 
@@ -745,7 +775,7 @@
       if (hudTimer <= 0 && state === 'play') {
         hudTimer = 0.1;
         $('hDist').textContent = `📏 ${Math.floor(maxDist)} m`;
-        $('hGem').textContent = `💎 ${gemCount} · 🏆 ${Math.max(best, score())}`;
+        $('hGem').textContent = `🪙 ${gemCount} · 🏆 ${Math.max(best, score())}`;
       }
     }
     draw();
