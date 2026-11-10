@@ -52,7 +52,7 @@
       🪙 Altınları topla: her biri <b>+10 puan</b><br>
       <span style="display:block;margin-top:8px;color:#ddd6ff">Süreli güçlendiriciler:</span>
       🧲 <b>Mıknatıs</b> → yakındaki altınlar sana uçar (10 sn)<br>
-      🚀 <b>Roket çanta</b> → seni otomatik ileri uçurur (5 sn)<br>
+      🚀 <b>Roket çanta</b> → ileri uçurur; basılı tutup parmağınla yukarı/aşağı yönlendir (W/S) (5 sn)<br>
       👟 <b>Yapışkan ayakkabı</b> → blokların altında baş aşağı yürü (12 sn)
     </div>
     <p id="menuBest"></p>
@@ -146,7 +146,7 @@
   };
 
   function reset() {
-    p = { x: 180, y: 500, vx: 0, vy: 0, ground: false, face: 1, ceil: null };
+    p = { x: 180, y: 500, vx: 0, vy: 0, ground: false, face: 1, ceil: null, jetY: 440, glide: 0 };
     pows = []; texts = []; testIdx = 0;
     // test modu: ilk roket, başlangıçtaki ilk sallanışın tam geçtiği yerde
     if (TEST_POWERUPS) { pows.push({ x: 440, y: 498, t: 'jet', taken: false, ph: 0 }); testIdx = 1; }
@@ -367,7 +367,11 @@
       const wasJet = active.jet > 0;
       for (const k in active) active[k] = Math.max(0, active[k] - dt);
       if (active.shoes === 0) p.ceil = null;
-      if (wasJet && active.jet === 0) p.vy = -380;   // roket bitince yukarı fırla, ip atmaya zaman olsun
+      if (wasJet && active.jet === 0) {
+        // roket bitince hafifçe yukarı fırla ve kısa süre süzül, ip atmaya zaman olsun
+        p.vy = Math.min(p.vy, -520); p.glide = 1.0;
+        texts.push({ x: p.x, y: p.y - 30, txt: 'İp at!', life: 1.0, c: '#ffd166' });
+      }
 
       let dir = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
       const dd = dragDir();
@@ -398,11 +402,16 @@
       }
 
       if (active.jet > 0) {
-        // roket çanta: blokların arasındaki boş koridorda ileri uç
+        // roket çanta: ileri uç, yüksekliği oyuncu seçer
         rope.st = 'none'; p.ceil = null;
-        const ty = 440 + Math.sin(time * 3) * 14;
+        // dokunmatik/fare: basılı tutarken parmağın olduğu yüksekliğe uç
+        if (pointer.down) p.jetY = toWorld(pointer.x, pointer.y).y;
+        // klavye: W/↑ yukarı, S/↓ aşağı
+        const vk = (keys.KeyS || keys.ArrowDown ? 1 : 0) - (keys.KeyW || keys.ArrowUp ? 1 : 0);
+        p.jetY = clamp(p.jetY + vk * 450 * dt, 70, 590);
+        const ty = p.jetY + Math.sin(time * 3) * 5;
         p.vx += (820 - p.vx) * 3 * dt;
-        p.vy += ((ty - p.y) * 10 - p.vy * 5) * dt;
+        p.vy += ((ty - p.y) * 18 - p.vy * 7) * dt;
         parts.push({ x: p.x - p.face * 14, y: p.y + 12, vx: -p.face * rand(120, 260), vy: rand(80, 260), life: .3, max: .3, c: Math.random() < .5 ? '#ffb703' : '#ff6b1a', s: rand(3, 6) });
       } else if (p.ceil) {
         // yapışkan ayakkabı: tavanda baş aşağı yürü
@@ -419,8 +428,10 @@
           else { p.x = clamp(p.x, minX, maxX); p.vx = 0; }
         }
       } else {
-        p.vy += GRAV * dt;
+        // roket bitince kısa bir süzülme: yerçekimi yarıya iner, ip atmaya zaman kalır
+        p.vy += GRAV * (p.glide > 0 ? 0.45 : 1) * dt;
       }
+      p.glide = Math.max(0, p.glide - dt);
       p.vx *= 0.9995; p.vy *= 0.9995;
       p.x += p.vx * dt; p.y += p.vy * dt;
 
@@ -437,7 +448,7 @@
 
       // blok çarpışması
       p.ground = false;
-      if (active.jet === 0) for (const b of blocks) {
+      for (const b of blocks) {   // roketteyken de bloklara çarpılır: yönlendirerek aralarından geç
         if (b.x > p.x + 60 || b.x + b.w < p.x - 60) continue;
         const cx = clamp(p.x, b.x, b.x + b.w), cy = clamp(p.y, b.y, b.y + b.h);
         let dx = p.x - cx, dy = p.y - cy, d2 = dx * dx + dy * dy;
@@ -450,7 +461,7 @@
           if (vn < 0) { p.vx -= nx * vn * 1.2; p.vy -= ny * vn * 1.2; }
           if (ny < -0.7) { p.ground = true; p.vx *= 0.985; if (p.vy > 0) p.vy = 0; }
           // ayakkabı varken bloğun altına değince yapış
-          if (ny > 0.7 && active.shoes > 0 && !p.ceil) {
+          if (ny > 0.7 && active.shoes > 0 && active.jet === 0 && !p.ceil) {
             p.ceil = b; p.vy = 0;
             p.vx = clamp(p.vx, -430, 430);
             p.x = clamp(p.x, b.x + 2, b.x + b.w - 2);
@@ -468,6 +479,7 @@
           q.taken = true;
           const d = PW[q.t];
           active[q.t] = d.dur;
+          if (q.t === 'jet') p.jetY = clamp(p.y, 120, 560);   // bulunduğun yükseklikte uçmaya başla
           texts.push({ x: q.x, y: q.y - 20, txt: `${d.icon} ${d.name}!`, life: 1.4, c: d.col });
           beep(660, 0.08, 'triangle', 0.05, 990); setTimeout(() => beep(990, 0.12, 'triangle', 0.05, 1480), 80);
           for (let i = 0; i < 16; i++) parts.push({ x: q.x, y: q.y, vx: rand(-300, 300), vy: rand(-300, 300), life: .6, max: .6, c: d.col, s: 3 });
@@ -632,7 +644,7 @@
 
     // nişan önizlemesi
     let aimHit = null;
-    if (state === 'play' && pointer.mouse && rope.st === 'none') {
+    if (state === 'play' && pointer.mouse && rope.st === 'none' && active.jet === 0) {
       const w = toWorld(pointer.x, pointer.y);
       const dx = w.x - p.x, dy = w.y - p.y, l = Math.hypot(dx, dy) || 1;
       aimHit = raycast(p.x, p.y, dx / l, dy / l, ROPE_MAX);
