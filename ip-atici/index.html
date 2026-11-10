@@ -28,6 +28,20 @@
     box-shadow:0 6px 0 #b3612f}
   button:active{transform:translateY(3px);box-shadow:0 3px 0 #b3612f}
   .hidden{display:none}
+  /* ikincil buton ve mağaza */
+  button.sec{background:rgba(255,255,255,.08);color:#ffd166;border:2px solid #ffd16688;box-shadow:none;
+    font-size:17px;padding:12px 22px;margin-left:6px}
+  button.sec:active{transform:translateY(1px);box-shadow:none}
+  .srow{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.06);border:1px solid #ffffff18;
+    border-radius:14px;padding:12px;margin:10px 0;text-align:left}
+  .srow .ic{font-size:32px;line-height:1}
+  .srow .info{flex:1;min-width:0}
+  .srow .nm{font-weight:800;color:#fff}
+  .srow .dur{font-size:14px;color:#b8afe6;margin-top:2px}
+  .srow .dots{letter-spacing:3px;color:#ffd166;font-size:13px;margin-top:3px}
+  .srow .dots i{font-style:normal;color:#ffffff30}
+  button.buy{margin:0;padding:10px 12px;font-size:14px;line-height:1.25;border-radius:12px;box-shadow:0 4px 0 #b3612f;white-space:nowrap}
+  button.buy:disabled{opacity:.4;cursor:default;transform:none}
   /* sol alttaki ip kontrol butonları */
   #ctrl{position:fixed;left:max(16px,env(safe-area-inset-left));bottom:max(18px,env(safe-area-inset-bottom));
     display:flex;flex-direction:column;gap:14px;z-index:5;user-select:none;-webkit-user-select:none}
@@ -71,13 +85,26 @@
       <span style="display:block;margin-top:8px;color:#ddd6ff">Süreli güçlendiriciler:</span>
       🧲 <b>Mıknatıs</b> → yakındaki altınlar sana uçar (10 sn)<br>
       🚀 <b>Roket çanta</b> → ileri uçurur; basılı tutup parmağınla yukarı/aşağı yönlendir (W/S) (5 sn)<br>
-      👟 <b>Yapışkan ayakkabı</b> → blokların altında baş aşağı yürü (12 sn)<br>
+      🛡️ <b>Kalkan</b> → mermileri durdurur, lava düşersen seni bir kez kurtarır (8 sn)<br>
+      🛒 Altınlarla <b>Mağaza</b>'dan mıknatıs ve roket süresini uzat!<br>
       <span style="display:block;margin-top:8px;color:#ddd6ff">Dikkat:</span>
       🔫 <b>Taretler</b> sarkıtlardan sana ateş eder. Kırmızı yanıp sönünce kaç!<br>
       &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Tarete çarparsan kırılır: <b>+3 🪙</b>
     </div>
     <p id="menuBest"></p>
+    <p id="menuWallet"></p>
     <button id="playBtn">OYNA</button>
+    <button id="shopBtn" class="sec">🛒 MAĞAZA</button>
+  </div>
+</div>
+
+<div id="shop" class="overlay hidden">
+  <div class="panel">
+    <h2 style="color:#ffd166">🛒 Mağaza</h2>
+    <p class="big" id="shopWallet"></p>
+    <p style="font-size:14px">Topladığın altınlarla güçlendiricilerin süresini uzat.</p>
+    <div id="shopList"></div>
+    <button id="shopBack" class="sec">← GERİ</button>
   </div>
 </div>
 
@@ -87,7 +114,9 @@
     <p class="big" id="oScore"></p>
     <p id="oDetail"></p>
     <p id="oBest"></p>
+    <p id="oWallet" style="color:#ffd166"></p>
     <button id="againBtn">TEKRAR OYNA</button>
+    <button id="shopBtn2" class="sec">🛒 MAĞAZA</button>
     <p style="font-size:13px;color:#9a90cc">(R veya Enter ile de başlatabilirsin)</p>
   </div>
 </div>
@@ -123,6 +152,27 @@
   let best = 0;
   try { best = +localStorage.getItem('ipAticiBest') || 0; } catch (e) {}
 
+  // ---------- kasa ve yükseltmeler (altınlar oyunlar arasında saklanır) ----------
+  const UPG = {                       // süre = temel + adım * seviye
+    magnet: { base: 10, step: 3 },    // 10 sn -> 25 sn
+    jet:    { base: 5,  step: 1.5 },  // 5 sn  -> 12,5 sn
+  };
+  const UPG_COST = [40, 80, 150, 250, 400];   // her seviyenin fiyatı
+  const UPG_MAX = UPG_COST.length;
+  let wallet = 0;
+  const upg = { magnet: 0, jet: 0 };
+  try {
+    wallet = Math.max(0, +localStorage.getItem('ipAticiWallet') || 0);
+    const u = JSON.parse(localStorage.getItem('ipAticiUpg') || '{}');
+    for (const k in upg) upg[k] = clamp(u[k] | 0, 0, UPG_MAX);
+  } catch (e) {}
+  function saveProgress() {
+    try { localStorage.setItem('ipAticiWallet', wallet); localStorage.setItem('ipAticiUpg', JSON.stringify(upg)); } catch (e) {}
+  }
+  const upgDur = (k, lv) => UPG[k].base + UPG[k].step * lv;
+  const durOf = t => UPG[t] ? upgDur(t, upg[t]) : PW[t].dur;
+  const fmtSec = s => s.toLocaleString('tr-TR', { maximumFractionDigits: 1 }) + ' sn';
+
   // ---------- ses ----------
   let ac = null;
   function beep(f, dur, type = 'square', vol = 0.06, f2 = null) {
@@ -150,14 +200,14 @@
   const PW = {
     magnet: { icon: '🧲', name: 'Mıknatıs', dur: 10, col: '#ff6b9d' },
     jet:    { icon: '🚀', name: 'Roket Çanta', dur: 5, col: '#ffb703' },
-    shoes:  { icon: '👟', name: 'Yapışkan Ayakkabı', dur: 12, col: '#5ee6a8' },
+    shield: { icon: '🛡️', name: 'Kalkan', dur: 8, col: '#7ec8ff' },
   };
   let pows, active, texts, testIdx = 0;
   // TEST MODU: true iken oyunun başında (ilk ~350 m) her boşlukta bir güçlendirici çıkar.
   // Denemeler bitince false yap, güçlendiriciler yine ara sıra çıkar.
   const TEST_POWERUPS = false;
   const TEST_ZONE = 4500;
-  const TEST_ORDER = ['jet', 'magnet', 'shoes'];
+  const TEST_ORDER = ['jet', 'magnet', 'shield'];
   const keys = {};
   let pointer = { id: null, x: 0, y: 0, sx: 0, sy: 0, mouse: false, down: false };
   // ikinci parmak(lar) / sağ tık / Shift: basili tuttukca ipi kendine çeker
@@ -183,11 +233,11 @@
   };
 
   function reset() {
-    p = { x: 180, y: 500, vx: 0, vy: 0, ground: false, face: 1, ceil: null, jetY: 440, glide: 0 };
+    p = { x: 180, y: 500, vx: 0, vy: 0, ground: false, face: 1, jetY: 440, glide: 0 };
     pows = []; texts = []; testIdx = 0; turrets = []; bullets = [];
     // test modu: ilk roket, başlangıçtaki ilk sallanışın tam geçtiği yerde
     if (TEST_POWERUPS) { pows.push({ x: 440, y: 498, t: 'jet', taken: false, ph: 0 }); testIdx = 1; }
-    active = { magnet: 0, jet: 0, shoes: 0 };
+    active = { magnet: 0, jet: 0, shield: 0 };
     rope = { st: 'none', hx: 0, hy: 0, dx: 0, dy: 0, trav: 0, ax: 0, ay: 0, len: 0 };
     blocks = [
       { x: 40, y: 520, w: 320, h: 40, t: 'plat' },
@@ -230,7 +280,7 @@
           gems.push({ x: genX + w + gap / 2 + (i - 1) * 40, y: 270 - (i === 1 ? 20 : 0), taken: false, ph: Math.random() * 6 });
       } else if (genX > 1500 && Math.random() < 0.09) {
         const r2 = Math.random();
-        const t = r2 < 0.4 ? 'magnet' : r2 < 0.75 ? 'shoes' : 'jet';
+        const t = r2 < 0.4 ? 'magnet' : r2 < 0.75 ? 'shield' : 'jet';
         pows.push({ x: genX + w + gap / 2, y: rand(260, 420), t, taken: false, ph: Math.random() * 6 });
       } else if (Math.random() < 0.6) {
         const n = Math.random() < 0.3 ? 3 : 1;
@@ -349,16 +399,59 @@
 
   // ---------- arayüz ----------
   const $ = id => document.getElementById(id);
-  function showMenuBest() { $('menuBest').textContent = best ? `🏆 En iyi skor: ${best}` : ''; }
+  function showMenuBest() {
+    $('menuBest').textContent = best ? `🏆 En iyi skor: ${best}` : '';
+    $('menuWallet').textContent = `👛 Kasan: ${wallet} 🪙`;
+  }
   showMenuBest();
   function start() {
     reset(); state = 'play';
-    $('menu').classList.add('hidden'); $('over').classList.add('hidden'); $('hud').classList.remove('hidden');
+    $('menu').classList.add('hidden'); $('over').classList.add('hidden'); $('shop').classList.add('hidden'); $('hud').classList.remove('hidden');
     $('ctrl').classList.remove('hidden');
     beep(440, 0.1, 'triangle', 0.05, 880);
   }
   $('playBtn').onclick = start;
   $('againBtn').onclick = start;
+
+  // ---------- mağaza ----------
+  const SHOP_ITEMS = [
+    { k: 'magnet', icon: '🧲', name: 'Mıknatıs süresi' },
+    { k: 'jet',    icon: '🚀', name: 'Roket süresi' },
+  ];
+  let shopFrom = 'menu';
+  function renderShop() {
+    $('shopWallet').textContent = `Kasan: ${wallet} 🪙`;
+    const list = $('shopList'); list.innerHTML = '';
+    for (const it of SHOP_ITEMS) {
+      const lv = upg[it.k], maxed = lv >= UPG_MAX, cost = maxed ? 0 : UPG_COST[lv];
+      const row = document.createElement('div'); row.className = 'srow';
+      const dots = '●'.repeat(lv) + '<i>' + '●'.repeat(UPG_MAX - lv) + '</i>';
+      const durTxt = maxed ? `${fmtSec(upgDur(it.k, lv))} · en yüksek seviye`
+                           : `${fmtSec(upgDur(it.k, lv))} → <b style="color:#fff">${fmtSec(upgDur(it.k, lv + 1))}</b>`;
+      row.innerHTML = `<div class="ic">${it.icon}</div>
+        <div class="info"><div class="nm">${it.name}</div><div class="dur">${durTxt}</div><div class="dots">${dots}</div></div>`;
+      const btn = document.createElement('button'); btn.className = 'buy';
+      btn.innerHTML = maxed ? 'TAMAM ✓' : `YÜKSELT<br>${cost} 🪙`;
+      btn.disabled = maxed || wallet < cost;
+      btn.onclick = () => {
+        if (upg[it.k] >= UPG_MAX || wallet < cost) return;
+        wallet -= cost; upg[it.k]++; saveProgress();
+        beep(660, 0.08, 'triangle', 0.05, 990); setTimeout(() => beep(1320, 0.12, 'triangle', 0.05, 1760), 90);
+        renderShop(); showMenuBest();
+      };
+      row.appendChild(btn); list.appendChild(row);
+    }
+  }
+  function openShop(from) {
+    shopFrom = from; renderShop();
+    $(from).classList.add('hidden'); $('shop').classList.remove('hidden');
+  }
+  $('shopBtn').onclick = () => openShop('menu');
+  $('shopBtn2').onclick = () => openShop('over');
+  $('shopBack').onclick = () => {
+    $('shop').classList.add('hidden'); $(shopFrom).classList.remove('hidden');
+    if (shopFrom === 'over') $('oWallet').textContent = `Kasan: ${wallet} 🪙`;
+  };
 
   // ÇEK / UZAT butonları: basılı tuttukça çalışır, bırakınca durur
   function bindBtn(id, val) {
@@ -390,11 +483,13 @@
     beep(300, 0.5, 'sawtooth', 0.07, 60);
     const s = score();
     const nb = s > best;
+    wallet += gemCount; saveProgress();   // toplanan altınlar kasaya
     if (nb) { best = s; try { localStorage.setItem('ipAticiBest', best); } catch (e) {} }
     setTimeout(() => {
       $('oScore').textContent = `Skor: ${s}`;
       $('oDetail').textContent = `📏 ${Math.floor(maxDist)} m  ·  🪙 ${gemCount} altın`;
       $('oBest').textContent = nb ? '🎉 Yeni rekor!' : `🏆 En iyi: ${best}`;
+      $('oWallet').textContent = `+${gemCount} 🪙 kasaya eklendi · Kasan: ${wallet} 🪙`;
       $('over').classList.remove('hidden'); $('hud').classList.add('hidden');
       showMenuBest();
     }, 900);
@@ -410,7 +505,6 @@
       const h = raycast(rope.hx, rope.hy, rope.dx, rope.dy, s);
       if (h) {
         rope.st = 'attached'; rope.ax = h.x; rope.ay = h.y;
-        p.ceil = null;   // tavanda yürürken yeni ip atınca tavandan ayrıl
         const d = Math.hypot(p.x - h.x, p.y - h.y);
         rope.len = Math.max(40, d * (p.ground ? 0.8 : 0.93));
         // kancaya doğru küçük bir çekiş: sallanmayı başlatır
@@ -428,7 +522,6 @@
       // güçlendirici süreleri
       const wasJet = active.jet > 0;
       for (const k in active) active[k] = Math.max(0, active[k] - dt);
-      if (active.shoes === 0) p.ceil = null;
       if (wasJet && active.jet === 0) {
         // roket bitince hafifçe yukarı fırla ve kısa süre süzül, ip atmaya zaman olsun
         p.vy = Math.min(p.vy, -520); p.glide = 1.0;
@@ -471,7 +564,7 @@
 
       if (active.jet > 0) {
         // roket çanta: ileri uç, yüksekliği oyuncu seçer
-        rope.st = 'none'; p.ceil = null;
+        rope.st = 'none';
         // dokunmatik/fare: basılı tutarken parmağın olduğu yüksekliğe uç
         if (pointer.down) p.jetY = toWorld(pointer.x, pointer.y).y;
         // klavye: W/↑ yukarı, S/↓ aşağı
@@ -481,25 +574,12 @@
         p.vx += (820 - p.vx) * 3 * dt;
         p.vy += ((ty - p.y) * 18 - p.vy * 7) * dt;
         parts.push({ x: p.x - p.face * 14, y: p.y + 12, vx: -p.face * rand(120, 260), vy: rand(80, 260), life: .3, max: .3, c: Math.random() < .5 ? '#ffb703' : '#ff6b1a', s: rand(3, 6) });
-      } else if (p.ceil) {
-        // yapışkan ayakkabı: tavanda baş aşağı yürü
-        // kendi kendine ileri yürür; kaydırarak / A-D ile yön ve hız değişir
-        const b = p.ceil;
-        const target = dir ? dir * 430 : 240;
-        p.vx += (target - p.vx) * 8 * dt;
-        p.vy = 0; p.y = b.y + b.h + PR;
-        // kenara gelince asılı bekle; bilerek kenara doğru itersen bırak ve düş
-        const minX = b.x + 2, maxX = b.x + b.w - 2;
-        if (p.x > maxX || p.x < minX) {
-          const outward = p.x > maxX ? 1 : -1;
-          if (dir && Math.sign(dir) === outward) p.ceil = null;
-          else { p.x = clamp(p.x, minX, maxX); p.vx = 0; }
-        }
       } else {
         // roket bitince kısa bir süzülme: yerçekimi yarıya iner, ip atmaya zaman kalır
         p.vy += GRAV * (p.glide > 0 ? 0.45 : 1) * dt;
       }
       p.glide = Math.max(0, p.glide - dt);
+      p.ghost = Math.max(0, (p.ghost || 0) - dt);
       p.vx *= 0.9995; p.vy *= 0.9995;
       p.x += p.vx * dt; p.y += p.vy * dt;
 
@@ -517,7 +597,7 @@
       // blok çarpışması
       p.ground = false;
       for (const b of blocks) {   // roketteyken de bloklara çarpılır: yönlendirerek aralarından geç
-        if (b.x > p.x + 60 || b.x + b.w < p.x - 60) continue;
+        if (p.ghost > 0 || b.x > p.x + 60 || b.x + b.w < p.x - 60) continue;
         const cx = clamp(p.x, b.x, b.x + b.w), cy = clamp(p.y, b.y, b.y + b.h);
         let dx = p.x - cx, dy = p.y - cy, d2 = dx * dx + dy * dy;
         if (d2 < PR * PR) {
@@ -528,14 +608,6 @@
           const vn = p.vx * nx + p.vy * ny;
           if (vn < 0) { p.vx -= nx * vn * 1.2; p.vy -= ny * vn * 1.2; }
           if (ny < -0.7) { p.ground = true; p.vx *= 0.985; if (p.vy > 0) p.vy = 0; }
-          // ayakkabı varken bloğun altına değince yapış
-          if (ny > 0.7 && active.shoes > 0 && active.jet === 0 && !p.ceil) {
-            p.ceil = b; p.vy = 0;
-            p.vx = clamp(p.vx, -430, 430);
-            p.x = clamp(p.x, b.x + 2, b.x + b.w - 2);
-            if (rope.st === 'attached') rope.st = 'none';
-            beep(260, 0.08, 'square', 0.04, 520);
-          }
         }
       }
 
@@ -546,7 +618,7 @@
         if (!q.taken && Math.hypot(q.x - p.x, q.y - p.y) < PR + 28) {
           q.taken = true;
           const d = PW[q.t];
-          active[q.t] = d.dur;
+          active[q.t] = durOf(q.t);
           if (q.t === 'jet') p.jetY = clamp(p.y, 120, 560);   // bulunduğun yükseklikte uçmaya başla
           texts.push({ x: q.x, y: q.y - 20, txt: `${d.icon} ${d.name}!`, life: 1.4, c: d.col });
           beep(660, 0.08, 'triangle', 0.05, 990); setTimeout(() => beep(990, 0.12, 'triangle', 0.05, 1480), 80);
@@ -595,6 +667,12 @@
       }
       for (const b of bullets) {
         b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+        if (active.shield > 0 && Math.hypot(b.x - p.x, b.y - p.y) < 27) {
+          // kalkan mermiyi durdurur
+          b.life = 0; beep(1500, 0.06, 'triangle', 0.04, 700);
+          for (let i = 0; i < 8; i++) parts.push({ x: b.x, y: b.y, vx: rand(-220, 220), vy: rand(-220, 220), life: .3, max: .3, c: '#7ec8ff', s: 3 });
+          continue;
+        }
         if (Math.hypot(b.x - p.x, b.y - p.y) < PR + 5) { b.life = 0; die('shot'); break; }
         for (const bl of blocks) {
           if (b.x > bl.x && b.x < bl.x + bl.w && b.y > bl.y && b.y < bl.y + bl.h) {
@@ -608,7 +686,17 @@
       bullets = bullets.filter(b => b.life > 0);
 
       maxDist = Math.max(maxDist, (p.x - 180) / 10);
-      if (p.y + PR > LAVA_Y + 6) die('lava');
+      if (p.y + PR > LAVA_Y + 6) {
+        if (active.shield > 0) {
+          // kalkan seni lavdan yukarı fırlatır ve biter
+          active.shield = 0; rope.st = 'none';
+          p.y = LAVA_Y - PR - 4; p.vy = -1150; p.glide = 0.8; shake = 8;
+          p.ghost = 0.35;   // üstte platform varsa içinden geçip yukarı çıksın
+          texts.push({ x: p.x, y: p.y - 40, txt: '🛡️ Kalkan kurtardı!', life: 1.4, c: '#7ec8ff' });
+          beep(400, 0.25, 'triangle', 0.06, 1200);
+          for (let i = 0; i < 24; i++) parts.push({ x: p.x, y: LAVA_Y, vx: rand(-300, 300), vy: rand(-500, -100), life: .7, max: .7, c: Math.random() < .5 ? '#7ec8ff' : '#ffb703', s: rand(2, 5) });
+        } else die('lava');
+      }
     }
 
     // parçacıklar
@@ -712,8 +800,7 @@
       ctx.restore();
     }
     ctx.save(); ctx.translate(p.x, p.y);
-    const lean = clamp(p.vx / 1500, -0.5, 0.5); ctx.rotate(p.ceil ? -lean : lean);
-    if (p.ceil) ctx.scale(1, -1);   // tavanda baş aşağı
+    const lean = clamp(p.vx / 1500, -0.5, 0.5); ctx.rotate(lean);
     // roket çanta
     if (active.jet > 0) {
       const bx = p.face > 0 ? -PR - 7 : PR - 1;
@@ -733,14 +820,17 @@
     ctx.fillStyle = '#ff4d6d'; ctx.fillRect(-PR + 3, -17, (PR - 3) * 2, 3);
     // bacaklar
     ctx.strokeStyle = '#1d1d3a'; ctx.lineWidth = 4;
-    const walking = p.ground || p.ceil;
-    const sw = walking ? Math.sin(time * 18) * Math.min(1, Math.abs(p.vx) / 200) * 6 : 4;
+    const sw = p.ground ? Math.sin(time * 18) * Math.min(1, Math.abs(p.vx) / 200) * 6 : 4;
     ctx.beginPath(); ctx.moveTo(-5, PR - 3); ctx.lineTo(-5 - sw, PR + 7); ctx.moveTo(5, PR - 3); ctx.lineTo(5 + sw, PR + 7); ctx.stroke();
-    if (active.shoes > 0) {
-      ctx.fillStyle = '#5ee6a8';
-      ctx.fillRect(-5 - sw - 4 + p.face, PR + 5, 9, 5); ctx.fillRect(5 + sw - 4 + p.face, PR + 5, 9, 5);
-    }
     ctx.restore();
+    // kalkan baloncuğu (bitmeye yakın yanıp söner)
+    if (active.shield > 0 && !(active.shield < 2 && Math.floor(time * 8) % 2)) {
+      const r = 25 + Math.sin(time * 5) * 1.5;
+      ctx.fillStyle = 'rgba(126,200,255,.14)'; ctx.strokeStyle = 'rgba(126,200,255,.85)'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r - 5, -2.4, -1.6); ctx.stroke();
+    }
   }
 
   function draw() {
@@ -895,7 +985,7 @@
       const list = Object.keys(active).filter(k => active[k] > 0);
       list.forEach((k, i) => {
         const d = PW[k], x = viewW / 2 + (i - (list.length - 1) / 2) * 52, y = 34;
-        const left = active[k], frac = left / d.dur;
+        const left = active[k], frac = clamp(left / durOf(k), 0, 1);
         ctx.globalAlpha = left < 2 && Math.floor(time * 8) % 2 ? 0.35 : 1;   // bitmeye yakın yanıp söner
         ctx.fillStyle = 'rgba(20,14,50,.75)'; ctx.beginPath(); ctx.arc(x, y, 21, 0, 7); ctx.fill();
         ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x, y, 21, 0, 7); ctx.stroke();
