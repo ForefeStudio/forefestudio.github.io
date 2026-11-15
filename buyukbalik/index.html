@@ -126,7 +126,7 @@
       <li><span class="ic">🥤</span><span><b>Çöp yeme!</b> Zehirlenip yavaşlarsın.</span></li>
       <li><span class="ic">🎣</span><span><b>Olta ucuna dokunma</b>, yoksa balıkçı seni çeker.</span></li>
       <li><span class="ic">🕸️</span><span><b>Ağdan kaç.</b> Yakalanırsan kurtulmak için hızlıca tıkla. Küçükken deliklerinden geçebilirsin.</span></li>
-      <li><span class="ic">🐦</span><span><b>Yüzeye yaklaşınca</b> martılar dalış yapar, balıkçı teknesi kepçe ağ atar.</span></li>
+      <li><span class="ic">🐦</span><span><b>Yüzeye yaklaşınca</b> martılar dalış yapar, balıkçı teknesi yüzeyde ağ çeker.</span></li>
       <li><span class="ic">🪼</span><span><b>Denizanası</b> ve şişmiş <b>balon balığı</b> seni sersemletir.</span></li>
     </ul>
     <p class="small">Telefonda: sağ alttaki yuvarlak kolla yönlendir · Bilgisayarda: fare veya WASD / ok tuşları · P: duraklat</p>
@@ -172,6 +172,7 @@ function resize() {
 addEventListener('resize', resize); resize();
 
 // ---------- yardımcılar ----------
+const SKY = 380;
 const W = 4200, H = 2400, MESH = 14, MAX_R = 130;
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -213,6 +214,7 @@ const SFX = {
   sting: () => beep(1200, 200, 0.25, 'sawtooth', 0.06),
   stage: () => { [523, 659, 784, 1046].forEach((f, i) => beep(f, f * 1.01, 0.18, 'triangle', 0.1, i * 0.1)); },
   warn: () => beep(880, 880, 0.12, 'square', 0.05),
+  gull: () => { beep(1500, 950, 0.14, 'sawtooth', 0.035); beep(1400, 850, 0.18, 'sawtooth', 0.035, 0.17); },
 };
 
 // ---------- türler ----------
@@ -251,9 +253,9 @@ function stageOf(r) { let s = 0; for (let i = 0; i < STAGES.length; i++) if (r >
 
 // ---------- durum ----------
 let state = 'menu', T = 0;
-let P, fishes, trash, hooks, nets, parts, decor, gulls = [], scoops = [];
+let P, fishes, trash, hooks, nets, parts, decor, gulls = [];
 let cam = { x: W / 2, y: H / 2, zoom: 1 };
-let spawnT = 0, trashT = 0, hookT = 0, netT = 0, gullT = 0, scoopT = 0, flashT = 0, shakeT = 0;
+let spawnT = 0, trashT = 0, hookT = 0, netT = 0, gullT = 0, surfNetT = 0, flashT = 0, shakeT = 0;
 let best = +(lsGet('bb_best') || 0);
 let reason = '';
 
@@ -277,7 +279,7 @@ function genDecor() {
 
 function reset() {
   P = newPlayer();
-  fishes = []; trash = []; hooks = []; nets = []; parts = []; gulls = []; scoops = [];
+  fishes = []; trash = []; hooks = []; nets = []; parts = []; gulls = [];
   cam.x = P.x; cam.y = P.y; cam.zoom = targetZoom();
   for (let i = 0; i < 60 && fishLoad() < 30; i++) spawnFish(true);
   for (let i = 0; i < 4; i++) spawnJelly(true);
@@ -285,14 +287,14 @@ function reset() {
     const x = clamp(P.x + rand(-900, 900), 60, W - 60);
     trash.push(makeTrash(x, seabedY(x) - 8, true));
   }
-  spawnT = 0; trashT = 3; hookT = 12; netT = 14; gullT = 1.5; scoopT = 4; flashT = 0; shakeT = 0;
+  spawnT = 0; trashT = 3; hookT = 12; netT = 14; gullT = 1.5; surfNetT = 5; flashT = 0; shakeT = 0;
   updateHUD(true);
 }
 
 // ---------- kamera ----------
 function targetZoom() {
   const z0 = clamp(Math.min(SW, SH) * 0.024, 9, 15) / 8;
-  const zmin = Math.max(SW / W, SH / (H + 100));
+  const zmin = Math.max(SW / W, SH / (H + SKY));
   return Math.max(z0 * Math.pow(8 / P.r, 0.6), zmin);
 }
 function viewRect(m = 0) {
@@ -308,11 +310,13 @@ function updateCamera(dt) {
     cam.y += (H * 0.6 + Math.sin(T * 0.07) * 300 - cam.y) * Math.min(1, dt);
   } else {
     const k = Math.min(1, dt * 5);
-    cam.x += (P.x - cam.x) * k; cam.y += (P.y - cam.y) * k;
+    const hh0 = SH / 2 / cam.zoom, zone = clamp(hh0 * 0.9, 180, 700);
+    const lift = clamp(1 - P.y / zone, 0, 1) * hh0 * 0.55;
+    cam.x += (P.x - cam.x) * k; cam.y += (P.y - lift - cam.y) * k;
   }
   const hw = SW / 2 / cam.zoom, hh = SH / 2 / cam.zoom;
   cam.x = hw * 2 >= W ? W / 2 : clamp(cam.x, hw, W - hw);
-  cam.y = hh * 2 >= H + 100 ? H / 2 - 50 : clamp(cam.y, -100 + hh, H - hh);
+  cam.y = hh * 2 >= H + SKY ? (H - SKY) / 2 : clamp(cam.y, -SKY + hh, H - hh);
 }
 
 // ---------- doğma ----------
@@ -326,7 +330,7 @@ function spawnPos(initial) {
   }
   return { x, y };
 }
-function fishLoad() { let n = 0; for (const f of fishes) if (f.sp !== 'jelly') n += f.school ? 0.25 : 1; return n; }
+function fishLoad() { let n = 0; for (const f of fishes) if (f.sp !== 'jelly' && !f.netted) n += f.school ? 0.25 : 1; return n; }
 function farAway(f) { const v = viewRect(); return Math.abs(f.x - cam.x) > v.w * 1.6 + 600 || Math.abs(f.y - cam.y) > v.h * 1.6 + 500; }
 function makeFish(sp, x, y, r, wa) {
   const c = SPECIES[sp];
@@ -396,13 +400,27 @@ function spawnHook() {
   hooks.push({ x, y: -40, ty, hs, state: 'warn', t: 1.6, sway: rand(0, 6), hang: rand(5, 7.5), caught: null, tipX: x, warned: false });
   SFX.warn();
 }
-function spawnNet() {
+function spawnNet(surface) {
   const v = viewRect();
-  const h = clamp(v.h * 0.6, 260, 1300), w = h * 1.15;
-  const y = clamp(P.y - h / 2, 40, Math.max(40, seabedY(P.x) - h - 10));
+  let h = clamp(v.h * 0.6, 260, 1300), w = h * 1.15;
+  let y = clamp(P.y - h / 2, 40, Math.max(40, seabedY(P.x) - h - 10));
+  if (surface) { h = clamp(surfZone() * 0.8, 150, 600); w = h * 1.5; y = 4; }
   const dir = Math.random() < 0.5 ? 1 : -1;
   const x = dir > 0 ? v.x0 - w - 40 : v.x1 + 40;
-  nets.push({ x, y, w, h, dir, speed: (150 + P.r * 1.7) * 0.62, dist: v.w + w + 200, traveled: 0, state: 'warn', t: 2.2, slip: false });
+  const n = { x, y, w, h, dir, surface: !!surface, speed: (150 + P.r * 1.7) * 0.62, dist: v.w + w + 200, traveled: 0, state: 'warn', t: 2.2, slip: false };
+  nets.push(n);
+  // ağa önceden takılmış, çırpınan balıklar
+  const pool = ['hamsi', 'istavrit', 'palyaco', 'barbun', 'tang', 'cipura', 'lufer', 'kirlangic', 'balon', 'orkinos'];
+  const cnt = 3 + (Math.random() * 4 | 0);
+  for (let i = 0; i < cnt; i++) {
+    const sp = pick(pool), z = SPECIES[sp].sz;
+    const r = clamp(rand(z[0], z[1]), MESH, Math.max(MESH, h * 0.12));
+    const f = makeFish(sp, 0, 0, r, Math.random() < 0.5 ? 0 : Math.PI);
+    f.netted = n; f.tangled = true;
+    f.nox = rand(r * 1.5, w - r * 1.5); f.noy = rand(n.surface ? h * 0.3 : r * 1.5, h - r * 1.5);
+    f.x = x + f.nox; f.y = y + f.noy;
+    fishes.push(f);
+  }
   SFX.warn(); setTimeout(SFX.warn, 300);
 }
 
@@ -482,7 +500,7 @@ function hurt(kind) {
   for (let k = 0; k < 8; k++) bubble(P.x, P.y, P.r * rand(0.1, 0.25));
   if (P.lives <= 0) { gameOver(kind); return; }
   P.invuln = 2.5;
-  banner({ fish: 'Az kalsın yem oluyordun! −1 ❤️', hook: 'Balıkçı seni geri attı! −1 ❤️', net: 'Ağdan kurtulamadın! −1 ❤️', gull: 'Martı kaptı ama seni düşürdü! −1 ❤️', scoop: 'Balıkçı seni kepçeden geri attı! −1 ❤️' }[kind], 2000);
+  banner({ fish: 'Az kalsın yem oluyordun! −1 ❤️', hook: 'Balıkçı seni geri attı! −1 ❤️', net: 'Ağdan kurtulamadın! −1 ❤️', gull: 'Martı kaptı ama seni düşürdü! −1 ❤️' }[kind], 2000);
   for (const f of fishes) if (Math.hypot(f.x - P.x, f.y - P.y) < 700) { f.cd = 4; f.chaseT = 0; }
 }
 
@@ -509,7 +527,7 @@ function hookFinish() {
 function gameOver(kind) {
   state = 'over';
   P.hooked = null; P.netted = null;
-  const reasons = { fish: 'Büyük bir balığa yem oldun. 🦈', hook: 'Balıkçının oltasına takıldın. 🎣', net: 'Balıkçı ağına yakalandın. 🕸️', gull: 'Bir martı seni kaptı. 🐦', scoop: 'Balıkçı teknesinin kepçe ağına düştün. 🛶' };
+  const reasons = { fish: 'Büyük bir balığa yem oldun. 🦈', hook: 'Balıkçının oltasına takıldın. 🎣', net: 'Balıkçı ağına yakalandın. 🕸️', gull: 'Bir martı seni kaptı. 🐦' };
   const isBest = P.score > best;
   if (isBest) { best = P.score; lsSet('bb_best', String(best)); }
   $('overTitle').textContent = isBest ? 'Yeni rekor! 🏆' : 'Oyun bitti';
@@ -531,9 +549,12 @@ function bodyHit(f, x, y, pad) {
 const GULL_MAX_R = 40;
 function spawnGull() {
   const v = viewRect(), left = Math.random() < 0.5, y = rand(-130, -70);
-  gulls.push({ x: left ? v.x0 - 80 : v.x1 + 80, y, by: y, vx: (left ? 1 : -1) * rand(170, 230), vy: 0, ty: 0,
-    dir: left ? 1 : -1, state: 'fly', t: rand(0.5, 1.3), flap: rand(0, 6), s: 16, carry: null, tipX: 0, hs: 0, splashed: false });
+  const yy = rand(-230, -150);
+  gulls.push({ x: left ? v.x0 - 80 : v.x1 + 80, y: yy, by: yy, vx: (left ? 1 : -1) * rand(200, 260), vy: 0, ty: 0, ang: rand(0, 6), orbit: rand(90, 150),
+    dir: left ? 1 : -1, state: 'fly', t: rand(2.5, 4), flap: rand(0, 6), s: 16, carry: null, tipX: 0, hs: 0, splashed: false, cry: rand(0.2, 1) });
+  SFX.gull();
 }
+function gullsBusy() { return gulls.some(g => g.state !== 'away'); }
 function canGrab() { return state === 'play' && !P.hooked && !P.netted && P.invuln <= 0; }
 function releaseCarry(o) {
   if (o.carry && o.carry !== 'player') { const fi = fishes.indexOf(o.carry); if (fi >= 0) fishes.splice(fi, 1); }
@@ -543,15 +564,22 @@ function updateGull(g, dt) {
   g.flap += dt * (g.state === 'dive' ? 2 : 11);
   g.tipX = g.x + g.dir * g.s * 0.9; g.hs = 0;
   if (g.state === 'fly') {
-    g.x += g.vx * dt; g.y = g.by + Math.sin(T * 2 + g.s) * 6; g.t -= dt;
-    if (g.t <= 0 && state === 'play' && P.r < GULL_MAX_R && P.y < surfZone() + 60 && Math.abs(P.x - g.x) < 520 && !P.hooked && !P.netted) {
-      g.state = 'aim'; g.t = 0.8; SFX.warn();
-    }
-    const v = viewRect(300);
-    if (g.t < -2 && (g.x < v.x0 || g.x > v.x1)) return true;
+    // martı gelir ve avının tepesinde daire çizer
+    const wantOK = state === 'play' && P.r < GULL_MAX_R && P.y < surfZone() + 80 && !P.hooked && !P.netted && nets.length === 0;
+    if (!wantOK) { g.state = 'away'; g.vx = g.dir * 240; return false; }
+    g.ang += dt * 1.6;
+    const ox = P.x + Math.cos(g.ang) * g.orbit * 1.6, oy = g.by + Math.sin(g.ang) * 30;
+    const dx = ox - g.x, dy = oy - g.y, d = Math.hypot(dx, dy) || 1, sp = Math.min(260, d * 2.5);
+    g.vx += (dx / d * sp - g.vx) * Math.min(1, dt * 2.5); g.vy += (dy / d * sp - g.vy) * Math.min(1, dt * 2.5);
+    g.x += g.vx * dt; g.y += g.vy * dt;
+    if (Math.abs(g.vx) > 20) g.dir = g.vx > 0 ? 1 : -1;
+    g.cry -= dt; if (g.cry <= 0) { g.cry = rand(1.2, 2.2); if (inView(g.x, g.y, 200)) SFX.gull(); }
+    g.t -= dt;
+    if (g.t <= 0 && Math.abs(P.x - g.x) < 420) { g.state = 'aim'; g.t = 0.9; g.by = g.y; SFX.warn(); }
   } else if (g.state === 'aim') {
+    if (nets.length) { g.state = 'away'; g.vx = g.dir * 240; return false; }
     g.vx += ((P.x - g.x) * 2 - g.vx) * Math.min(1, dt * 3);
-    g.x += g.vx * dt; g.dir = g.vx >= 0 ? 1 : -1; g.y = g.by - 20 * (1 - g.t / 0.8);
+    g.x += g.vx * dt; g.dir = g.vx >= 0 ? 1 : -1; g.y = g.by - 30 * (1 - g.t / 0.9);
     g.t -= dt;
     if (g.t <= 0) {
       const tx = P.x + P.vx * 0.35, ty = clamp(P.y + P.vy * 0.35, 30, surfZone() + 60);
@@ -576,54 +604,15 @@ function updateGull(g, dt) {
   } else if (g.state === 'rise') {
     g.vy += (-420 - g.vy) * Math.min(1, dt * 4); g.vx += (g.dir * 140 - g.vx) * Math.min(1, dt * 2);
     g.x += g.vx * dt; g.y += g.vy * dt;
-    if (g.y < -120) {
+    if (g.y < -150) {
       if (g.carry === 'player') { g.carry = null; if (state === 'play') carryFinish('gull'); }
       releaseCarry(g);
-      g.state = 'away'; g.vx = g.dir * 240; g.by = -120;
+      g.state = 'away'; g.vx = g.dir * 240; g.by = -200;
     }
   } else {
-    g.x += g.vx * dt; g.y += (-130 - g.y) * Math.min(1, dt * 2); g.vy = 0;
+    g.x += g.vx * dt; g.y += (-220 - g.y) * Math.min(1, dt * 1.5); g.vy = 0;
     const v = viewRect(300);
     if (g.x < v.x0 || g.x > v.x1) return true;
-  }
-  return false;
-}
-
-// ---------- kepçe ağ ----------
-function spawnScoop() {
-  const R = Math.max(38, P.r * 2.6);
-  const x = clamp(P.x + P.vx * 0.6, R + 40, W - R - 40), side = Math.random() < 0.5 ? -1 : 1;
-  scoops.push({ x, side, R, y: -R * 1.5, ty: 0, state: 'warn', t: 1.4, carry: null, tipX: x, hs: R * 0.8 });
-  SFX.warn(); setTimeout(SFX.warn, 250);
-}
-function updateScoop(sc, dt) {
-  sc.tipX = sc.x;
-  if (sc.state === 'warn') {
-    sc.x += (clamp(P.x, sc.R + 40, W - sc.R - 40) - sc.x) * Math.min(1, dt * 1.8);
-    sc.t -= dt;
-    if (sc.t <= 0) { sc.state = 'down'; sc.ty = clamp(P.y + sc.R * 0.3, sc.R * 0.8, surfZone() + sc.R); }
-  } else if (sc.state === 'down') {
-    sc.y += (650 + sc.R * 3) * dt;
-    if (sc.y >= sc.ty) { sc.y = sc.ty; sc.state = 'up'; sc.t = 0.25; }
-  } else if (sc.state === 'up') {
-    if (sc.t > 0) sc.t -= dt; else { sc.y -= (360 + sc.R * 2) * dt; sc.x -= sc.side * 60 * dt; }
-    if (sc.y < -sc.R * 2.5) {
-      if (sc.carry === 'player') { sc.carry = null; if (state === 'play') carryFinish('scoop'); }
-      releaseCarry(sc);
-      return true;
-    }
-  }
-  if ((sc.state === 'down' || sc.state === 'up') && !sc.carry && sc.y > -sc.R * 0.5) {
-    const cy = sc.y + sc.R * 0.35;
-    if (canGrab() && Math.hypot(P.x - sc.x, P.y - cy) < sc.R * 0.85) {
-      sc.carry = 'player'; P.hooked = sc; P.poison = 0; sc.state = 'up'; sc.t = 0;
-      banner('Kepçe ağa düştün! 🛶', 1500); SFX.net();
-    } else {
-      for (const f of fishes) {
-        if (f.hooked || f.netted || f.sp === 'jelly' || f.r > sc.R * 0.7) continue;
-        if (Math.hypot(f.x - sc.x, f.y - cy) < sc.R * 0.8) { f.hooked = sc; sc.carry = f; break; }
-      }
-    }
   }
   return false;
 }
@@ -633,7 +622,7 @@ function updateFish(f, dt) {
   const c = SPECIES[f.sp];
   f.phase += dt * (5 + Math.hypot(f.vx, f.vy) / 30);
   if (f.hooked) { f.x = f.hooked.tipX; f.y = f.hooked.y + f.hooked.hs * 0.5 + f.r * 0.4; f.vy = -80; return; }
-  if (f.netted) { f.x = f.netted.x + f.nox; f.y = f.netted.y + f.noy; f.phase += dt * 15; return; }
+  if (f.netted) { f.x = f.netted.x + f.nox + Math.sin(f.phase * 0.7) * f.r * 0.15; f.y = f.netted.y + f.noy + Math.sin(f.phase * 0.45) * f.r * 0.2; f.vy = Math.sin(f.phase * 0.5) * 60; if (Math.random() < dt * 0.6) f.dir = -f.dir; f.phase += dt * 15; return; }
   const bot = seabedY(f.x) - f.r * 0.7, top = 60 + f.r;
   if (c.kind === 'jelly') {
     f.vx = Math.sin(T * 0.2 + f.seed) * 15;
@@ -782,7 +771,7 @@ function update(dt) {
   // ağlar
   if (playing && st >= 1) {
     netT -= dt;
-    if (netT <= 0 && nets.length === 0) { netT = Math.max(10, rand(18, 26) - st * 1.5); spawnNet(); }
+    if (netT <= 0 && nets.length === 0 && !gullsBusy()) { netT = Math.max(10, rand(18, 26) - st * 1.5); spawnNet(); }
   }
   for (let i = nets.length - 1; i >= 0; i--) {
     const n = nets[i];
@@ -811,17 +800,17 @@ function update(dt) {
     }
   }
 
-  // yüzey: martılar & kepçe ağ
+  // yüzey: martılar & yüzey ağı
   const nearSurf = playing && P.y < surfZone() && !P.hooked && !P.netted;
   if (nearSurf) {
     P.surfT += dt;
-    if (!P.surfWarned) { P.surfWarned = true; banner('Yüzeye yaklaştın! Martılara ve kepçe ağa dikkat 🐦', 2200); }
+    if (!P.surfWarned) { P.surfWarned = true; banner('Yüzeye yaklaştın! Martılara ve balıkçı ağlarına dikkat 🐦', 2200); }
   } else if (playing) P.surfT = Math.max(0, P.surfT - dt * 0.5);
-  gullT -= dt; scoopT -= dt;
-  if (nearSurf && gullT <= 0 && gulls.length < 2 + (st >= 2 ? 1 : 0)) { spawnGull(); gullT = rand(3.5, 6.5); }
-  if (nearSurf && P.surfT > 2.5 && scoopT <= 0 && scoops.length === 0) { spawnScoop(); scoopT = rand(9, 14); }
+  gullT -= dt; surfNetT -= dt;
+  const netBusy = nets.length > 0;
+  if (nearSurf && !netBusy && gullT <= 0 && gulls.filter(g => g.state !== 'away').length < 1 + (st >= 2 ? 1 : 0)) { spawnGull(); gullT = rand(4, 7); }
+  if (nearSurf && !netBusy && !gullsBusy() && P.r >= MESH && P.surfT > 3 && surfNetT <= 0) { spawnNet(true); surfNetT = rand(12, 18); }
   for (let i = gulls.length - 1; i >= 0; i--) if (updateGull(gulls[i], dt)) gulls.splice(i, 1);
-  for (let i = scoops.length - 1; i >= 0; i--) if (updateScoop(scoops[i], dt)) scoops.splice(i, 1);
 
   // çarpışmalar
   if (playing && !P.hooked && !P.netted) {
@@ -898,6 +887,21 @@ function drawBackground() {
     const sg = ctx.createLinearGradient(0, v.y0, 0, 0);
     sg.addColorStop(0, '#bfe9ff'); sg.addColorStop(1, '#e8f7ff');
     ctx.fillStyle = sg; ctx.fillRect(v.x0, v.y0, v.w + 4, -v.y0);
+    const sx = cam.x + v.w * 0.28, sy = -260;
+    const sun = ctx.createRadialGradient(sx, sy, 0, sx, sy, 110);
+    sun.addColorStop(0, 'rgba(255,248,200,1)'); sun.addColorStop(0.35, 'rgba(255,236,150,0.9)'); sun.addColorStop(1, 'rgba(255,236,150,0)');
+    ctx.fillStyle = sun; ctx.beginPath(); ctx.arc(sx, sy, 110, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    const cs = 620, c0 = Math.floor((v.x0 - T * 12) / cs) * cs;
+    for (let cx = c0 - cs; cx < v.x1 + cs; cx += cs) {
+      const seed = Math.sin(cx * 0.013) * 1000, k = seed - Math.floor(seed);
+      const x = cx + T * 12 + k * 200, y = -320 + k * 140, sc = 0.7 + k * 0.6;
+      ctx.beginPath();
+      ctx.ellipse(x, y, 70 * sc, 22 * sc, 0, 0, Math.PI * 2);
+      ctx.ellipse(x - 35 * sc, y - 10 * sc, 35 * sc, 24 * sc, 0, 0, Math.PI * 2);
+      ctx.ellipse(x + 20 * sc, y - 18 * sc, 42 * sc, 30 * sc, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.fillStyle = '#5cc6ee'; ctx.beginPath(); ctx.moveTo(v.x0, 0);
     const step = Math.max(10, 20 / cam.zoom);
     for (let x = v.x0; x <= v.x1 + step; x += step) ctx.lineTo(x, Math.sin(x * 0.02 + T * 2) * 4 + Math.sin(x * 0.007 - T) * 3);
@@ -1277,26 +1281,6 @@ function drawGull(g) {
   ctx.restore();
 }
 
-function drawScoop(sc) {
-  const z = cam.zoom, R = sc.R, cx = sc.x, cy = sc.y;
-  const bx = cx + sc.side * (R + 160);
-  if (viewRect(200).y0 < 60) drawBoat(bx, Math.max(0.8, 1 / z));
-  if (sc.state === 'warn') {
-    ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.beginPath(); ctx.ellipse(cx, 12, R * 1.1, R * 0.25, 0, 0, Math.PI * 2); ctx.fill();
-    return;
-  }
-  ctx.strokeStyle = '#7a5230'; ctx.lineWidth = Math.max(3 / z, R * 0.07); ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(bx, -40 / z); ctx.lineTo(cx + sc.side * R, cy); ctx.stroke();
-  ctx.save();
-  ctx.beginPath(); ctx.moveTo(cx - R, cy); ctx.quadraticCurveTo(cx - R * 0.8, cy + R * 1.3, cx, cy + R * 1.35); ctx.quadraticCurveTo(cx + R * 0.8, cy + R * 1.3, cx + R, cy); ctx.closePath();
-  ctx.fillStyle = 'rgba(220,235,225,0.12)'; ctx.fill(); ctx.clip();
-  ctx.strokeStyle = 'rgba(230,240,230,0.6)'; ctx.lineWidth = 1.2 / z;
-  const st = Math.max(8, R * 0.18); ctx.beginPath();
-  for (let k = -R * 2; k < R * 2; k += st) { ctx.moveTo(cx + k, cy); ctx.lineTo(cx + k + R * 1.5, cy + R * 1.5); ctx.moveTo(cx + k, cy + R * 1.5); ctx.lineTo(cx + k + R * 1.5, cy); }
-  ctx.stroke(); ctx.restore();
-  ctx.strokeStyle = '#b07a3e'; ctx.lineWidth = Math.max(3 / z, R * 0.08);
-  ctx.beginPath(); ctx.ellipse(cx, cy, R, R * 0.22, 0, 0, Math.PI * 2); ctx.stroke();
-}
 
 function drawFish(f) {
   const c = SPECIES[f.sp];
@@ -1461,7 +1445,6 @@ function drawWarnings() {
     ctx.font = 'bold 12px system-ui'; ctx.fillText(text, x, y + 46);
   };
   for (const g of gulls) if (g.state === 'aim') topWarn(g.x, '🐦', 'MARTI!');
-  for (const sc of scoops) if (sc.state === 'warn') topWarn(sc.x, '🛶', 'KEPÇE!');
   for (const n of nets) {
     if (n.state !== 'warn') continue;
     const [, sy] = w2s(0, n.y + n.h / 2);
@@ -1473,7 +1456,7 @@ function drawWarnings() {
     ctx.fill();
     ctx.font = 'bold 14px system-ui'; ctx.fillStyle = '#fff';
     ctx.textAlign = left ? 'left' : 'right';
-    ctx.fillText('🕸️ AĞ GELİYOR!', left ? 50 : SW - 50, y);
+    ctx.fillText(n.surface ? '🛥️ YÜZEY AĞI GELİYOR!' : '🕸️ AĞ GELİYOR!', left ? 50 : SW - 50, y);
     ctx.textAlign = 'center';
   }
   if (P.netted && state === 'play') {
@@ -1517,7 +1500,6 @@ function render() {
   if (state === 'play') drawPlayer();
   for (const h of hooks) drawHook(h);
   for (const n of nets) drawNet(n);
-  for (const sc of scoops) drawScoop(sc);
   for (const g of gulls) drawGull(g);
   // parçacıklar
   for (const p of parts) {
