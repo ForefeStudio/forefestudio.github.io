@@ -171,7 +171,7 @@ function resize() {
 addEventListener('resize', resize); resize();
 
 // ---------- yardımcılar ----------
-const W = 4200, H = 2400, MESH = 18, MAX_R = 160;
+const W = 4200, H = 2400, MESH = 14, MAX_R = 130;
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const pick = a => a[Math.random() * a.length | 0];
@@ -216,24 +216,24 @@ const SFX = {
 
 // ---------- türler ----------
 const SPECIES = {
-  hamsi:    { kind: 'fish', back: '#36607e', body: '#a9bccb', belly: '#eef5f9', len: 1.45, h: 0.3, tail: 'fork', spd: 1.25, aggr: 0 },
-  palyaco:  { kind: 'fish', back: '#d9500b', body: '#ff7f2a', belly: '#ffab66', stripe: '#ffffff', len: 1.1, h: 0.62, tail: 'round', spd: 0.85, aggr: 0 },
-  tang:     { kind: 'fish', back: '#122f86', body: '#2463d6', belly: '#5b93f2', tailC: '#ffd23f', finC: '#0d2466', len: 1.05, h: 0.72, tail: 'fork', spd: 0.95, aggr: 0.4, chase: 0.9, chaseT: 3.5 },
-  barbun:   { kind: 'fish', back: '#b82640', body: '#ef5f74', belly: '#ffd0d6', lines: '#ffd84d', len: 1.3, h: 0.42, tail: 'fork', spd: 1, aggr: 0.3, chase: 0.95, chaseT: 3 },
-  cipura:   { kind: 'fish', back: '#5e6e78', body: '#b9c3c9', belly: '#eef1f3', band: '#e8b72e', len: 1.1, h: 0.62, tail: 'fork', spd: 0.95, aggr: 0.6, chase: 0.95, chaseT: 4 },
-  lagos:    { kind: 'fish', back: '#4a3524', body: '#7d5a3c', belly: '#c7a07a', spots: '#3a2818', len: 1.25, h: 0.55, tail: 'round', spd: 0.8, aggr: 1, chase: 0.95, chaseT: 5 },
-  barakuda: { kind: 'barracuda', back: '#3f4f5a', body: '#a3b2bb', belly: '#e6ecef', len: 1.9, h: 0.24, spd: 1.15, aggr: 1, chase: 1.25, chaseT: 2.2 },
-  kopek:    { kind: 'shark', back: '#4f6577', body: '#7f97aa', belly: '#eef2f5', len: 1.7, h: 0.38, spd: 1, aggr: 1, chase: 1.08, chaseT: 7 },
-  balon:    { kind: 'puffer', back: '#9a7b2c', body: '#e8c65a', belly: '#fff1bf', spots: '#7a5a1c', len: 0.95, h: 0.8, spd: 0.6, aggr: 0 },
-  vatoz:    { kind: 'ray', back: '#5f513e', body: '#8a7a63', spots: '#c9b89a', spd: 0.75, aggr: 0.5, chase: 0.9, chaseT: 3 },
-  jelly:    { kind: 'jelly', body: '#ff9bd6', spd: 0.3, aggr: 0 },
+  hamsi:    { kind: 'fish', back: '#36607e', body: '#a9bccb', belly: '#eef5f9', len: 1.45, h: 0.3, tail: 'fork', spd: 1.25, aggr: 0 , sz: [4, 7], w: 1.5 },
+  palyaco:  { kind: 'fish', back: '#d9500b', body: '#ff7f2a', belly: '#ffab66', stripe: '#ffffff', len: 1.1, h: 0.62, tail: 'round', spd: 0.85, aggr: 0 , sz: [5, 10], w: 2 },
+  tang:     { kind: 'fish', back: '#122f86', body: '#2463d6', belly: '#5b93f2', tailC: '#ffd23f', finC: '#0d2466', len: 1.05, h: 0.72, tail: 'fork', spd: 0.95, aggr: 0.4, chase: 0.9, chaseT: 3.5 , sz: [10, 18], w: 1.6, cap: 0.85 },
+  barbun:   { kind: 'fish', back: '#b82640', body: '#ef5f74', belly: '#ffd0d6', lines: '#ffd84d', len: 1.3, h: 0.42, tail: 'fork', spd: 1, aggr: 0.3, chase: 0.95, chaseT: 3 , sz: [8, 14], w: 1.8, cap: 0.85 },
+  cipura:   { kind: 'fish', back: '#5e6e78', body: '#b9c3c9', belly: '#eef1f3', band: '#e8b72e', len: 1.1, h: 0.62, tail: 'fork', spd: 0.95, aggr: 0.6, chase: 0.95, chaseT: 4 , sz: [14, 24], w: 1.4, cap: 0.85 },
+  lagos:    { kind: 'fish', back: '#4a3524', body: '#7d5a3c', belly: '#c7a07a', spots: '#3a2818', len: 1.25, h: 0.55, tail: 'round', spd: 0.8, aggr: 1, chase: 0.95, chaseT: 5 , sz: [25, 55], w: 1.2, cap: 0.85 },
+  barakuda: { kind: 'barracuda', back: '#3f4f5a', body: '#a3b2bb', belly: '#e6ecef', len: 1.9, h: 0.24, spd: 1.15, aggr: 1, chase: 1.25, chaseT: 2.2 , sz: [25, 50], w: 1, cap: 1.08 },
+  kopek:    { kind: 'shark', back: '#4f6577', body: '#7f97aa', belly: '#eef2f5', len: 1.7, h: 0.38, spd: 1, aggr: 1, chase: 1.08, chaseT: 7 , sz: [45, 90], w: 1, cap: 0.95 },
+  balon:    { kind: 'puffer', back: '#9a7b2c', body: '#e8c65a', belly: '#fff1bf', spots: '#7a5a1c', len: 0.95, h: 0.8, spd: 0.6, aggr: 0 , sz: [9, 16], w: 1 },
+  vatoz:    { kind: 'ray', back: '#5f513e', body: '#8a7a63', spots: '#c9b89a', spd: 0.75, aggr: 0.5, chase: 0.9, chaseT: 3 , sz: [22, 45], w: 0.8, cap: 0.8 },
+  jelly:    { kind: 'jelly', body: '#ff9bd6', spd: 0.3, aggr: 0 , sz: [10, 34], w: 0 },
 };
 const PLAYER_COL = { back: '#e86a00', body: '#ffa62b', belly: '#ffe7a3', finC: '#ff5d3a', tailC: '#ff5d3a', len: 1.15, h: 0.6, tail: 'fork' };
 const POISON_COL = { back: '#4c7a1c', body: '#8ac926', belly: '#d9f7a0', finC: '#5e9a1f', tailC: '#5e9a1f', len: 1.15, h: 0.6, tail: 'fork' };
 
 const STAGES = [
-  { r: 0, name: 'Yavru Balık' }, { r: 20, name: 'Küçük Balık' }, { r: 32, name: 'Orta Boy Balık' },
-  { r: 48, name: 'Büyük Balık' }, { r: 70, name: 'Dev Balık' }, { r: 100, name: 'Okyanus Kralı' },
+  { r: 0, name: 'Yavru Balık' }, { r: 14, name: 'Küçük Balık' }, { r: 24, name: 'Orta Boy Balık' },
+  { r: 38, name: 'Büyük Balık' }, { r: 58, name: 'Dev Balık' }, { r: 92, name: 'Okyanus Kralı' },
 ];
 function stageOf(r) { let s = 0; for (let i = 0; i < STAGES.length; i++) if (r >= STAGES[i].r) s = i; return s; }
 
@@ -246,7 +246,7 @@ let best = +(lsGet('bb_best') || 0);
 let reason = '';
 
 function newPlayer() {
-  return { x: W / 2, y: H * 0.55, vx: 0, vy: 0, r: 12, dir: 1, phase: 0, lives: 3, invuln: 2, poison: 0, stun: 0,
+  return { x: W / 2, y: H * 0.55, vx: 0, vy: 0, r: 8, dir: 1, phase: 0, lives: 3, invuln: 3, poison: 0, stun: 0,
     hooked: null, netted: null, nox: 0, noy: 0, struggle: 0, netT: 0, score: 0, eaten: 0, stage: 0 };
 }
 
@@ -267,7 +267,7 @@ function reset() {
   P = newPlayer();
   fishes = []; trash = []; hooks = []; nets = []; parts = [];
   cam.x = P.x; cam.y = P.y; cam.zoom = targetZoom();
-  for (let i = 0; i < 30; i++) spawnFish(true);
+  for (let i = 0; i < 60 && fishLoad() < 30; i++) spawnFish(true);
   for (let i = 0; i < 4; i++) spawnJelly(true);
   for (let i = 0; i < 6; i++) {
     const x = clamp(P.x + rand(-900, 900), 60, W - 60);
@@ -279,10 +279,9 @@ function reset() {
 
 // ---------- kamera ----------
 function targetZoom() {
-  const base = clamp(Math.min(SW, SH) * 0.035, 13, 24);
-  const disp = base * (1 + 1.1 * (1 - Math.exp(-(P.r - 12) / 50)));
+  const z0 = clamp(Math.min(SW, SH) * 0.024, 9, 15) / 8;
   const zmin = Math.max(SW / W, SH / (H + 100));
-  return Math.max(disp / P.r, zmin);
+  return Math.max(z0 * Math.pow(8 / P.r, 0.6), zmin);
 }
 function viewRect(m = 0) {
   const hw = SW / 2 / cam.zoom, hh = SH / 2 / cam.zoom;
@@ -315,6 +314,7 @@ function spawnPos(initial) {
   }
   return { x, y };
 }
+function fishLoad() { let n = 0; for (const f of fishes) if (f.sp !== 'jelly') n += f.school ? 0.25 : 1; return n; }
 function farAway(f) { const v = viewRect(); return Math.abs(f.x - cam.x) > v.w * 1.6 + 600 || Math.abs(f.y - cam.y) > v.h * 1.6 + 500; }
 function makeFish(sp, x, y, r, wa) {
   const c = SPECIES[sp];
@@ -323,22 +323,33 @@ function makeFish(sp, x, y, r, wa) {
     wantChase: Math.random() < (c.aggr || 0), greedy: Math.random() < 0.35, school: null };
 }
 function spawnFish(initial) {
-  const st = stageOf(P.r);
-  const danger = Math.random() < 0.36;
-  let sp, ratio;
-  if (danger) {
-    sp = wpick({ lagos: 2, kopek: 0.6 + st * 0.5, barakuda: 1.3, cipura: 0.8, tang: 0.5, vatoz: 0.7, barbun: 0.5 });
-    ratio = rand(1.2, 2.4) * (sp === 'kopek' ? 1.25 : 1);
+  const roll = Math.random();
+  let sp, r, danger;
+  if (roll < 0.14) {
+    // her zaman dolaşan gerçek dev avcılar
+    sp = wpick({ kopek: 1.2, lagos: 1, barakuda: 1, vatoz: 0.7 });
+    const z = SPECIES[sp].sz; r = rand(z[0], z[1]);
   } else {
-    sp = wpick({ hamsi: 2.5, palyaco: 1.6, tang: 1.6, barbun: 1.6, cipura: 1.2, balon: 0.9, vatoz: 0.6, lagos: 0.5 });
-    ratio = rand(0.32, 0.85);
+    const wantDanger = roll < 0.14 + (P.r < 12 ? 0.16 : 0.24);
+    const target = P.r * (wantDanger ? rand(1.2, 2.4) : rand(0.35, 0.85));
+    const opts = {};
+    for (const k in SPECIES) { const z = SPECIES[k].sz; if (SPECIES[k].w && z[0] <= target * 1.25 && z[1] >= target * 0.8) opts[k] = SPECIES[k].w; }
+    if (Object.keys(opts).length) sp = wpick(opts);
+    else { sp = 'hamsi'; let bd = 1e9; for (const k in SPECIES) { if (!SPECIES[k].w) continue; const z = SPECIES[k].sz, dd = Math.min(Math.abs(z[0] - target), Math.abs(z[1] - target)); if (dd < bd) { bd = dd; sp = k; } } }
+    const z = SPECIES[sp].sz; r = clamp(target, z[0], z[1]);
   }
+  danger = r > P.r * 1.1;
+  const ratio = r / P.r;
   let pos = spawnPos(initial);
-  if (initial && danger) { for (let i = 0; i < 10 && Math.hypot(pos.x - P.x, pos.y - P.y) < 750; i++) pos = spawnPos(true); }
+  if (initial && danger) {
+    const a = rand(0, Math.PI * 2), dd = rand(800, 1500);
+    pos = { x: clamp(P.x + Math.cos(a) * dd, 80, W - 80), y: 0 };
+    pos.y = clamp(P.y + Math.sin(a) * dd * 0.5, 120, seabedY(pos.x) - 60);
+  }
   const wa = (Math.random() < 0.5 ? 0 : Math.PI) + rand(-0.3, 0.3);
   if (sp === 'hamsi') {
     const school = { wa, wt: rand(3, 6) };
-    const n = 4 + (Math.random() * 4 | 0), rr = P.r * rand(0.3, 0.6);
+    const n = 3 + (Math.random() * 3 | 0), rr = r;
     for (let i = 0; i < n; i++) {
       const f = makeFish('hamsi', clamp(pos.x + rand(-1, 1) * rr * 5, 30, W - 30), clamp(pos.y + rand(-1, 1) * rr * 3, 80, seabedY(pos.x) - 30), rr * rand(0.85, 1.15), wa);
       f.school = school; fishes.push(f);
@@ -351,15 +362,14 @@ function spawnFish(initial) {
 }
 function spawnJelly(initial) {
   const pos = spawnPos(initial);
-  const f = makeFish('jelly', pos.x, pos.y, P.r * rand(0.8, 1.5), 0);
+  const f = makeFish('jelly', pos.x, pos.y, rand(10, 34) * (P.r > 40 ? 1.6 : 1), 0);
   fishes.push(f);
 }
 function makeTrash(x, y, landed) {
   const st = stageOf(P.r);
   const type = wpick({ sise: 3, kutu: 3, poset: 2.5, lastik: st >= 2 ? 1 : 0 });
-  let r = clamp(P.r * rand(0.45, 0.8), 7, 200);
-  if (type === 'lastik') r *= 1.3;
-  return { type, x, y, r, vy: 0, sink: rand(35, 65) * (0.6 + P.r / 30), rot: rand(0, 6), vr: rand(-0.8, 0.8), seed: rand(0, 99), landed, life: rand(25, 40) };
+  let r = { sise: rand(8, 12), kutu: rand(6, 9), poset: rand(10, 15), lastik: rand(20, 28) }[type];
+  return { type, x, y, r, vy: 0, sink: rand(35, 65) * (0.8 + P.r / 40), rot: rand(0, 6), vr: rand(-0.8, 0.8), seed: rand(0, 99), landed, life: rand(25, 40) };
 }
 function spawnTrash() {
   const v = viewRect();
@@ -370,7 +380,7 @@ function spawnHook() {
   const v = viewRect();
   const x = clamp(P.x + rand(-0.3, 0.3) * v.w, 80, W - 80);
   const ty = clamp(P.y + rand(-120, 120) * Math.sqrt(P.r / 12), 140, seabedY(x) - 80);
-  const hs = Math.max(9, P.r * 0.5);
+  const hs = 7 + P.r * 0.1;
   hooks.push({ x, y: -40, ty, hs, state: 'warn', t: 1.6, sway: rand(0, 6), hang: rand(5, 7.5), caught: null, tipX: x, warned: false });
   SFX.warn();
 }
@@ -491,6 +501,14 @@ function gameOver(kind) {
   setTimeout(() => { if (state === 'over') { $('overOv').classList.remove('hidden'); $('hud').classList.add('hidden'); showJoy(false); } }, 900);
 }
 
+function bodyHit(f, x, y, pad) {
+  const c = SPECIES[f.sp];
+  const len = c.kind === 'ray' ? 1 : (c.len || 1), h = c.kind === 'ray' ? 0.4 : (c.h || 0.6);
+  const rx = f.r * len * 0.9 + pad, ry = f.r * h + pad;
+  const lx = x - f.x, ly = y - f.y;
+  return (lx * lx) / (rx * rx) + (ly * ly) / (ry * ry) < 1;
+}
+
 // ---------- balık yapay zekası ----------
 function updateFish(f, dt) {
   const c = SPECIES[f.sp];
@@ -518,11 +536,11 @@ function updateFish(f, dt) {
     f.puffS += ((f.puff > 0 ? 1.7 : 1) - f.puffS) * Math.min(1, dt * 6);
   }
 
-  if (active && bigger && f.wantChase && f.cd <= 0 && d < 240 + f.r * 4) {
+  if (active && bigger && f.wantChase && f.cd <= 0 && P.r >= f.r * 0.2 && d < 240 + f.r * 4) {
     mode = 'chase'; f.chaseT += dt;
     if (f.chaseT > c.chaseT) { f.cd = 3.5; f.chaseT = 0; }
     const lx = P.x + P.vx * 0.25 - f.x, ly = P.y + P.vy * 0.25 - f.y, ld = Math.hypot(lx, ly) || 1;
-    tx = lx / ld; ty = ly / ld; spd = base * c.chase; turn = 4;
+    tx = lx / ld; ty = ly / ld; spd = Math.min(base * c.chase, (150 + P.r * 1.7) * (c.cap || 0.85)); turn = 4;
   } else {
     f.chaseT = Math.max(0, f.chaseT - dt * 0.5);
     let bait = null;
@@ -565,8 +583,9 @@ function update(dt) {
 
   // doğma & temizleme
   spawnT -= dt;
-  let normal = 0, jellies = 0;
-  for (const f of fishes) { if (f.sp === 'jelly') jellies++; else normal++; }
+  const normal = fishLoad();
+  let jellies = 0;
+  for (const f of fishes) if (f.sp === 'jelly') jellies++;
   if (spawnT <= 0) {
     spawnT = 0.2;
     if (normal < 34) spawnFish(false);
@@ -574,7 +593,7 @@ function update(dt) {
   }
   for (let i = fishes.length - 1; i >= 0; i--) {
     const f = fishes[i];
-    if (!f.hooked && !f.netted && !inView(f.x, f.y, 300) && (f.r < P.r * 0.28 || f.r > P.r * 3.3 || farAway(f))) fishes.splice(i, 1);
+    if (!f.hooked && !f.netted && !inView(f.x, f.y, 300) && (f.r < P.r * 0.25 || farAway(f))) fishes.splice(i, 1);
   }
 
   for (const f of fishes) updateFish(f, dt);
@@ -597,7 +616,7 @@ function update(dt) {
       t.life -= dt * (inView(t.x, t.y, 200) ? 1 : 3);
     }
     if (t.life <= 0) { trash.splice(i, 1); continue; }
-    if (playing && !P.hooked && !P.netted && Math.hypot(t.x - P.x, t.y - P.y) < P.r * 0.85 + t.r * 0.55) {
+    if (playing && !P.hooked && !P.netted && t.r < P.r * 1.6 && Math.hypot(t.x - P.x, t.y - P.y) < P.r * 0.85 + t.r * 0.55) {
       trash.splice(i, 1);
       P.poison = Math.min(14, P.poison + 6);
       banner('Çöp yedin! Zehirlendin, yavaşladın 🤢', 1800);
@@ -681,7 +700,7 @@ function update(dt) {
       const c = SPECIES[f.sp], er = f.r * f.puffS;
       const dx = f.x - P.x, dy = f.y - P.y, d = Math.hypot(dx, dy) || 1;
       if (c.kind === 'jelly') {
-        if (d < er * 0.8 + P.r * 0.6 && P.stun <= 0 && P.invuln <= 0) {
+        if (f.r > P.r * 0.5 && d < er * 0.8 + P.r * 0.6 && P.stun <= 0 && P.invuln <= 0) {
           P.stun = 1.1; P.vx = -dx / d * 350; P.vy = -dy / d * 350; P.invuln = 0.4;
           floatText(P.x, P.y - P.r, 'Zzzt! ⚡', '#ff9bd6'); banner('Denizanası çarptı! Sersemledin ⚡', 1400); SFX.sting();
         }
@@ -697,7 +716,7 @@ function update(dt) {
       if (P.r > f.r * 1.1) {
         if (d < P.r * 0.95 + f.r * 0.35) eat(i);
       } else if (f.r > P.r * 1.1) {
-        if (d < f.r * 0.8 + P.r * 0.5 && P.invuln <= 0) { hurt('fish'); if (state !== 'play') break; }
+        if (bodyHit(f, P.x, P.y, P.r * 0.5) && P.invuln <= 0) { hurt('fish'); if (state !== 'play') break; }
       } else if (d < (f.r + P.r) * 0.8) {
         const push = ((f.r + P.r) * 0.8 - d) * 0.5;
         P.x -= dx / d * push; P.y -= dy / d * push; f.x += dx / d * push; f.y += dy / d * push;
