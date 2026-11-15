@@ -81,6 +81,25 @@
   .stats div { background: rgba(255,255,255,0.07); border-radius: 10px; padding: 8px; font-size: 13px; color: #b9d3e6; }
   .stats b { display: block; font-size: 20px; color: #fff; }
   .small { font-size: 12px !important; color: #8fb3cc !important; }
+
+  #joy {
+    position: fixed; z-index: 4; width: 140px; height: 140px; border-radius: 50%;
+    left: calc(22px + env(safe-area-inset-left, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    background: radial-gradient(circle, rgba(255,255,255,0.08) 0 55%, rgba(255,255,255,0.16) 56% 100%);
+    border: 2px solid rgba(255,255,255,0.35); touch-action: none;
+  }
+  #joy.hidden { display: none; }
+  #joy::before, #joy::after {
+    content: ""; position: absolute; left: 50%; top: 50%; background: rgba(255,255,255,0.18); transform: translate(-50%, -50%);
+  }
+  #joy::before { width: 2px; height: 80%; }
+  #joy::after { width: 80%; height: 2px; }
+  #knob {
+    position: absolute; left: 50%; top: 50%; width: 62px; height: 62px; margin: -31px 0 0 -31px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ffd27a, #ff9a2b 60%, #d96a00);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4); z-index: 1; pointer-events: none;
+  }
+  #joy.on { border-color: rgba(255,209,102,0.8); }
 </style>
 </head>
 <body>
@@ -95,6 +114,7 @@
   <button id="pauseBtn" aria-label="Duraklat">⏸</button>
 </div>
 <div id="banner"></div>
+<div id="joy" class="hidden" aria-label="Yön kolu"><div id="knob"></div></div>
 
 <div id="menu" class="overlay">
   <div class="card">
@@ -108,7 +128,7 @@
       <li><span class="ic">🕸️</span><span><b>Ağdan kaç.</b> Yakalanırsan kurtulmak için hızlıca tıkla. Küçükken deliklerinden geçebilirsin.</span></li>
       <li><span class="ic">🪼</span><span><b>Denizanası</b> ve şişmiş <b>balon balığı</b> seni sersemletir.</span></li>
     </ul>
-    <p class="small">Fare veya parmakla yönlendir · WASD / ok tuşları · P: duraklat</p>
+    <p class="small">Telefonda: sol alttaki yuvarlak kolla yönlendir · Bilgisayarda: fare veya WASD / ok tuşları · P: duraklat</p>
     <p class="small" id="bestText"></p>
     <button class="btn" id="startBtn">Oyna</button>
   </div>
@@ -401,6 +421,7 @@ function updatePlayer(dt) {
   const kx = (keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0);
   const ky = (keys.ArrowDown || keys.KeyS ? 1 : 0) - (keys.ArrowUp || keys.KeyW ? 1 : 0);
   if (kx || ky) { const d = Math.hypot(kx, ky); dx = kx / d; dy = ky / d; want = spd; }
+  else if (joy.active) { if (joy.mag > 0.12) { dx = joy.x; dy = joy.y; want = spd * Math.min(1, (joy.mag - 0.12) / 0.6); } }
   else if (pointer.active) {
     const wx = cam.x + (pointer.x - SW / 2) / cam.zoom, wy = cam.y + (pointer.y - SH / 2) / cam.zoom;
     dx = wx - P.x; dy = wy - P.y; const d = Math.hypot(dx, dy);
@@ -467,7 +488,7 @@ function gameOver(kind) {
   $('overReason').textContent = reasons[kind] || '';
   $('stScore').textContent = P.score; $('stBest').textContent = best;
   $('stSize').textContent = Math.round(P.r * 0.5) + ' cm'; $('stEaten').textContent = P.eaten;
-  setTimeout(() => { if (state === 'over') { $('overOv').classList.remove('hidden'); $('hud').classList.add('hidden'); } }, 900);
+  setTimeout(() => { if (state === 'over') { $('overOv').classList.remove('hidden'); $('hud').classList.add('hidden'); showJoy(false); } }, 900);
 }
 
 // ---------- balık yapay zekası ----------
@@ -1120,7 +1141,7 @@ function drawWarnings() {
     ctx.textAlign = 'center';
   }
   if (P.netted && state === 'play') {
-    const w = Math.min(320, SW - 40), x = (SW - w) / 2, y = SH - 90;
+    const w = Math.min(320, SW - 40), x = (SW - w) / 2, y = joyVisible() ? SH - 240 : SH - 90;
     ctx.fillStyle = 'rgba(4,26,53,0.85)'; ctx.beginPath(); ctx.roundRect(x - 12, y - 40, w + 24, 76, 14); ctx.fill();
     ctx.font = 'bold 17px system-ui'; ctx.fillStyle = blink ? '#ffd166' : '#fff';
     ctx.fillText('HIZLICA TIKLA / BOŞLUK!', SW / 2, y - 18);
@@ -1195,12 +1216,45 @@ function struggleTap() {
 }
 cvs.addEventListener('pointerdown', e => {
   initAudio();
+  if (e.pointerType !== 'mouse') { useTouch(); struggleTap(); return; }
   pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true;
   struggleTap();
 });
 cvs.addEventListener('pointermove', e => {
-  if (e.pointerType === 'mouse' || e.buttons || e.pressure > 0) { pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; }
+  if (e.pointerType === 'mouse') { pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; }
 });
+
+// ---------- yön kolu (joystick) ----------
+const joy = { active: false, id: null, x: 0, y: 0, mag: 0 };
+let touchMode = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+const joyEl = $('joy'), knobEl = $('knob');
+function joyVisible() { return !joyEl.classList.contains('hidden'); }
+function showJoy(on) { joyEl.classList.toggle('hidden', !(on && touchMode)); }
+function useTouch() { if (!touchMode) { touchMode = true; showJoy(state === 'play'); } }
+function joyMove(e) {
+  const b = joyEl.getBoundingClientRect(), R = b.width / 2;
+  let dx = e.clientX - (b.left + R), dy = e.clientY - (b.top + R);
+  const d = Math.hypot(dx, dy), lim = R * 0.75;
+  if (d > lim) { dx = dx / d * lim; dy = dy / d * lim; }
+  knobEl.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  joy.mag = Math.min(1, d / lim);
+  joy.x = d > 0 ? dx / Math.hypot(dx, dy) : 0; joy.y = d > 0 ? dy / Math.hypot(dx, dy) : 0;
+}
+function joyEnd(e) {
+  if (e.pointerId !== joy.id) return;
+  joy.active = false; joy.id = null; joy.mag = 0; joy.x = joy.y = 0;
+  knobEl.style.transform = ''; joyEl.classList.remove('on');
+}
+joyEl.addEventListener('pointerdown', e => {
+  initAudio(); e.preventDefault();
+  joy.active = true; joy.id = e.pointerId; pointer.active = false;
+  try { joyEl.setPointerCapture(e.pointerId); } catch (err) {}
+  joyEl.classList.add('on'); joyMove(e); struggleTap();
+});
+joyEl.addEventListener('pointermove', e => { if (joy.active && e.pointerId === joy.id) joyMove(e); });
+joyEl.addEventListener('pointerup', joyEnd);
+joyEl.addEventListener('pointercancel', joyEnd);
+joyEl.addEventListener('lostpointercapture', joyEnd);
 cvs.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') pointer.active = false; });
 cvs.addEventListener('pointercancel', () => { pointer.active = false; });
 cvs.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') pointer.active = false; });
@@ -1223,15 +1277,15 @@ function start() {
   initAudio();
   reset(); state = 'play';
   ['menu', 'overOv', 'pauseOv'].forEach(id => $(id).classList.add('hidden'));
-  $('hud').classList.remove('hidden');
+  $('hud').classList.remove('hidden'); showJoy(true);
   banner('Küçük balıkları ye, büyüklerden kaç! 🐟', 2200);
 }
-function pause() { state = 'pause'; $('pauseOv').classList.remove('hidden'); }
-function resume() { state = 'play'; last = performance.now(); $('pauseOv').classList.add('hidden'); }
+function pause() { state = 'pause'; $('pauseOv').classList.remove('hidden'); showJoy(false); joy.active = false; joy.mag = 0; knobEl.style.transform = ''; }
+function resume() { state = 'play'; last = performance.now(); $('pauseOv').classList.add('hidden'); showJoy(true); }
 function toMenu() {
   state = 'menu'; reset();
   ['overOv', 'pauseOv'].forEach(id => $(id).classList.add('hidden'));
-  $('hud').classList.add('hidden'); $('menu').classList.remove('hidden');
+  $('hud').classList.add('hidden'); $('menu').classList.remove('hidden'); showJoy(false);
   showBest();
 }
 function toggleMute() { muted = !muted; lsSet('bb_muted', muted ? '1' : '0'); $('muteBtn').textContent = muted ? '🔇' : '🔊'; }
