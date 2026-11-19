@@ -40,6 +40,10 @@
   #poisonBar { background: var(--poison); }
   .poison { display: flex; align-items: center; gap: 6px; color: #c7f464; }
   .poison.hidden { display: none; }
+  .powers { display: flex; gap: 6px; }
+  .powers span { padding: 2px 8px; border-radius: 10px; background: rgba(255,209,102,0.2); color: #ffe6a8; font-variant-numeric: tabular-nums; }
+  .powers span.mag { background: rgba(239,71,111,0.22); color: #ffc2d0; }
+  .powers span.spd { background: rgba(46,196,182,0.25); color: #b8fff6; }
   #hud button {
     pointer-events: auto; border: 0; border-radius: 8px; width: 34px; height: 30px;
     background: rgba(255,255,255,0.14); color: #fff; font-size: 16px; cursor: pointer;
@@ -109,6 +113,7 @@
   <div id="lives"></div>
   <div class="stage"><span id="stageName">Yavru Balık</span><div class="bar"><i id="growBar"></i></div></div>
   <div>⭐ <span id="score">0</span></div>
+  <div id="powers" class="powers"></div>
   <div id="poisonBox" class="poison hidden">🤢 <div class="bar"><i id="poisonBar"></i></div></div>
   <button id="muteBtn" aria-label="Sesi aç/kapat">🔊</button>
   <button id="pauseBtn" aria-label="Duraklat">⏸</button>
@@ -126,6 +131,7 @@
       <li><span class="ic">🥤</span><span><b>Çöp yeme!</b> Zehirlenip yavaşlarsın.</span></li>
       <li><span class="ic">🎣</span><span><b>Olta ucuna dokunma</b>, yoksa balıkçı seni çeker.</span></li>
       <li><span class="ic">🕸️</span><span><b>Ağdan kaç.</b> Yakalanırsan kurtulmak için hızlıca tıkla. Küçükken deliklerinden geçebilirsin.</span></li>
+      <li><span class="ic">🪙</span><span><b>Altınları topla.</b> 🧲 Mıknatıs altınları sana çeker, ⚡ hız yemi seni uçurur, ❤️ kalp ekstra can verir.</span></li>
       <li><span class="ic">🐦</span><span><b>Yüzeye yaklaşınca</b> martılar dalış yapar, balıkçı teknesi yüzeyde ağ çeker.</span></li>
       <li><span class="ic">🪼</span><span><b>Denizanası</b> ve şişmiş <b>balon balığı</b> seni sersemletir.</span></li>
     </ul>
@@ -152,6 +158,8 @@
       <div>En iyi<b id="stBest">0</b></div>
       <div>Boy<b id="stSize">0 cm</b></div>
       <div>Yenen balık<b id="stEaten">0</b></div>
+      <div>Toplanan altın<b id="stCoins">0</b></div>
+      <div>Güçlendirme<b id="stPowers">0</b></div>
     </div>
     <button class="btn" id="againBtn">Tekrar oyna</button><br>
     <button class="btn alt" id="menuBtn">Ana menü</button>
@@ -205,6 +213,9 @@ function beep(f1, f2, dur, type = 'sine', vol = 0.12, delay = 0) {
 }
 const SFX = {
   eat: () => beep(520, 880, 0.09, 'sine', 0.1),
+  coin: () => { beep(1320, 1320, 0.05, 'square', 0.04); beep(1760, 1760, 0.08, 'square', 0.04, 0.05); },
+  power: () => { [660, 880, 1100, 1320].forEach((f, i) => beep(f, f * 1.05, 0.1, 'triangle', 0.08, i * 0.06)); },
+  life: () => { [523, 784, 1046].forEach((f, i) => beep(f, f, 0.16, 'sine', 0.1, i * 0.1)); },
   trash: () => { beep(300, 90, 0.35, 'sawtooth', 0.07); },
   hurt: () => { beep(400, 60, 0.45, 'square', 0.09); },
   hook: () => { beep(900, 1500, 0.15, 'triangle', 0.1); beep(1500, 600, 0.3, 'triangle', 0.08, 0.15); },
@@ -253,15 +264,16 @@ function stageOf(r) { let s = 0; for (let i = 0; i < STAGES.length; i++) if (r >
 
 // ---------- durum ----------
 let state = 'menu', T = 0;
-let P, fishes, trash, hooks, nets, parts, decor, gulls = [];
+let P, fishes, trash, hooks, nets, parts, decor, gulls = [], items = [];
 let cam = { x: W / 2, y: H / 2, zoom: 1 };
+let coinT = 0, powerT = 0;
 let spawnT = 0, trashT = 0, hookT = 0, netT = 0, gullT = 0, surfNetT = 0, flashT = 0, shakeT = 0;
 let best = +(lsGet('bb_best') || 0);
 let reason = '';
 
 function newPlayer() {
   return { x: W / 2, y: H * 0.55, vx: 0, vy: 0, r: 8, dir: 1, phase: 0, lives: 3, invuln: 3, poison: 0, stun: 0,
-    hooked: null, netted: null, nox: 0, noy: 0, struggle: 0, netT: 0, score: 0, eaten: 0, stage: 0, surfT: 0, surfWarned: false };
+    hooked: null, netted: null, nox: 0, noy: 0, struggle: 0, netT: 0, score: 0, eaten: 0, stage: 0, surfT: 0, surfWarned: false, magnet: 0, boost: 0, coins: 0, powers: 0 };
 }
 
 function genDecor() {
@@ -279,7 +291,7 @@ function genDecor() {
 
 function reset() {
   P = newPlayer();
-  fishes = []; trash = []; hooks = []; nets = []; parts = []; gulls = [];
+  fishes = []; trash = []; hooks = []; nets = []; parts = []; gulls = []; items = [];
   cam.x = P.x; cam.y = P.y; cam.zoom = targetZoom();
   for (let i = 0; i < 60 && fishLoad() < 30; i++) spawnFish(true);
   for (let i = 0; i < 4; i++) spawnJelly(true);
@@ -287,7 +299,7 @@ function reset() {
     const x = clamp(P.x + rand(-900, 900), 60, W - 60);
     trash.push(makeTrash(x, seabedY(x) - 8, true));
   }
-  spawnT = 0; trashT = 3; hookT = 12; netT = 14; gullT = 1.5; surfNetT = 5; flashT = 0; shakeT = 0;
+  spawnT = 0; trashT = 3; hookT = 12; coinT = 0; powerT = 8; netT = 14; gullT = 1.5; surfNetT = 5; flashT = 0; shakeT = 0;
   updateHUD(true);
 }
 
@@ -384,7 +396,9 @@ function spawnJelly(initial) {
 function makeTrash(x, y, landed) {
   const st = stageOf(P.r);
   const type = wpick({ sise: 3, kutu: 3, poset: 2.5, lastik: st >= 2 ? 1 : 0 });
-  let r = { sise: rand(8, 12), kutu: rand(6, 9), poset: rand(10, 15), lastik: rand(20, 28) }[type];
+  // kutu ~12 cm, şişe ~20 cm, poşet ~35 cm, lastik ~60 cm
+  let r = { kutu: rand(13, 16), sise: rand(19, 23), poset: rand(32, 40), lastik: rand(55, 68) }[type];
+  if (landed) y = seabedY(x) - r * 0.45;
   return { type, x, y, r, vy: 0, sink: rand(35, 65) * (0.8 + P.r / 40), rot: rand(0, 6), vr: rand(-0.8, 0.8), seed: rand(0, 99), landed, life: rand(25, 40) };
 }
 function spawnTrash() {
@@ -437,7 +451,7 @@ function banner(text, ms = 1800) {
 // ---------- oyuncu ----------
 const keys = {};
 const pointer = { x: 0, y: 0, active: false };
-function playerSpeed() { return (150 + P.r * 1.7) * (P.poison > 0 ? 0.45 : 1); }
+function playerSpeed() { return (150 + P.r * 1.7) * (P.boost > 0 ? 1.65 : P.poison > 0 ? 0.45 : 1); }
 
 function updatePlayer(dt) {
   P.invuln = Math.max(0, P.invuln - dt);
@@ -533,7 +547,7 @@ function gameOver(kind) {
   $('overTitle').textContent = isBest ? 'Yeni rekor! 🏆' : 'Oyun bitti';
   $('overReason').textContent = reasons[kind] || '';
   $('stScore').textContent = P.score; $('stBest').textContent = best;
-  $('stSize').textContent = Math.round(P.r * 0.5) + ' cm'; $('stEaten').textContent = P.eaten;
+  $('stSize').textContent = Math.round(P.r * 0.5) + ' cm'; $('stEaten').textContent = P.eaten; $('stCoins').textContent = P.coins; $('stPowers').textContent = P.powers;
   setTimeout(() => { if (state === 'over') { $('overOv').classList.remove('hidden'); $('hud').classList.add('hidden'); showJoy(false); } }, 900);
 }
 
@@ -615,6 +629,80 @@ function updateGull(g, dt) {
     if (g.x < v.x0 || g.x > v.x1) return true;
   }
   return false;
+}
+
+// ---------- altınlar & güçlendirmeler ----------
+const POWER_INFO = {
+  magnet: { name: 'Mıknatıs! Altınlar sana geliyor 🧲', time: 10 },
+  speed: { name: 'Hız yemi! Fişek gibisin ⚡', time: 7 },
+  life: { name: '+1 can ❤️' },
+};
+function itemPos(inside) {
+  const v = viewRect();
+  for (let i = 0; i < 15; i++) {
+    const x = clamp(inside ? rand(v.x0 + v.w * 0.12, v.x1 - v.w * 0.12) : rand(v.x0 - v.w * 0.6, v.x1 + v.w * 0.6), 60, W - 60);
+    const y = clamp(inside ? rand(v.y0 + v.h * 0.2, v.y1 - v.h * 0.15) : rand(v.y0 - v.h * 0.4, v.y1 + v.h * 0.4), 50, seabedY(x) - 40);
+    if (Math.hypot(x - P.x, y - P.y) > 120 / cam.zoom) return { x, y };
+  }
+  return { x: clamp(P.x + 300, 60, W - 60), y: clamp(P.y, 50, seabedY(P.x) - 40) };
+}
+function spawnCoins() {
+  // altınlar küçük kavisler halinde dizilir
+  const pos = itemPos(false), n = 4 + (Math.random() * 4 | 0), r = 9 / cam.zoom;
+  const ang = rand(-0.5, 0.5), gap = r * 3;
+  for (let i = 0; i < n; i++) {
+    const x = clamp(pos.x + Math.cos(ang) * gap * i, 40, W - 40);
+    const y = clamp(pos.y + Math.sin(ang) * gap * i + Math.sin(i / (n - 1 || 1) * Math.PI) * -r * 3, 40, seabedY(x) - 30);
+    items.push({ type: 'coin', x, y, r, seed: rand(0, 6), life: 40 });
+  }
+}
+function spawnPower() {
+  const opts = { magnet: 1, speed: 1.2, life: P.lives >= 5 ? 0.15 : P.lives <= 1 ? 1.2 : 0.55 };
+  const type = wpick(opts), pos = itemPos(true);
+  items.push({ type, x: pos.x, y: pos.y, r: 22 / cam.zoom, seed: rand(0, 6), life: 16 });
+}
+function collect(it) {
+  if (it.type === 'coin') {
+    const v = 5 * (1 + stageOf(P.r));
+    P.score += v; P.coins++;
+    floatText(it.x, it.y - it.r, '+' + v, '#ffd166'); SFX.coin();
+    return;
+  }
+  P.powers++;
+  for (let k = 0; k < 10; k++) bubble(it.x + rand(-it.r, it.r), it.y + rand(-it.r, it.r), it.r * rand(0.15, 0.3), 'rgba(255,240,160,0.9)');
+  if (it.type === 'life') {
+    if (P.lives < 5) { P.lives++; banner(POWER_INFO.life.name, 1500); }
+    else { P.score += 100; banner('Canın dolu! +100 puan ❤️', 1500); }
+    SFX.life();
+  } else if (it.type === 'magnet') {
+    P.magnet = POWER_INFO.magnet.time; banner(POWER_INFO.magnet.name, 1600); SFX.power();
+  } else {
+    P.boost = POWER_INFO.speed.time; P.poison = 0; banner(POWER_INFO.speed.name, 1600); SFX.power();
+  }
+}
+function updateItems(dt, playing) {
+  if (playing) {
+    coinT -= dt; powerT -= dt;
+    let coins = 0; for (const it of items) if (it.type === 'coin') coins++;
+    if (coinT <= 0 && coins < 22) { spawnCoins(); coinT = rand(2, 4); }
+    if (powerT <= 0) { if (items.filter(i => i.type !== 'coin').length < 2) spawnPower(); powerT = rand(12, 19); }
+    P.magnet = Math.max(0, P.magnet - dt);
+    P.boost = Math.max(0, P.boost - dt);
+    if (P.boost > 0 && Math.random() < dt * 25) bubble(P.x - P.dir * P.r, P.y + rand(-P.r, P.r) * 0.4, P.r * rand(0.08, 0.18), 'rgba(140,255,240,0.85)');
+  }
+  const magR = 380 / cam.zoom + P.r * 4;
+  const free = playing && !P.hooked && !P.netted;
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+    it.life -= dt;
+    const dx = P.x - it.x, dy = P.y - it.y, d = Math.hypot(dx, dy) || 1;
+    if (free && P.magnet > 0 && it.type === 'coin' && d < magR) {
+      const sp = 250 + (1 - d / magR) * 900;
+      it.x += dx / d * sp * dt; it.y += dy / d * sp * dt; it.pulled = true;
+    }
+    if (free && d < P.r * 0.9 + it.r) { collect(it); items.splice(i, 1); continue; }
+    if (it.life <= 0 || (!inView(it.x, it.y, 200) && farAway(it))) items.splice(i, 1);
+  }
 }
 
 // ---------- balık yapay zekası ----------
@@ -724,7 +812,7 @@ function update(dt) {
       t.life -= dt * (inView(t.x, t.y, 200) ? 1 : 3);
     }
     if (t.life <= 0) { trash.splice(i, 1); continue; }
-    if (playing && !P.hooked && !P.netted && t.r < P.r * 1.6 && Math.hypot(t.x - P.x, t.y - P.y) < P.r * 0.85 + t.r * 0.55) {
+    if (playing && !P.hooked && !P.netted && t.type !== 'lastik' && Math.hypot(t.x - P.x, t.y - P.y) < P.r * 0.85 + t.r * 0.45) {
       trash.splice(i, 1);
       P.poison = Math.min(14, P.poison + 6);
       banner('Çöp yedin! Zehirlendin, yavaşladın 🤢', 1800);
@@ -844,6 +932,8 @@ function update(dt) {
     }
   }
 
+  updateItems(dt, playing);
+
   // parçacıklar
   if (Math.random() < dt * 4) {
     const v = viewRect();
@@ -866,7 +956,7 @@ function updateHUD(force) {
   const st = stageOf(P.r);
   const next = STAGES[st + 1];
   const prog = next ? (P.r - STAGES[st].r) / (next.r - STAGES[st].r) : 1;
-  const key = P.lives + '|' + P.score + '|' + st + '|' + Math.round(P.r * 0.5) + '|' + Math.round(prog * 100) + '|' + Math.ceil(P.poison * 4);
+  const key = P.lives + '|' + P.score + '|' + st + '|' + Math.round(P.r * 0.5) + '|' + Math.round(prog * 100) + '|' + Math.ceil(P.poison * 4) + '|' + Math.ceil(P.magnet) + '|' + Math.ceil(P.boost);
   if (!force && key === lastHUD) return;
   lastHUD = key;
   $('lives').textContent = '❤️'.repeat(Math.max(0, P.lives));
@@ -875,6 +965,10 @@ function updateHUD(force) {
   $('growBar').style.width = (clamp(prog, 0, 1) * 100) + '%';
   $('poisonBox').classList.toggle('hidden', P.poison <= 0);
   $('poisonBar').style.width = (P.poison / 14 * 100) + '%';
+  let pw = '';
+  if (P.magnet > 0) pw += '<span class="mag">🧲 ' + Math.ceil(P.magnet) + '</span>';
+  if (P.boost > 0) pw += '<span class="spd">⚡ ' + Math.ceil(P.boost) + '</span>';
+  $('powers').innerHTML = pw;
 }
 
 // ---------- çizim: dekor ve arka plan ----------
@@ -1357,6 +1451,51 @@ function drawTrash(t) {
 
 // Balıkçı teknesi gerçek ölçekte: ~900 birim ≈ 4,5 m (oyuncu 8 birim ≈ 4 cm)
 const BOAT_L = 900;
+function drawItem(it) {
+  const r = it.r, bob = Math.sin(T * 2.5 + it.seed) * r * 0.25;
+  ctx.save(); ctx.translate(it.x, it.y + bob);
+  if (it.life < 3 && Math.floor(T * 8) % 2 === 0) ctx.globalAlpha = 0.35;
+  if (it.type === 'coin') {
+    const sx = Math.max(0.15, Math.abs(Math.cos(T * 3 + it.seed)));
+    ctx.scale(sx, 1);
+    const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r);
+    g.addColorStop(0, '#fff3b0'); g.addColorStop(0.5, '#ffcf3f'); g.addColorStop(1, '#c98a00');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#a86f00'; ctx.lineWidth = r * 0.14; ctx.beginPath(); ctx.arc(0, 0, r * 0.68, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#a86f00'; ctx.font = 'bold ' + (r * 1.1) + 'px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('₺', 0, r * 0.05);
+    ctx.restore(); return;
+  }
+  // parlayan baloncuk
+  const pulse = 1 + Math.sin(T * 4 + it.seed) * 0.08;
+  const glow = { magnet: '255,90,120', speed: '80,255,220', life: '255,90,90' }[it.type];
+  const gg = ctx.createRadialGradient(0, 0, r * 0.4, 0, 0, r * 1.9 * pulse);
+  gg.addColorStop(0, 'rgba(' + glow + ',0.45)'); gg.addColorStop(1, 'rgba(' + glow + ',0)');
+  ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(0, 0, r * 1.9 * pulse, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = r * 0.08;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.ellipse(-r * 0.4, -r * 0.45, r * 0.22, r * 0.12, -0.6, 0, Math.PI * 2); ctx.fill();
+  if (it.type === 'magnet') {
+    ctx.rotate(Math.sin(T * 3) * 0.2);
+    ctx.lineWidth = r * 0.28; ctx.lineCap = 'butt';
+    ctx.strokeStyle = '#e63946'; ctx.beginPath(); ctx.arc(0, -r * 0.05, r * 0.45, Math.PI, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-r * 0.45, -r * 0.05); ctx.lineTo(-r * 0.45, r * 0.25); ctx.moveTo(r * 0.45, -r * 0.05); ctx.lineTo(r * 0.45, r * 0.25); ctx.stroke();
+    ctx.strokeStyle = '#dfe6ee'; ctx.beginPath(); ctx.moveTo(-r * 0.45, r * 0.25); ctx.lineTo(-r * 0.45, r * 0.5); ctx.moveTo(r * 0.45, r * 0.25); ctx.lineTo(r * 0.45, r * 0.5); ctx.stroke();
+  } else if (it.type === 'speed') {
+    ctx.fillStyle = '#7ed957'; ctx.beginPath(); ctx.arc(-r * 0.25, r * 0.3, r * 0.22, 0, Math.PI * 2); ctx.arc(r * 0.15, r * 0.42, r * 0.18, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffd60a'; ctx.strokeStyle = '#b07d00'; ctx.lineWidth = r * 0.05;
+    ctx.beginPath(); ctx.moveTo(r * 0.12, -r * 0.65); ctx.lineTo(-r * 0.32, r * 0.05); ctx.lineTo(-r * 0.02, r * 0.05); ctx.lineTo(-r * 0.15, r * 0.6); ctx.lineTo(r * 0.35, -r * 0.12); ctx.lineTo(r * 0.04, -r * 0.12); ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else {
+    const s = r * 0.5 * pulse;
+    ctx.fillStyle = '#ef233c'; ctx.beginPath();
+    ctx.moveTo(0, s * 0.9);
+    ctx.bezierCurveTo(-s * 1.6, -s * 0.2, -s * 0.7, -s * 1.3, 0, -s * 0.45);
+    ctx.bezierCurveTo(s * 0.7, -s * 1.3, s * 1.6, -s * 0.2, 0, s * 0.9);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.arc(-s * 0.5, -s * 0.45, s * 0.18, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
 function drawBoat(x, dir) {
   const L = BOAT_L / 2;
   ctx.save(); ctx.translate(x, Math.sin(T * 1.2 + x) * 6); ctx.scale(dir || 1, 1);
@@ -1519,9 +1658,15 @@ function render() {
   drawBackground();
   drawDecor();
   for (const t of trash) if (inView(t.x, t.y, t.r * 2)) drawTrash(t);
+  for (const it of items) if (inView(it.x, it.y, it.r * 3)) drawItem(it);
   const vis = fishes.filter(f => inView(f.x, f.y, f.r * 3));
   vis.sort((a, b) => a.r - b.r);
   for (const f of vis) drawFish(f);
+  if (state === 'play' && P.magnet > 0 && !P.hooked) {
+    const mr = P.r * 1.8 + Math.sin(T * 6) * P.r * 0.15;
+    ctx.strokeStyle = 'rgba(255,120,150,' + (0.35 + Math.sin(T * 6) * 0.15) + ')'; ctx.lineWidth = Math.max(1.5 / cam.zoom, P.r * 0.08);
+    ctx.setLineDash([P.r * 0.4, P.r * 0.3]); ctx.beginPath(); ctx.arc(P.x, P.y, mr, T * 2, T * 2 + Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  }
   if (state === 'play') drawPlayer();
   for (const h of hooks) drawHook(h);
   for (const n of nets) drawNet(n);
