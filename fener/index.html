@@ -130,7 +130,7 @@
   .target.wrongc .wrong { display: inline; }
   .target.wrongc .sleepy { display: none; }
   .target.wrongc { animation: shake .4s; }
-  .lantern, .target { width: 92%; height: 92%; position: relative; }
+  .lantern, .target { width: 78%; height: 78%; position: relative; translate: var(--off, 0 0); }
   .lantern svg, .target svg { width: 100%; height: 100%; overflow: visible; display: block; }
   .lantern .body { transition: opacity .3s; opacity: .7; }
   .lantern.on .body { opacity: 1; }
@@ -370,7 +370,7 @@
   /* ---------- cute pieces ---------- */
   const lanternSVG = (c, rot) => `
     <svg viewBox="-50 -50 100 100">
-      <g transform="rotate(${rot})"><path d="M22 -15 L44 -24 Q48 0 44 24 L22 15 Z" fill="${c}"/></g>
+      <g transform="rotate(${rot})"><path d="M20 -12 L35 -19 Q38 0 35 19 L20 12 Z" fill="${c}"/></g>
       <g class="body">
         <path d="M-12 -38 Q0 -50 12 -38" fill="none" stroke="#ffe9a8" stroke-width="5" stroke-linecap="round"/>
         <rect x="-18" y="-38" width="36" height="8" rx="4" fill="#ffe9a8"/>
@@ -447,6 +447,9 @@
     build(); renderNav(); updateMoves(); drawBeams(false);
   }
 
+  // push ring pieces slightly away from the board so they never overlap the tiles
+  const offOf = (gx, gy) => `${gx < 0 ? -12 : gx >= N ? 12 : 0}% ${gy < 0 ? -12 : gy >= N ? 12 : 0}%`;
+
   function build() {
     [...board.querySelectorAll('.cell')].forEach(n => n.remove());
     const lanternAt = {}, targetAt = {};
@@ -484,12 +487,12 @@
         const k = keyOf(N, gx, gy);
         if (k in lanternAt) {
           const i = lanternAt[k], l = L.lanterns[i];
-          const d = document.createElement('div'); d.className = 'lantern';
+          const d = document.createElement('div'); d.className = 'lantern'; d.style.setProperty('--off', offOf(gx, gy));
           d.innerHTML = lanternSVG(hex(l.c), ROT[l.s]);
           cell.appendChild(d);
         } else if (k in targetAt) {
           const i = targetAt[k], t = L.targets[i];
-          const d = document.createElement('div'); d.className = 'target'; d.dataset.k = k;
+          const d = document.createElement('div'); d.className = 'target'; d.dataset.k = k; d.style.setProperty('--off', offOf(gx, gy));
           d.style.setProperty('--col', hex(t.c)); d.innerHTML = targetSVG(hex(t.c));
           d.title = COLORS[t.c].name + ' ışık bekliyor';
           cell.appendChild(d);
