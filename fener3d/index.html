@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Fener Küpü</title>
+<meta name="description" content="Fener ve Aynalar'ın üç boyutlu hali: 4x4x4 küpte aynaları çevir, ışığı hedefe ulaştır.">
+<meta name="theme-color" content="#0b1230">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@600;700;800&display=swap">
+<style>
+  /* Layout: same cute night look as the 2D game; a full-height 3D stage under a compact top bar */
+  :root {
+    color-scheme: dark;
+    --sky-0: #0b1230;
+    --sky-1: #1a2458;
+    --ink: #f4f6ff;
+    --muted: #a9b3e0;
+    --sun: #ffd166;
+    --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+    --body: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: linear-gradient(180deg, #0b1230, #1d2a66) fixed, var(--sky-0);
+    color: var(--ink); font-family: var(--body);
+    user-select: none; -webkit-user-select: none;
+    display: flex; flex-direction: column; overflow: hidden;
+    padding-block: 10px 0;
+  }
+  button { font-family: inherit; }
+  button:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+  .top { padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: max(14px, env(safe-area-inset-right, 0px)); width: 100%; max-width: 640px; margin: 0 auto; flex: none; }
+  header { display: flex; align-items: center; gap: 8px; }
+  h1 { flex: 1; margin: 0; font-family: var(--display); font-weight: 800; font-size: clamp(20px, 6vw, 26px); line-height: 1; color: var(--sun); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  h1 small { font-size: .55em; color: var(--muted); font-weight: 700; margin-left: 4px; }
+  .iconbtn { width: 40px; height: 40px; border-radius: 14px; border: none; cursor: pointer; flex: none; background: rgba(255,255,255,.09); color: var(--ink); display: grid; place-items: center; }
+  .iconbtn svg { width: 20px; height: 20px; }
+  .iconbtn:active { transform: scale(.92); }
+  .bar { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .step { width: 34px; height: 34px; border-radius: 12px; border: none; background: rgba(255,255,255,.09); color: var(--ink); font-size: 20px; font-weight: 800; cursor: pointer; display: grid; place-items: center; padding: 0; line-height: 1; }
+  .step:disabled { opacity: .3; cursor: default; }
+  #levelTitle { font-family: var(--display); font-weight: 800; font-size: 19px; line-height: 1; white-space: nowrap; }
+  #levelLights { display: flex; gap: 4px; flex: 1; }
+  #levelLights i { width: 12px; height: 12px; border-radius: 50%; display: block; background: currentColor; }
+  #moves { font-family: var(--display); font-weight: 700; font-size: 15px; line-height: 1; padding: 9px 12px 7px; border-radius: 999px; background: rgba(255,255,255,.09); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  #hint { font-size: 14px; font-weight: 700; color: var(--muted); margin: 10px 0 0; text-align: center; min-height: 19px; text-wrap: balance; }
+  #hint b { color: var(--ink); }
+
+  #stage { position: relative; flex: 1; min-height: 280px; touch-action: none; cursor: grab; }
+  #stage.dragging { cursor: grabbing; }
+  #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #stars { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; }
+
+  .dock {
+    position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: flex-end; justify-content: space-between; gap: 10px;
+    padding: 0 max(14px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
+    pointer-events: none;
+  }
+  .dock > * { pointer-events: auto; }
+  .layers { display: flex; flex-direction: column; gap: 6px; }
+  .layers span { font-size: 12px; font-weight: 800; color: var(--muted); letter-spacing: .5px; }
+  .layers .row { display: flex; gap: 6px; }
+  .layers button { height: 34px; min-width: 34px; padding: 0 10px; border-radius: 12px; border: none; background: rgba(255,255,255,.1); color: var(--ink); font-family: var(--display); font-weight: 800; font-size: 15px; cursor: pointer; }
+  .layers button.cur { background: var(--sun); color: #3a2500; }
+  #power {
+    width: 66px; height: 66px; border-radius: 50%; border: none; cursor: pointer; padding: 0; flex: none;
+    background: #ff5d73; color: #fff; display: grid; place-items: center;
+    box-shadow: 0 5px 0 #c23452; transition: transform .08s, box-shadow .08s, background .25s;
+  }
+  #power svg { width: 50%; height: 50%; }
+  #power:active { transform: translateY(4px); box-shadow: 0 1px 0 #c23452; }
+  #power.on { background: #39d98a; box-shadow: 0 5px 0 #1f9e5f; }
+  #power.nudge { animation: nudge 1.2s ease-in-out infinite; }
+  @keyframes nudge { 50% { transform: scale(1.1); } }
+  #dragHint { position: absolute; left: 50%; top: 10px; translate: -50% 0; font-size: 13px; font-weight: 800; color: var(--muted); background: rgba(10,15,40,.6); padding: 6px 12px; border-radius: 99px; pointer-events: none; transition: opacity .5s; white-space: nowrap; }
+
+  .overlay { position: fixed; inset: 0; display: none; place-items: center; z-index: 10; background: rgba(6, 9, 26, .6); padding: 16px; }
+  .overlay.show { display: grid; animation: fade .25s; }
+  @keyframes fade { from { opacity: 0; } }
+  .card { max-height: calc(100dvh - 32px); overflow-y: auto; background: var(--sky-1); border-radius: 26px; padding: 24px 22px 22px; text-align: center; width: min(340px, 100%); animation: pop .4s cubic-bezier(.3,1.6,.5,1); }
+  @keyframes pop { from { transform: scale(.8); } }
+  .card h2 { font-family: var(--display); margin: 0 0 4px; font-size: 28px; line-height: 1.1; color: var(--sun); }
+  .card p { margin: 0 0 14px; color: var(--muted); font-size: 15px; font-weight: 700; }
+  .stars { font-size: 42px; letter-spacing: 8px; margin-bottom: 16px; line-height: 1; }
+  .stars span { display: inline-block; animation: starIn .45s cubic-bezier(.3,1.8,.5,1) backwards; }
+  .stars span:nth-child(2) { animation-delay: .15s; } .stars span:nth-child(3) { animation-delay: .3s; }
+  @keyframes starIn { from { transform: scale(0) rotate(-90deg); } }
+  .stars .off { color: #3a4580; } .stars .on { color: var(--sun); }
+  .btn { font-family: var(--display); font-weight: 800; font-size: 17px; line-height: 1; border: none; border-radius: 16px; padding: 13px 22px 11px; cursor: pointer; background: var(--sun); color: #3a2500; box-shadow: 0 4px 0 #d49a1e; }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #d49a1e; }
+  #levelGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 6px 0 16px; }
+  #levelGrid button { aspect-ratio: 1; border-radius: 14px; border: none; cursor: pointer; padding: 0; background: rgba(255,255,255,.09); color: var(--ink); font-family: var(--display); font-weight: 800; font-size: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; line-height: 1; }
+  #levelGrid button small { font-size: 10px; color: var(--sun); letter-spacing: -1px; min-height: 10px; }
+  #levelGrid button.cur { background: var(--sun); color: #3a2500; }
+  #levelGrid button.cur small { color: #3a2500; }
+  #levelGrid button:disabled { opacity: .3; cursor: default; }
+  .ghost { background: none; border: none; color: var(--muted); font-weight: 800; font-size: 15px; cursor: pointer; padding: 6px 10px; }
+  #err { display: none; position: absolute; inset: 0; place-items: center; text-align: center; padding: 20px; color: var(--muted); font-weight: 700; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="top">
+  <header>
+    <h1>Fener Küpü <small>3B</small></h1>
+    <button class="iconbtn" id="levelsBtn" title="Bölümler" aria-label="Bölümler"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7.5" height="7.5" rx="2.2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2.2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2.2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2.2"/></svg></button>
+    <button class="iconbtn" id="soundBtn" title="Ses" aria-label="Sesi aç/kapat"></button>
+    <button class="iconbtn" id="resetBtn" title="Bölümü sıfırla" aria-label="Bölümü sıfırla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
+  </header>
+  <div class="bar">
+    <button class="step" id="prevBtn" aria-label="Önceki bölüm">‹</button>
+    <span id="levelTitle"></span>
+    <button class="step" id="nextBtn" aria-label="Sonraki bölüm">›</button>
+    <span id="levelLights"></span>
+    <span id="moves">Hamle 0</span>
+  </div>
+  <p id="hint"></p>
+</div>
+
+<div id="stage">
+  <div id="dragHint">Küpü sürükleyerek çevir</div>
+  <div id="err">3B görüntü bu cihazda açılamadı.</div>
+  <div class="dock">
+    <div class="layers">
+      <span>KAT</span>
+      <div class="row" id="layerRow"></div>
+    </div>
+    <button id="power" aria-label="Fenerleri aç/kapat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.6a8 8 0 1 0 11.4 0"/></svg></button>
+  </div>
+</div>
+
+<div class="overlay" id="win" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+  <div class="card">
+    <h2 id="winTitle">Işık hedefte!</h2>
+    <p id="winText"></p>
+    <div class="stars" id="starsOut"></div>
+    <button class="btn" id="winNext">Sonraki bölüm</button>
+  </div>
+</div>
+<div class="overlay" id="levelsDlg" role="dialog" aria-modal="true" aria-labelledby="levelsTitle">
+  <div class="card">
+    <h2 id="levelsTitle">Bölümler</h2>
+    <div id="levelGrid"></div>
+    <button class="ghost" id="levelsClose">Kapat</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+  // ---- 3D light engine: 4x4x4 cube, beams along x / y / z ----
+  // mirror orientation o (0-5) = mirror normal (unnormalised); reflection d' = d - (d.n) n ; d.n = 0 -> beam passes edge-on
+  var NORMALS = [[1,1,0],[1,-1,0],[1,0,1],[1,0,-1],[0,1,1],[0,1,-1]];
+  var FACES = { 'x-': [0,-1], 'x+': [0,1], 'y-': [1,-1], 'y+': [1,1], 'z-': [2,-1], 'z+': [2,1] };
+  // lantern / target: { f: face, u, v } -> outside position; u,v are the other two axes in order
+  function outsidePos(N, p) {
+    const [ax, sg] = FACES[p.f], pos = [0,0,0], others = [0,1,2].filter(a => a !== ax);
+    pos[ax] = sg < 0 ? -1 : N; pos[others[0]] = p.u; pos[others[1]] = p.v; return pos;
+  }
+  function inwardDir(p) { const [ax, sg] = FACES[p.f], d = [0,0,0]; d[ax] = -sg; return d; }
+  function faceKey(N, pos) {
+    for (let a = 0; a < 3; a++) if (pos[a] < 0 || pos[a] >= N) {
+      const others = [0,1,2].filter(b => b !== a);
+      return 'xyz'[a] + (pos[a] < 0 ? '-' : '+') + ':' + pos[others[0]] + ',' + pos[others[1]];
+    }
+    return null;
+  }
+  var keyOfP = (N, p) => faceKey(N, outsidePos(N, p));
+  // cells: object "x,y,z" -> { t: 'm' mirror | 'k' locked mirror | '#' block, o }
+  function trace3(N, cells, lanterns) {
+    const paths = [], ends = {}, endD = {}, hits = [];
+    lanterns.forEach(l => {
+      let p = outsidePos(N, l), d = inwardDir(l), dist = 0;
+      const pts = [p.slice()];
+      for (let k = 0; k < 64; k++) {
+        p = [p[0] + d[0], p[1] + d[1], p[2] + d[2]]; dist++;
+        const key = faceKey(N, p);
+        if (key) { pts.push(p.slice()); ends[key] = (ends[key] || 0) | l.c; endD[key] = Math.max(endD[key] || 0, dist); break; }
+        const cell = cells[p.join(',')];
+        if (!cell) continue;
+        if (cell.t === '#') { pts.push([p[0] - d[0] * .45, p[1] - d[1] * .45, p[2] - d[2] * .45]); hits.push({ k: p.join(','), c: l.c, d: dist }); break; }
+        const n = NORMALS[cell.o], dn = d[0] * n[0] + d[1] * n[1] + d[2] * n[2];
+        if (dn === 0) continue;
+        d = [d[0] - dn * n[0], d[1] - dn * n[1], d[2] - dn * n[2]];
+        pts.push(p.slice()); hits.push({ k: p.join(','), c: l.c, d: dist });
+      }
+      paths.push({ pts, c: l.c });
+    });
+    return { paths, ends, endD, hits };
+  }
+  function isWin3(N, cells, L) {
+    const e = trace3(N, cells, L.lanterns).ends;
+    return L.targets.every(t => e[t.k] === t.c);
+  }
+  const N = 4;
+  const COLORS = {
+    1: { name: 'kırmızı', hex: '#ff5d73' }, 2: { name: 'yeşil', hex: '#4ee89a' }, 3: { name: 'sarı', hex: '#ffc93d' },
+    4: { name: 'mavi', hex: '#4c9dff' }, 5: { name: 'mor', hex: '#d27bff' }, 6: { name: 'turkuaz', hex: '#3ef0d8' }, 7: { name: 'beyaz', hex: '#ffffff' },
+  };
+  const hex = c => COLORS[c].hex;
+  const LEVELS = [{"lanterns": [{"f": "y-", "u": 0, "v": 1, "c": 4}], "targets": [{"k": "x+:0,2", "c": 4}], "cells": [["0,0,1", "m", 2], ["0,0,2", "m", 5]]}, {"lanterns": [{"f": "x+", "u": 2, "v": 3, "c": 3}], "targets": [{"k": "x-:0,1", "c": 3}], "cells": [["0,2,3", "m", 0], ["0,0,3", "m", 0], ["0,0,1", "m", 0]]}, {"lanterns": [{"f": "x+", "u": 3, "v": 0, "c": 2}], "targets": [{"k": "x+:2,1", "c": 2}], "cells": [["3,3,0", "m", 5], ["3,3,1", "m", 1], ["2,3,1", "m", 0], ["2,2,1", "k", 0], ["3,0,0", "#", 0], ["1,2,3", "#", 0], ["0,0,0", "#", 0]]}, {"lanterns": [{"f": "z-", "u": 2, "v": 2, "c": 1}, {"f": "y-", "u": 2, "v": 2, "c": 4}], "targets": [{"k": "y+:2,0", "c": 1}, {"k": "z+:3,0", "c": 4}], "cells": [["2,2,0", "m", 1], ["2,0,2", "m", 4], ["2,0,3", "m", 4], ["3,0,3", "m", 4], ["1,3,1", "#", 0], ["2,3,2", "#", 0]]}, {"lanterns": [{"f": "y+", "u": 0, "v": 1, "c": 5}], "targets": [{"k": "y+:2,1", "c": 5}], "cells": [["0,2,1", "m", 3], ["0,2,0", "m", 5], ["3,2,0", "m", 5], ["3,1,0", "m", 3], ["3,1,1", "k", 2], ["2,1,1", "k", 0], ["2,0,1", "#", 0], ["0,3,0", "#", 0], ["1,0,1", "#", 0], ["0,2,3", "#", 0]]}, {"lanterns": [{"f": "z-", "u": 0, "v": 0, "c": 4}, {"f": "x+", "u": 2, "v": 1, "c": 3}], "targets": [{"k": "x-:2,1", "c": 4}, {"k": "x+:2,2", "c": 3}], "cells": [["0,0,0", "m", 3], ["0,1,0", "m", 3], ["0,1,1", "m", 0], ["0,2,1", "m", 4], ["3,2,1", "m", 4], ["3,2,2", "k", 3], ["1,1,3", "#", 0], ["1,2,3", "#", 0], ["2,1,2", "#", 0]]}, {"lanterns": [{"f": "z-", "u": 2, "v": 1, "c": 1}, {"f": "y+", "u": 2, "v": 3, "c": 2}, {"f": "y+", "u": 1, "v": 2, "c": 4}], "targets": [{"k": "z-:1,3", "c": 1}, {"k": "x-:2,2", "c": 2}, {"k": "y-:3,2", "c": 4}], "cells": [["2,1,0", "m", 1], ["1,1,0", "m", 1], ["1,3,0", "m", 0], ["2,2,3", "m", 1], ["2,2,2", "m", 1], ["1,3,2", "k", 0], ["3,3,2", "k", 0], ["0,1,0", "#", 0], ["2,0,0", "#", 0], ["2,0,3", "#", 0], ["0,2,3", "#", 0]]}, {"lanterns": [{"f": "z-", "u": 0, "v": 3, "c": 6}, {"f": "x+", "u": 2, "v": 3, "c": 5}, {"f": "x+", "u": 0, "v": 0, "c": 3}], "targets": [{"k": "y+:0,0", "c": 6}, {"k": "y+:2,2", "c": 5}, {"k": "z+:1,0", "c": 3}], "cells": [["0,3,0", "m", 3], ["2,2,3", "m", 1], ["2,2,2", "m", 3], ["0,0,0", "m", 3], ["0,2,0", "m", 3], ["1,2,0", "m", 0], ["1,2,1", "k", 4], ["1,0,1", "k", 4], ["1,1,2", "#", 0], ["1,2,2", "#", 0], ["3,3,0", "#", 0], ["0,2,1", "#", 0], ["3,3,1", "#", 0]]}];
+  const HINTS = {
+    0: 'Aynaya dokun: her dokunuşta <b>6 farklı duruştan</b> birine döner. Sonra düğmeye bas.',
+    1: 'Işık artık <b>yukarı ve aşağı</b> da gidebilir.',
+    2: 'Kilitli (mor) aynalar dönmez, tuğla küpler ışığı keser.',
+    3: 'İki fener! Her ışık kendi rengindeki hedefe gitmeli.',
+    4: 'İçerisi kalabalıksa aşağıdaki <b>KAT</b> düğmeleriyle tek bir katı göster.',
+  };
+  const $ = id => document.getElementById(id);
+  const stage = $('stage');
+
+  /* ---------- state ---------- */
+  let lvl = 0, L, cells, moves = 0, lightOn = false, solved = false, optimal = 0, layer = -1;
+  let progress = {}, soundOn = true;
+  try { progress = JSON.parse(localStorage.getItem('fener3d-progress') || '{}'); soundOn = localStorage.getItem('fener-sound') !== '0'; } catch (e) {}
+  const save = () => { try { localStorage.setItem('fener3d-progress', JSON.stringify(progress)); localStorage.setItem('fener-sound', soundOn ? '1' : '0'); } catch (e) {} };
+  const unlocked = i => i === 0 || !!progress[i - 1] || !!progress[i];
+
+  /* ---------- sound ---------- */
+  let ac = null;
+  function tone(freq, dur = .12, type = 'sine', vol = .08, delay = 0) {
+    if (!soundOn) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      const t = ac.currentTime + delay, o = ac.createOscillator(), g = ac.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+      o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + .02);
+    } catch (e) {}
+  }
+  const sfx = {
+    rotate: () => tone(560, .08, 'triangle', .06), locked: () => tone(150, .12, 'square', .035),
+    on: () => { tone(330, .15, 'sine', .07); tone(660, .25, 'sine', .05, .05); }, off: () => tone(240, .12, 'sine', .05),
+    hit: i => tone(660 + i * 110, .35, 'sine', .06), win: () => [523, 659, 784, 1046].forEach((f, k) => tone(f, .4, 'triangle', .07, k * .11)),
+  };
+  const soundIcon = () => $('soundBtn').innerHTML = soundOn
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
+
+  /* ---------- three.js setup ---------- */
+  if (!window.THREE) { $('err').style.display = 'grid'; return; }
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); } catch (e) { $('err').style.display = 'grid'; return; }
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+  stage.prepend(renderer.domElement);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, 1, .1, 100);
+  scene.add(new THREE.AmbientLight(0xffffff, .75));
+  const sun = new THREE.DirectionalLight(0xffffff, .7); sun.position.set(5, 9, 7); scene.add(sun);
+  const world = new THREE.Group(); scene.add(world);
+
+  const S = 1;                       // cell size
+  const W = v => (v - (N - 1) / 2) * S;
+  const OUT = (N / 2 + .55) * S;     // distance of lanterns / targets from the centre
+  const toWorld = p => new THREE.Vector3(...p.map(v => v < 0 ? -OUT : v >= N ? OUT : W(v)));
+
+  // cube frame + cell dots
+  const frame = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(N * S, N * S, N * S)), new THREE.LineBasicMaterial({ color: 0xa9b3e0, transparent: true, opacity: .45 }));
+  world.add(frame);
+  const dotGeo = new THREE.SphereGeometry(.045, 8, 6);
+  const dots = [];
+  for (let x = 0; x < N; x++) for (let y = 0; y < N; y++) for (let z = 0; z < N; z++) {
+    const m = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({ color: 0xa9b3e0, transparent: true, opacity: .35 }));
+    m.position.set(W(x), W(y), W(z)); m.userData.y = y; world.add(m); dots.push(m);
+  }
+  const layerPlane = new THREE.Mesh(new THREE.PlaneGeometry(N * S, N * S), new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: .08, side: THREE.DoubleSide, depthWrite: false }));
+  layerPlane.rotation.x = -Math.PI / 2; layerPlane.visible = false; world.add(layerPlane);
+
+  /* ---------- cute sprites (drawn on canvas) ---------- */
+  const texCache = {};
+  function spriteTex(kind, col, state) {
+    const key = kind + col + state; if (texCache[key]) return texCache[key];
+    const cv = document.createElement('canvas'); cv.width = cv.height = 256; const g = cv.getContext('2d');
+    g.translate(128, 128); g.lineCap = 'round'; g.lineJoin = 'round';
+    const rr = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+    if (kind === 'lantern') {
+      g.strokeStyle = '#ffe9a8'; g.lineWidth = 12; g.beginPath(); g.arc(0, -82, 26, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
+      g.fillStyle = '#ffe9a8'; rr(-46, -96, 92, 20, 10); g.fill(); rr(-46, 62, 92, 22, 11); g.fill();
+      g.globalAlpha = state === 'on' ? 1 : .75; g.fillStyle = col; rr(-72, -82, 144, 150, 52); g.fill(); g.globalAlpha = 1;
+      g.fillStyle = 'rgba(255,255,255,.35)'; rr(-52, -64, 24, 40, 12); g.fill();
+      g.strokeStyle = g.fillStyle = '#1b1f3b'; g.lineWidth = 9;
+      if (state === 'on') { [-24, 24].forEach(x => { g.beginPath(); g.ellipse(x, -6, 10, 14, 0, 0, 7); g.fill(); }); g.fillStyle = '#fff'; [-20, 28].forEach(x => { g.beginPath(); g.arc(x, -11, 4, 0, 7); g.fill(); }); }
+      else { [-24, 24].forEach(x => { g.beginPath(); g.arc(x, -10, 13, .2 * Math.PI, .8 * Math.PI); g.stroke(); }); }
+      g.fillStyle = 'rgba(255,154,184,.85)'; [-44, 44].forEach(x => { g.beginPath(); g.arc(x, 22, 11, 0, 7); g.fill(); });
+      g.strokeStyle = '#1b1f3b'; g.lineWidth = 8; g.beginPath(); g.arc(0, 16, 13, .15 * Math.PI, .85 * Math.PI); g.stroke();
+    } else {
+      g.strokeStyle = col; g.lineWidth = 14; g.setLineDash([30, 22]); g.beginPath(); g.arc(0, 0, 104, 0, 7); g.stroke(); g.setLineDash([]);
+      g.fillStyle = state === 'hit' ? col : '#2b3778'; g.beginPath(); g.arc(0, 0, 78, 0, 7); g.fill();
+      g.strokeStyle = state === 'idle' ? '#a9b3e0' : '#1b1f3b'; g.lineWidth = 10;
+      if (state === 'hit') {
+        [-26, 26].forEach(x => { g.beginPath(); g.arc(x, 4, 15, 1.1 * Math.PI, 1.9 * Math.PI); g.stroke(); });
+        g.fillStyle = '#1b1f3b'; g.beginPath(); g.arc(0, 20, 20, 0, Math.PI); g.fill();
+        g.fillStyle = '#ff9ab8'; [-50, 50].forEach(x => { g.beginPath(); g.arc(x, 26, 10, 0, 7); g.fill(); });
+      } else if (state === 'wrong') {
+        [-26, 26].forEach(x => { g.beginPath(); g.moveTo(x - 10, -14); g.lineTo(x + 10, 2); g.moveTo(x - 10, 2); g.lineTo(x + 10, -14); g.stroke(); });
+        g.beginPath(); g.arc(0, 44, 16, 1.15 * Math.PI, 1.85 * Math.PI); g.stroke();
+      } else {
+        [-26, 26].forEach(x => { g.beginPath(); g.moveTo(x - 14, -4); g.lineTo(x + 14, -4); g.stroke(); });
+        g.beginPath(); g.moveTo(-10, 30); g.lineTo(10, 30); g.stroke();
+      }
+    }
+    const t = new THREE.CanvasTexture(cv); t.anisotropy = 4; texCache[key] = t; return t;
+  }
+
+  /* ---------- level objects ---------- */
+  let objs = [], mirrors = {}, lanternSprites = [], targetSprites = {}, beamGroup = new THREE.Group(), beams = [], beamT0 = 0, pendingHits = [];
+  world.add(beamGroup);
+  const plateGeo = new THREE.BoxGeometry(.84, .84 * Math.SQRT2, .06);
+  const blockGeo = new THREE.BoxGeometry(.78, .78, .78);
+  function orientQuat(o) {
+    const n = new THREE.Vector3(...NORMALS[o]).normalize();
+    const zeroAx = NORMALS[o].findIndex(v => v === 0);
+    const u = new THREE.Vector3(zeroAx === 0 ? 1 : 0, zeroAx === 1 ? 1 : 0, zeroAx === 2 ? 1 : 0);
+    const v = new THREE.Vector3().crossVectors(n, u);
+    return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, v, n));
+  }
+  function clearLevel() {
+    objs.forEach(o => { world.remove(o); }); objs = []; mirrors = {}; lanternSprites = []; targetSprites = {};
+    clearBeams();
+  }
+  function build() {
+    clearLevel();
+    cells = {};
+    L.cells.forEach(([k, t, o]) => { cells[k] = { t, o }; });
+    Object.entries(cells).forEach(([k, c]) => {
+      const p = k.split(',').map(Number);
+      let m;
+      if (c.t === '#') {
+        m = new THREE.Mesh(blockGeo, new THREE.MeshStandardMaterial({ color: 0xa8775a, roughness: .9, transparent: true }));
+      } else {
+        m = new THREE.Mesh(plateGeo, new THREE.MeshStandardMaterial({ color: c.t === 'k' ? 0xb9b2ff : 0xe9f7ff, roughness: .25, metalness: .2, emissive: 0x000000, transparent: true }));
+        const edge = new THREE.LineSegments(new THREE.EdgesGeometry(plateGeo), new THREE.LineBasicMaterial({ color: c.t === 'k' ? 0x6d63c9 : 0x7fb2d6, transparent: true }));
+        m.add(edge);
+        m.quaternion.copy(orientQuat(c.o)); m.userData.targetQ = m.quaternion.clone();
+        mirrors[k] = m;
+      }
+      m.position.copy(toWorld(p)); m.userData.key = k; m.userData.y = p[1];
+      world.add(m); objs.push(m);
+    });
+    L.lanterns.forEach((l, i) => {
+      const pos = toWorld(outsidePos(N, l));
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteTex('lantern', hex(l.c), 'off'), transparent: true }));
+      sp.scale.set(.85, .85, 1); sp.position.copy(pos); world.add(sp); objs.push(sp);
+      sp.userData = { col: hex(l.c) }; lanternSprites.push(sp);
+      const d = new THREE.Vector3(...inwardDir(l));
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(.16, .3, 16), new THREE.MeshBasicMaterial({ color: hex(l.c) }));
+      cone.position.copy(pos).addScaledVector(d, .42);
+      cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d); world.add(cone); objs.push(cone);
+    });
+    L.targets.forEach(t => {
+      const [f, rest] = t.k.split(':'), [u, v] = rest.split(',').map(Number);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteTex('target', hex(t.c), 'idle'), transparent: true }));
+      sp.scale.set(.75, .75, 1); sp.position.copy(toWorld(outsidePos(N, { f, u, v }))); world.add(sp); objs.push(sp);
+      sp.userData = { col: hex(t.c) }; targetSprites[t.k] = sp;
+    });
+    applyLayer();
+  }
+
+  /* ---------- beams ---------- */
+  function clearBeams() {
+    beams.forEach(b => { beamGroup.remove(b.core); beamGroup.remove(b.glow); }); beams = []; pendingHits = [];
+    Object.values(mirrors).forEach(m => m.material.emissive.setHex(0));
+    Object.values(targetSprites).forEach(sp => { sp.material.map = spriteTex('target', sp.userData.col, 'idle'); sp.scale.set(.75, .75, 1); });
+    lanternSprites.forEach(sp => sp.material.map = spriteTex('lantern', sp.userData.col, lightOn ? 'on' : 'off'));
+  }
+  const cyl = new THREE.CylinderGeometry(1, 1, 1, 12, 1, true);
+  function drawBeams(animate) {
+    clearBeams();
+    $('power').classList.toggle('on', lightOn);
+    if (!lightOn) return;
+    const tr = trace3(N, cells, L.lanterns);
+    tr.paths.forEach(p => {
+      let acc = 0;
+      for (let k = 1; k < p.pts.length; k++) {
+        const a = toWorld(p.pts[k - 1]), b = toWorld(p.pts[k]);
+        if (k === 1) a.lerp(b, .38 / a.distanceTo(b));                               // start at the nozzle
+        const isExit = k === p.pts.length - 1 && faceKey(N, p.pts[k]);
+        if (isExit) b.lerp(a, .3 / a.distanceTo(b));                                  // stop at the target's rim
+        const len = a.distanceTo(b), dir = b.clone().sub(a).normalize();
+        const col = new THREE.Color(hex(p.c));
+        const core = new THREE.Mesh(cyl, new THREE.MeshBasicMaterial({ color: col.clone().lerp(new THREE.Color(0xffffff), .45) }));
+        const glow = new THREE.Mesh(cyl, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: .45, blending: THREE.AdditiveBlending, depthWrite: false }));
+        [core, glow].forEach((m, j) => { m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); m.userData.r = j ? .14 : .05; beamGroup.add(m); });
+        beams.push({ core, glow, a, dir, len, start: acc });
+        acc += len;
+      }
+    });
+    tr.hits.forEach(h => pendingHits.push({ at: h.d * S, fn: () => { const m = mirrors[h.k]; if (m) m.material.emissive.set(hex(h.c)).multiplyScalar(.35); } }));
+    let allHit = true;
+    L.targets.forEach((t, i) => {
+      const got = tr.ends[t.k] || 0, ok = got === t.c; if (!ok) allHit = false;
+      if (got) pendingHits.push({ at: (tr.endD[t.k] || 0) * S, fn: () => { const sp = targetSprites[t.k]; sp.material.map = spriteTex('target', sp.userData.col, ok ? 'hit' : 'wrong'); if (ok) { sp.scale.set(.9, .9, 1); if (animate) sfx.hit(i); } } });
+    });
+    beamT0 = animate ? performance.now() : -1e9;
+    if (allHit) {
+      solved = true;
+      const longest = Math.max(...Object.values(tr.endD)) * S;
+      setTimeout(win, (animate ? longest / BEAM_SPEED * 1000 : 0) + 700);
+    }
+  }
+  const BEAM_SPEED = 7; // world units per second
+  function updateBeams(now) {
+    const done = (now - beamT0) / 1000 * BEAM_SPEED;
+    beams.forEach(b => {
+      const l = Math.max(0, Math.min(b.len, done - b.start));
+      [b.core, b.glow].forEach(m => {
+        m.visible = l > 0.001;
+        m.scale.set(m.userData.r, l || .001, m.userData.r);
+        m.position.copy(b.a).addScaledVector(b.dir, l / 2);
+      });
+    });
+    pendingHits = pendingHits.filter(h => { if (done >= h.at) { h.fn(); return false; } return true; });
+  }
+
+  /* ---------- camera orbit ---------- */
+  let theta = .7, phi = 1.05, radius = 12.5, spin = 0;
+  function placeCamera() {
+    camera.position.set(radius * Math.sin(phi) * Math.sin(theta), radius * Math.cos(phi), radius * Math.sin(phi) * Math.cos(theta));
+    camera.lookAt(0, -.2, 0);
+  }
+  function resize() {
+    const w = stage.clientWidth, h = stage.clientHeight;
+    renderer.setSize(w, h, false); camera.aspect = w / h;
+    // keep the whole cube in view on narrow screens
+    // portrait screens: widen the vertical field of view so the cube fills the width
+    camera.fov = camera.aspect < 1 ? 2 * Math.atan(Math.tan(21 * Math.PI / 180) / camera.aspect) * 180 / Math.PI : 40;
+    radius = camera.aspect < 1 ? 11 : 11.5;
+    camera.updateProjectionMatrix(); placeCamera();
+  }
+  new ResizeObserver(resize).observe(stage);
+
+  const pointers = new Map(); let downAt = null, moved = 0, pinch0 = 0, r0 = 0;
+  stage.addEventListener('pointerdown', e => {
+    if (e.target.closest('button')) return;
+    stage.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1) { downAt = { x: e.clientX, y: e.clientY }; moved = 0; }
+    if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); r0 = radius; }
+  });
+  stage.addEventListener('pointermove', e => {
+    if (!pointers.has(e.pointerId)) return;
+    const prev = pointers.get(e.pointerId); const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) { const [a, b] = [...pointers.values()]; radius = Math.max(8, Math.min(20, r0 * pinch0 / Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)))); placeCamera(); moved = 99; return; }
+    moved += Math.abs(dx) + Math.abs(dy);
+    if (moved > 6) { stage.classList.add('dragging'); theta -= dx * .008; phi = Math.max(.25, Math.min(2.6, phi - dy * .008)); placeCamera(); hideDragHint(); }
+  });
+  const up = e => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.delete(e.pointerId); stage.classList.remove('dragging');
+    if (pointers.size === 0 && moved <= 6 && downAt) pick(e.clientX, e.clientY);
+    if (pointers.size === 0) downAt = null;
+  };
+  stage.addEventListener('pointerup', up); stage.addEventListener('pointercancel', up);
+  stage.addEventListener('wheel', e => { e.preventDefault(); radius = Math.max(8, Math.min(20, radius * (1 + e.deltaY * .001))); placeCamera(); }, { passive: false });
+  function hideDragHint() { $('dragHint').style.opacity = 0; }
+
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  function pick(cx, cy) {
+    const r = renderer.domElement.getBoundingClientRect();
+    ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    const cand = Object.values(mirrors).filter(m => layer < 0 || m.userData.y === layer);
+    const hit = ray.intersectObjects(cand, false)[0];
+    if (hit) rotateMirror(hit.object.userData.key);
+  }
+  function rotateMirror(k) {
+    if (solved) return;
+    const c = cells[k], m = mirrors[k];
+    if (c.t === 'k') { sfx.locked(); m.userData.shake = performance.now(); return; }
+    c.o = (c.o + 1) % 6;
+    m.userData.fromQ = m.quaternion.clone(); m.userData.targetQ = orientQuat(c.o); m.userData.t0 = performance.now();
+    moves++; updateMoves(); sfx.rotate();
+    if (lightOn) drawBeams(false);
+  }
+
+  /* ---------- layers ---------- */
+  function renderLayers() {
+    const row = $('layerRow'); row.innerHTML = '';
+    [['Tümü', -1], ...[...Array(N).keys()].map(i => [String(i + 1), i])].forEach(([t, v]) => {
+      const b = document.createElement('button'); b.textContent = t; b.classList.toggle('cur', v === layer);
+      b.setAttribute('aria-label', v < 0 ? 'Tüm katları göster' : `${v + 1}. katı göster`);
+      b.onclick = () => { layer = v; renderLayers(); applyLayer(); };
+      row.appendChild(b);
+    });
+  }
+  function applyLayer() {
+    const show = y => layer < 0 || y === layer;
+    objs.forEach(o => { if (o.userData.y === undefined) return; const on = show(o.userData.y); o.material.opacity = on ? 1 : .1; o.children.forEach(ch => ch.material.opacity = on ? 1 : .1); });
+    dots.forEach(d => d.material.opacity = show(d.userData.y) ? .35 : .06);
+    layerPlane.visible = layer >= 0; if (layer >= 0) layerPlane.position.y = W(layer) - .45 * S;
+  }
+
+  /* ---------- level flow ---------- */
+  function computeOptimal() {
+    const rot = Object.keys(cells).filter(k => cells[k].t === 'm'), st = rot.map(k => cells[k].o);
+    const tmp = {}; Object.entries(cells).forEach(([k, c]) => tmp[k] = { t: c.t, o: c.o });
+    let best = Infinity;
+    for (let m = 0; m < 6 ** rot.length; m++) {
+      let mm = m, cost = 0;
+      rot.forEach((k, j) => { const o = mm % 6; mm = mm / 6 | 0; tmp[k].o = o; cost += (o - st[j] + 6) % 6; });
+      if (cost < best && isWin3(N, tmp, L)) best = cost;
+    }
+    return best;
+  }
+  function load(i) {
+    lvl = i; L = LEVELS[i]; moves = 0; lightOn = false; solved = false;
+    build(); optimal = computeOptimal();
+    $('levelTitle').textContent = `Bölüm ${i + 1}`;
+    $('levelLights').innerHTML = L.lanterns.map(l => `<i style="color:${hex(l.c)}" title="${COLORS[l.c].name}"></i>`).join('');
+    $('hint').innerHTML = HINTS[i] || 'Her hedef kendi rengindeki ışığı bekliyor.';
+    $('prevBtn').disabled = i === 0;
+    $('nextBtn').disabled = i === LEVELS.length - 1 || !unlocked(i + 1);
+    $('power').classList.toggle('nudge', i === 0 && !progress[0]);
+    updateMoves(); drawBeams(false);
+  }
+  function updateMoves() { $('moves').textContent = 'Hamle ' + moves; }
+  function win() {
+    const stars = moves <= optimal ? 3 : moves <= optimal + 4 ? 2 : 1;
+    progress[lvl] = Math.max(progress[lvl] || 0, stars); save();
+    $('starsOut').innerHTML = [1, 2, 3].map(s => `<span class="${s <= stars ? 'on' : 'off'}">★</span>`).join('');
+    const last = lvl === LEVELS.length - 1;
+    $('winTitle').textContent = L.targets.length > 1 ? 'Işıklar hedefte!' : 'Işık hedefte!';
+    $('winText').textContent = `${moves} hamlede çözdün (en az: ${optimal}).` + (last ? ' Tüm küpleri bitirdin!' : '');
+    $('winNext').textContent = last ? 'Baştan oyna' : 'Sonraki bölüm';
+    $('win').classList.add('show'); sfx.win();
+    $('nextBtn').disabled = last;
+    $('winNext').focus();
+  }
+  $('power').onclick = () => { if (solved) return; lightOn = !lightOn; $('power').classList.remove('nudge'); lightOn ? sfx.on() : sfx.off(); drawBeams(lightOn); };
+  $('winNext').onclick = () => { $('win').classList.remove('show'); load(lvl === LEVELS.length - 1 ? 0 : lvl + 1); };
+  $('resetBtn').onclick = () => load(lvl);
+  $('prevBtn').onclick = () => lvl > 0 && load(lvl - 1);
+  $('nextBtn').onclick = () => lvl < LEVELS.length - 1 && unlocked(lvl + 1) && load(lvl + 1);
+  $('soundBtn').onclick = () => { soundOn = !soundOn; save(); soundIcon(); };
+  $('levelsBtn').onclick = () => {
+    const wrap = $('levelGrid'); wrap.innerHTML = '';
+    LEVELS.forEach((_, i) => {
+      const b = document.createElement('button'); b.innerHTML = `${i + 1}<small>${'★'.repeat(progress[i] || 0)}</small>`;
+      if (i === lvl) b.classList.add('cur'); b.disabled = !unlocked(i);
+      b.onclick = () => { $('levelsDlg').classList.remove('show'); load(i); }; wrap.appendChild(b);
+    });
+    $('levelsDlg').classList.add('show');
+  };
+  $('levelsClose').onclick = () => $('levelsDlg').classList.remove('show');
+  $('levelsDlg').onclick = e => { if (e.target === $('levelsDlg')) $('levelsDlg').classList.remove('show'); };
+  soundIcon(); renderLayers();
+
+  /* ---------- background stars ---------- */
+  const sc = $('stars'), sg = sc.getContext('2d');
+  let starList = [];
+  function starsResize() {
+    const d = Math.min(2, devicePixelRatio || 1); sc.width = innerWidth * d; sc.height = innerHeight * d; sg.setTransform(d, 0, 0, d, 0, 0);
+    starList = Array.from({ length: Math.round(innerWidth * innerHeight / 4500) }, () => ({ x: Math.random() * innerWidth, y: Math.random() * innerHeight, r: Math.random() * 1.2 + .4, p: Math.random() * 7, s: .5 + Math.random() * 1.5 }));
+  }
+  addEventListener('resize', starsResize); starsResize();
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- loop ---------- */
+  function frameLoop(now) {
+    sg.clearRect(0, 0, innerWidth, innerHeight); sg.fillStyle = '#fff';
+    for (const s of starList) { sg.globalAlpha = reduce ? .7 : .45 + .45 * Math.sin(now / 1000 * s.s + s.p); sg.beginPath(); sg.arc(s.x, s.y, s.r, 0, 7); sg.fill(); }
+    sg.globalAlpha = 1;
+    Object.values(mirrors).forEach(m => {
+      const u = m.userData;
+      if (u.t0) { const k = Math.min(1, (now - u.t0) / 260), e = 1 - Math.pow(1 - k, 3); m.quaternion.slerpQuaternions(u.fromQ, u.targetQ, e); if (k >= 1) u.t0 = 0; }
+      if (u.shake) { const k = (now - u.shake) / 300; m.rotation.z += k < 1 ? Math.sin(k * 20) * .03 : 0; if (k >= 1) { u.shake = 0; m.quaternion.copy(u.targetQ); } }
+    });
+    lanternSprites.forEach((sp, i) => { const b = lightOn && !reduce ? Math.sin(now / 300 + i) * .03 : 0; sp.scale.set(.85 + b, .85 + b, 1); });
+    updateBeams(now);
+    renderer.render(scene, camera);
+    requestAnimationFrame(frameLoop);
+  }
+  resize();
+  let start = 0; while (progress[start] && start < LEVELS.length - 1) start++;
+  load(start);
+  requestAnimationFrame(frameLoop);
+})();
+</script>
+</body>
+</html>
