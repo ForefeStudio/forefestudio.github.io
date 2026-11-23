@@ -120,7 +120,9 @@
   .t-drag { animation: tDrag 5s infinite; }
   @keyframes tDrag { 0%, 8% { transform: translateX(0); opacity: 0; } 14% { opacity: 1; } 40% { transform: translateX(-34px); opacity: 1; } 48%, 100% { transform: translateX(-34px); opacity: 0; } }
   .t-glow1 { animation: tGlow1 5s infinite; }
-  @keyframes tGlow1 { 0%, 40% { fill: #ffe2c4; } 44%, 88% { fill: #ff8a2a; } 96%, 100% { fill: #ffe2c4; } }
+  @keyframes tGlow1 { 0%, 40% { fill: #2a4fb8; } 44%, 88% { fill: #ffb347; } 96%, 100% { fill: #2a4fb8; } }
+  .t-led { animation: tLed 5s infinite; }
+  @keyframes tLed { 0%, 42% { fill: #6b5a4a; } 46%, 88% { fill: #5dff9d; } 96%, 100% { fill: #6b5a4a; } }
   .t-sink { transform-box: fill-box; transform-origin: center bottom; animation: tSink 5s infinite; }
   @keyframes tSink { 0%, 42% { transform: scaleY(1); opacity: 1; } 52%, 88% { transform: scaleY(.08); opacity: .5; } 96%, 100% { transform: scaleY(1); opacity: 1; } }
   .t-bloom { transform-box: fill-box; transform-origin: left center; animation: tBloom 5s infinite; }
@@ -299,9 +301,9 @@
     2: '<b>İçi aynalı boru</b> ışığı ağzından alır, içinde yansıta yansıta öbür ağızdan çıkarır. Blokların üzerinden böyle geçilir.',
     3: 'Kilitli (mor çerçeveli) aynalar dönmez. Boru ışığı yandaki yüze de taşıyabilir.',
     4: 'İki fener! Her ışık kendi rengindeki hedefe gitmeli.',
-    8: 'Işık turuncu <b>sensöre</b> ulaşınca turuncu <b>kapı</b> yere iner, arkasından ışık geçebilir.',
+    8: 'Işık <b>güneş paneline</b> ulaşınca turuncu <b>kapı</b> yere iner, oradan ışık geçebilir.',
     10: 'Işık <b>güneş çiçeğine</b> ulaşınca çiçek açar ve sarı çerçeveli <b>motorlu aynayı</b> çevirir.',
-    11: 'Sensör, çiçek ve kapı bir arada. Hangi ışığın neyi tetiklediğini takip et.',
+    11: 'Güneş paneli, çiçek ve kapı bir arada. Hangi ışığın neyi tetiklediğini takip et.',
   };
   const $ = id => document.getElementById(id);
   const stage = $('stage');
@@ -505,6 +507,11 @@
   const doorMat = new THREE.MeshStandardMaterial({ color: 0xff9a52, roughness: .55 });
   const doorTopMat = new THREE.MeshStandardMaterial({ color: 0xffc08a, roughness: .5 });
   const petalGeo = new THREE.SphereGeometry(.12, 14, 10);
+  const sensorPadGeo = (() => { const g = new THREE.ExtrudeGeometry(rrShape(.56, .56, .12), { depth: .03, bevelEnabled: true, bevelThickness: .02, bevelSize: .02, bevelSegments: 2 }); g.rotateX(-Math.PI / 2); g.translate(0, .02, 0); return g; })();
+  const panelTex = (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 128; const g = cv.getContext('2d');
+    g.fillStyle = '#ffc08a'; g.fillRect(0, 0, 128, 128);
+    for (let x = 0; x < 3; x++) for (let y = 0; y < 3; y++) { g.fillStyle = '#2a4fb8'; g.fillRect(8 + x * 39, 8 + y * 39, 35, 35); g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(8 + x * 39, 8 + y * 39, 35, 6); }
+    const t = new THREE.CanvasTexture(cv); t.anisotropy = 4; return t; })();
   const petalMat = new THREE.MeshStandardMaterial({ color: 0xffd166, roughness: .5 });
   const blockGeo = (() => { const g = new THREE.ExtrudeGeometry(rrShape(.58, .58, .1), { depth: BLOCK_H - .08, bevelEnabled: true, bevelThickness: .04, bevelSize: .04, bevelSegments: 3, curveSegments: 6 });
     g.rotateX(-Math.PI / 2); g.translate(0, .04, 0); return g; })();
@@ -539,13 +546,16 @@
         const bar = new THREE.Mesh(new THREE.BoxGeometry(.62, .07, .62), doorTopMat); bar.position.y = BLOCK_H * .45; g.add(bar);
         g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(upQuat(f)); add(g); doors[k] = g;
         tiles[k].material.color.setHex(0x8a5530);
-      } else if (c.t === 'S') {                            // sensor: an orange pad with a glass eye
+      } else if (c.t === 'S') {                            // light sensor = a small solar panel on a stand, with a status lamp
         const g = new THREE.Group();
-        const pad = new THREE.Mesh(new THREE.CylinderGeometry(.32, .34, .07, 32), doorMat); pad.position.y = .035; g.add(pad);
-        const lensMat = new THREE.MeshStandardMaterial({ color: 0xffe2c4, roughness: .2, emissive: 0x000000 });
-        const lens = new THREE.Mesh(new THREE.SphereGeometry(.17, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), lensMat); lens.position.y = .07; g.add(lens);
-        const pupil = new THREE.Mesh(new THREE.SphereGeometry(.06, 14, 10), new THREE.MeshStandardMaterial({ color: 0x5a2d0c })); pupil.position.y = .2; g.add(pupil);
-        g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(upQuat(f)); add(g); sensorObjs[k] = { lensMat };
+        const pad = new THREE.Mesh(sensorPadGeo, doorMat); g.add(pad);
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(.035, .045, .16, 10), doorTopMat); post.position.y = .13; g.add(post);
+        const panelMat = new THREE.MeshStandardMaterial({ map: panelTex, emissiveMap: panelTex, emissive: 0x000000, roughness: .35, metalness: .2 });
+        const panel = new THREE.Mesh(new THREE.BoxGeometry(.5, .03, .4), [doorTopMat, doorTopMat, panelMat, doorTopMat, doorTopMat, doorTopMat]);
+        panel.position.y = .23; panel.rotation.x = -.35; g.add(panel);
+        const ledMat = new THREE.MeshStandardMaterial({ color: 0x6b5a4a, roughness: .3, emissive: 0x000000 });
+        const led = new THREE.Mesh(new THREE.SphereGeometry(.05, 14, 10), ledMat); led.position.set(.2, .09, .2); g.add(led);
+        g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(upQuat(f)); add(g); sensorObjs[k] = { lensMat: panelMat, ledMat };
         tiles[k].material.color.setHex(0x8a5530);
       } else if (c.t === 'F') {                            // sun flower: a bud that opens when light reaches it
         const g = new THREE.Group(), petals = [];
@@ -631,12 +641,12 @@
   function resetEffects() {
     Object.values(doors).forEach(g => { g.userData.h = 1; g.userData.to = 1; g.scale.y = 1; });
     Object.values(flowerObjs).forEach(o => { o.to = 0; });
-    Object.values(sensorObjs).forEach(o => o.lensMat.emissive.setHex(0));
+    Object.values(sensorObjs).forEach(o => { o.lensMat.emissive.setHex(0); o.ledMat.color.setHex(0x6b5a4a); o.ledMat.emissive.setHex(0); });
     Object.entries(mirrors).forEach(([k, m]) => { if (m.userData.motor) { m.userData.t0 = 0; m.quaternion.copy(mirrorQuat(k, cells[k].t)); m.userData.targetQ = m.quaternion.clone(); } });
   }
   function applyEffect(a, animated) {
     if (a.type === 'door') {
-      const so = sensorObjs[a.src]; if (so) so.lensMat.emissive.setHex(0xff8a2a);
+      const so = sensorObjs[a.src]; if (so) { so.lensMat.emissive.setHex(0xffb347); so.ledMat.color.setHex(0x5dff9d); so.ledMat.emissive.setHex(0x2bd46a); }
       const g = doors[a.k]; if (g) { g.userData.to = .04; if (!animated) g.scale.y = .04; }
       if (animated) tone(330, .25, 'square', .03);
     } else {
@@ -888,11 +898,11 @@
         svg: svg(ground + hump(130) + `<path d="M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98" stroke="#bfe3ff" stroke-width="20" opacity=".35" fill="none"/><path d="M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98" stroke="#e9f7ff" stroke-width="20" opacity=".5" fill="none" stroke-dasharray="2 14"/><circle cx="64" cy="98" r="9" fill="none" stroke="#ffc6dd" stroke-width="4"/><circle cx="196" cy="98" r="9" fill="none" stroke="#ffc6dd" stroke-width="4"/>` + lantern(26, 98, '#4ee89a') + beam('M40 98 H64', '#4ee89a', 't-s1') + beam('M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98', '#4ee89a', 't-s2') + beam('M196 98 H222', '#4ee89a', 't-s3') + target(236, 98, '#4ee89a', 't-show3')) },
     };
     const SEN = '#ff9a52';
-    const sensorI = (x, y) => `<g transform="translate(${x} ${y})"><circle r="13" fill="${SEN}"/><circle class="t-glow1" r="8" fill="#ffe2c4"/><circle r="3.5" fill="#5a2d0c"/></g>`;
+    const sensorI = (x, y) => `<g transform="translate(${x} ${y})"><rect x="-14" y="-14" width="28" height="28" rx="5" fill="#ffc08a"/>${[0, 1, 2].map(i => [0, 1, 2].map(j => `<rect class="t-glow1" x="${-11 + i * 7.6}" y="${-11 + j * 7.6}" width="6.4" height="6.4" rx="1" fill="#2a4fb8"/>`).join('')).join('')}<circle class="t-led" cx="12" cy="12" r="3.5" fill="#6b5a4a"/></g>`;
     const doorI = (x, y, cls) => `<g transform="translate(${x} ${y})"><g class="${cls}"><rect x="-16" y="-16" width="32" height="32" rx="7" fill="${SEN}"/><rect x="-16" y="-3" width="32" height="6" fill="#ffc08a"/></g></g>`;
     const flowerI = (x, y) => `<g transform="translate(${x} ${y})">${[...Array(8)].map((_, i) => `<g style="transform: rotate(${i * 45}deg)"><ellipse class="t-bloom" cx="10" cy="0" rx="7" ry="4" fill="#ffd166"/></g>`).join('')}<circle r="6" fill="#8a5a2b"/></g>`;
     const motorBar = `<rect x="-22" y="-3.5" width="44" height="7" rx="3.5" fill="#ffe7a8" stroke="#ffb22e" stroke-width="2"/>`;
-    CARDS.sensor = { title: 'Yeni: Sensör ve kapı', text: 'Işık turuncu sensöre ulaşınca, aynı renkteki kapı yere iner. Artık başka bir ışık o kapının olduğu yerden geçebilir.',
+    CARDS.sensor = { title: 'Yeni: Güneş paneli ve kapı', text: 'Işık güneş paneline ulaşınca panel elektrik üretir, lambası yeşil yanar ve turuncu kapı yere iner. Artık başka bir ışık kapının olduğu yerden geçebilir.',
       svg: svg(tiles([80, 120], 40) + tiles([80, 160], 108) + tile(120, 108) + lantern(36, 40, YE) + beam('M50 40 H150', YE, 't-s1') + sensorI(162, 40) + lantern(36, 108, BL) + doorI(120, 108, 't-sink') + beam('M50 108 H103', BL, 't-s1') + beam('M103 108 H212', BL, 't-s2') + target(224, 108, BL, 't-show2')) };
     CARDS.flower = { title: 'Yeni: Güneş çiçeği', text: 'Işık güneş çiçeğine ulaşınca çiçek açar ve sarı çerçeveli motorlu aynayı 90° çevirir. Motorlu aynayı sen çeviremezsin.',
       svg: svg(tiles([80, 120], 40) + tiles([80, 120, 160], 108) + lantern(36, 40, YE) + beam('M50 40 H146', YE, 't-s1') + flowerI(160, 40) + tile(200, 108) + `<g transform="translate(200 108)"><g class="t-rot2" style="transform: rotate(45deg)">${motorBar}</g><circle cx="13" cy="-13" r="4" fill="#ffb22e"/></g>` + lantern(36, 108, '#4ee89a') + beam('M50 108 H200', '#4ee89a', 't-s2') + beam('M200 108 V60', '#4ee89a', 't-s3') + target(200, 52, '#4ee89a', 't-show3')) };
