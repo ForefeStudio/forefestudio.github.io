@@ -386,8 +386,8 @@
 
   /* ---------- 45° mirror strips over every cube edge: they turn the light onto the next face ---------- */
   const edgeStrips = {};
-  const holderGeo = new THREE.CylinderGeometry(.026, .026, 1, 10), cornerGeo = new THREE.SphereGeometry(.11, 20, 14);
-  const holderMat = new THREE.MeshStandardMaterial({ color: 0xffcf86, roughness: .35, metalness: .3 });
+  const holderGeo = new THREE.CylinderGeometry(.013, .013, 1, 8), cornerGeo = new THREE.SphereGeometry(.06, 16, 12);
+  const holderMat = new THREE.MeshStandardMaterial({ color: 0x323e86, roughness: .7, metalness: .1 });
   const edgeId = pt => pt.map(v => Math.abs(v) > N / 2 + .01 ? Math.sign(v) : 0).join(',');
   (() => {
     const half = N / 2, w = .24;
@@ -399,7 +399,7 @@
       const across = new THREE.Vector3().crossVectors(m, V(along));
       const g = new THREE.Group();
       const glass = new THREE.Mesh(new THREE.BoxGeometry(N - .1, w, .025), new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 1, roughness: .06, envMap: envTex, transparent: true, opacity: .18, emissive: 0, depthWrite: false }));
-      const back = new THREE.Mesh(new THREE.BoxGeometry(N - .1, w + .03, .02), new THREE.MeshStandardMaterial({ color: 0xffcf86, roughness: .5, transparent: true, opacity: .22, depthWrite: false })); back.position.z = .025;
+      const back = new THREE.Mesh(new THREE.BoxGeometry(N - .1, w + .03, .02), new THREE.MeshStandardMaterial({ color: 0x8f9bd6, roughness: .5, transparent: true, opacity: .16, depthWrite: false })); back.position.z = .025;
       g.add(glass, back); g.userData = { glass, back };
       g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(V(along), across, m));
       g.position.copy(V(E)).addScaledVector(V(n1), BEAM_H).addScaledVector(V(n2), BEAM_H).addScaledVector(m, .015);
@@ -545,7 +545,7 @@
     beams.forEach(b => { beamGroup.remove(b.core); beamGroup.remove(b.glow); }); beams = []; pendingHits = [];
     sparkMeshes.forEach(s => beamGroup.remove(s)); sparkMeshes = [];
     Object.values(mirrors).forEach(m => m.userData.frame.material.emissive.setHex(0));
-    Object.values(edgeStrips).forEach(g => { g.userData.glass.material.opacity = .18; g.userData.glass.material.color.setHex(0xffffff); g.userData.glass.material.emissive.setHex(0); g.userData.back.material.opacity = .22; });
+    Object.values(edgeStrips).forEach(g => { g.userData.glass.material.opacity = .18; g.userData.glass.material.color.setHex(0xffffff); g.userData.glass.material.emissive.setHex(0); g.userData.back.material.opacity = .16; });
     Object.values(targetSprites).forEach(sp => { sp.material.map = spriteTex('target', sp.userData.col, 'idle'); sp.scale.set(.74, .74, 1); });
     lanternSprites.forEach(sp => sp.material.map = spriteTex('lantern', sp.userData.col, lightOn ? 'on' : 'off'));
     lanternLens.forEach(l => l.material.color.copy(lightOn ? l.userData.col.clone().lerp(new THREE.Color(0xffffff), .5) : l.userData.col.clone().lerp(new THREE.Color(0x222244), .45)));
