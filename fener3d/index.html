@@ -386,6 +386,8 @@
 
   /* ---------- 45° mirror strips over every cube edge: they turn the light onto the next face ---------- */
   const edgeStrips = {};
+  const holderGeo = new THREE.CylinderGeometry(.022, .022, 1, 10), knobGeo = new THREE.SphereGeometry(.045, 12, 8);
+  const holderMat = new THREE.MeshStandardMaterial({ color: 0xffcf86, roughness: .35, metalness: .3 });
   const edgeId = pt => pt.map(v => Math.abs(v) > N / 2 + .01 ? Math.sign(v) : 0).join(',');
   (() => {
     const half = N / 2, w = .24;
@@ -397,10 +399,18 @@
       const across = new THREE.Vector3().crossVectors(m, V(along));
       const g = new THREE.Group();
       const glass = new THREE.Mesh(new THREE.BoxGeometry(N - .16, w, .025), new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 1, roughness: .06, envMap: envTex, transparent: true, opacity: .18, emissive: 0, depthWrite: false }));
-      const back = new THREE.Mesh(new THREE.BoxGeometry(N - .16, w + .03, .02), new THREE.MeshStandardMaterial({ color: 0xffc6dd, roughness: .5, transparent: true, opacity: .12, depthWrite: false })); back.position.z = .025;
+      const back = new THREE.Mesh(new THREE.BoxGeometry(N - .16, w + .03, .02), new THREE.MeshStandardMaterial({ color: 0xffcf86, roughness: .5, transparent: true, opacity: .22, depthWrite: false })); back.position.z = .025;
       g.add(glass, back); g.userData = { glass, back };
       g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(V(along), across, m));
       g.position.copy(V(E)).addScaledVector(V(n1), BEAM_H).addScaledVector(V(n2), BEAM_H).addScaledVector(m, .015);
+      const holderLen = BEAM_H * Math.SQRT2 + .01;
+      [-1, 1].forEach(t => {
+        const rod = new THREE.Mesh(holderGeo, holderMat);
+        rod.position.copy(V(E)).addScaledVector(V(along), t).addScaledVector(m, holderLen / 2);
+        rod.scale.y = holderLen; rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), m);
+        world.add(rod);
+        const knob = new THREE.Mesh(knobGeo, holderMat); knob.position.copy(V(E)).addScaledVector(V(along), t); world.add(knob);
+      });
       world.add(g);
       const P = [0,0,0]; P[o[0]] = s1 * 9; P[o[1]] = s2 * 9; edgeStrips[edgeId(P)] = g;
     }
@@ -410,18 +420,18 @@
   let objs = [], mirrors = {}, lanternSprites = [], lanternLens = [], targetSprites = {}, pipeMeshes = [], beamGroup = new THREE.Group(), beams = [], beamT0 = 0, pendingHits = [], sparkMeshes = [];
   world.add(beamGroup);
   /* cute mirror: rounded frame + reflective glass with shine streaks, standing on a small turntable */
-  const MW = .86, MH = .5, MB = .075, MR = .13, LIFT = .1;
+  const MW = .84, MH = .48, MB = .032, MR = .1, LIFT = .1;
   const rrShape = (w, h, r) => { const s = new THREE.Shape(), x = -w / 2, y = -h / 2; s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r); s.lineTo(x + w, y + h - r); s.quadraticCurveTo(x + w, y + h, x + w - r, y + h); s.lineTo(x + r, y + h); s.quadraticCurveTo(x, y + h, x, y + h - r); s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y); return s; };
   const frameShape = rrShape(MW, MH, MR); frameShape.holes.push(rrShape(MW - 2 * MB, MH - 2 * MB, MR - MB * .6));
-  const frameGeo = new THREE.ExtrudeGeometry(frameShape, { depth: .05, bevelEnabled: true, bevelThickness: .018, bevelSize: .018, bevelSegments: 4, curveSegments: 10 });
-  frameGeo.translate(0, 0, -.025);
+  const frameGeo = new THREE.ExtrudeGeometry(frameShape, { depth: .03, bevelEnabled: true, bevelThickness: .008, bevelSize: .008, bevelSegments: 3, curveSegments: 10 });
+  frameGeo.translate(0, 0, -.015);
   const glassGeo = new THREE.ShapeGeometry(rrShape(MW - 2 * MB + .02, MH - 2 * MB + .02, MR - MB * .6), 10);
-  const streakGeo = (() => { const g = new THREE.Shape(); g.moveTo(-.2, -.14); g.lineTo(-.11, -.14); g.lineTo(-.01, .14); g.lineTo(-.1, .14); g.closePath();
-    const h = new THREE.Shape(); h.moveTo(-.05, -.14); h.lineTo(-.015, -.14); h.lineTo(.085, .14); h.lineTo(.05, .14); h.closePath(); return new THREE.ShapeGeometry([g, h]); })();
+  const streakGeo = (() => { const g = new THREE.Shape(); g.moveTo(-.22, -.16); g.lineTo(-.13, -.16); g.lineTo(-.02, .16); g.lineTo(-.11, .16); g.closePath();
+    const h = new THREE.Shape(); h.moveTo(-.06, -.16); h.lineTo(-.025, -.16); h.lineTo(.085, .16); h.lineTo(.05, .16); h.closePath(); return new THREE.ShapeGeometry([g, h]); })();
   const glassMat = new THREE.MeshStandardMaterial({ color: 0xcfe6ff, metalness: .92, roughness: .07, envMap: envTex, envMapIntensity: 1.25, side: THREE.DoubleSide });
   const streakMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .55, side: THREE.DoubleSide, depthWrite: false });
   const baseGeo = new THREE.CylinderGeometry(.27, .3, .07, 32);
-  const capGeo = new THREE.CylinderGeometry(.12, .14, .05, 24);
+  const capGeo = new THREE.CylinderGeometry(.05, .06, .06, 16);
   const lockBody = new THREE.BoxGeometry(.13, .11, .05), lockLoop = new THREE.TorusGeometry(.045, .016, 8, 16, Math.PI);
   function mirrorQuat(key, t) {
     const { f } = cellP(key), F = faceInfo(f), n = V(normalOf(f));
@@ -436,7 +446,7 @@
     const frameMat = new THREE.MeshStandardMaterial({ color: frameCol, roughness: .35, metalness: .15, emissive: 0 });
     const baseMat = new THREE.MeshStandardMaterial({ color: baseCol, roughness: .5 });
     const base = new THREE.Mesh(baseGeo, baseMat); base.position.y = .035;
-    const cap = new THREE.Mesh(capGeo, frameMat); cap.position.y = .09;
+    const cap = new THREE.Mesh(capGeo, frameMat); cap.position.y = .1;
     const frame = new THREE.Mesh(frameGeo, frameMat); frame.position.y = LIFT + MH / 2;
     const glassF = new THREE.Mesh(glassGeo, glassMat); glassF.position.set(0, LIFT + MH / 2, .004);
     const glassB = new THREE.Mesh(glassGeo, glassMat); glassB.position.set(0, LIFT + MH / 2, -.004); glassB.rotation.y = Math.PI;
@@ -532,7 +542,7 @@
     beams.forEach(b => { beamGroup.remove(b.core); beamGroup.remove(b.glow); }); beams = []; pendingHits = [];
     sparkMeshes.forEach(s => beamGroup.remove(s)); sparkMeshes = [];
     Object.values(mirrors).forEach(m => m.userData.frame.material.emissive.setHex(0));
-    Object.values(edgeStrips).forEach(g => { g.userData.glass.material.opacity = .18; g.userData.glass.material.color.setHex(0xffffff); g.userData.glass.material.emissive.setHex(0); g.userData.back.material.opacity = .12; });
+    Object.values(edgeStrips).forEach(g => { g.userData.glass.material.opacity = .18; g.userData.glass.material.color.setHex(0xffffff); g.userData.glass.material.emissive.setHex(0); g.userData.back.material.opacity = .22; });
     Object.values(targetSprites).forEach(sp => { sp.material.map = spriteTex('target', sp.userData.col, 'idle'); sp.scale.set(.74, .74, 1); });
     lanternSprites.forEach(sp => sp.material.map = spriteTex('lantern', sp.userData.col, lightOn ? 'on' : 'off'));
     lanternLens.forEach(l => l.material.color.copy(lightOn ? l.userData.col.clone().lerp(new THREE.Color(0xffffff), .5) : l.userData.col.clone().lerp(new THREE.Color(0x222244), .45)));
