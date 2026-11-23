@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Fener ve Aynalar</title>
+<meta name="description" content="Aynaları çevir, feneri yak, ışığı hedefe ulaştır. 4x4 yansıma bulmacası.">
+<meta name="theme-color" content="#0a0f24">
+<style>
+  :root {
+    --bg1: #0a0f24;
+    --bg2: #141c3d;
+    --panel: rgba(20, 28, 61, 0.75);
+    --tile: #1b2550;
+    --tile-hi: #26336b;
+    --frame: #0f1633;
+    --ink: #e9eeff;
+    --muted: #8f9bc7;
+    --blue: #45c8ff;
+    --pink: #ff7ad9;
+    --gold: #ffd166;
+    --c: min(calc((100vw - 32px) / 6), calc((100dvh - 210px) / 6), 86px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: radial-gradient(ellipse at 50% 30%, var(--bg2), var(--bg1) 70%) fixed, var(--bg1);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    user-select: none; -webkit-user-select: none;
+    display: flex; flex-direction: column; align-items: center;
+    padding: calc(12px + env(safe-area-inset-top)) 16px 16px;
+    overflow-x: hidden;
+  }
+  header { width: 100%; max-width: calc(var(--c) * 6); display: flex; align-items: center; gap: 10px; }
+  h1 { font-size: 18px; margin: 0; letter-spacing: .3px; flex: 1; white-space: nowrap; }
+  h1 span { color: var(--blue); }
+  .chip {
+    background: var(--panel); border: 1px solid rgba(255,255,255,.08);
+    border-radius: 999px; padding: 5px 11px; font-size: 13px; font-weight: 600; white-space: nowrap;
+  }
+  .iconbtn {
+    background: var(--panel); border: 1px solid rgba(255,255,255,.1); color: var(--ink);
+    border-radius: 10px; width: 34px; height: 34px; font-size: 16px; cursor: pointer;
+    display: grid; place-items: center;
+  }
+  .iconbtn:active { transform: scale(.94); }
+  #levels { display: flex; gap: 6px; margin: 12px 0 10px; flex-wrap: wrap; justify-content: center; }
+  #levels button {
+    width: 28px; height: 28px; border-radius: 8px; border: 1px solid rgba(255,255,255,.12);
+    background: var(--panel); color: var(--muted); font-weight: 700; font-size: 12px; cursor: pointer;
+  }
+  #levels button.done { color: var(--gold); border-color: rgba(255,209,102,.35); }
+  #levels button.cur { background: var(--blue); color: #04203a; border-color: transparent; }
+  #levels button:disabled { opacity: .35; cursor: default; }
+
+  #hint { font-size: 13px; color: var(--muted); margin: 0 0 10px; text-align: center; min-height: 18px; max-width: calc(var(--c) * 6); }
+
+  #board {
+    position: relative;
+    width: calc(var(--c) * 6); height: calc(var(--c) * 6);
+    display: grid; grid-template-columns: repeat(6, var(--c)); grid-template-rows: repeat(6, var(--c));
+  }
+  #board::before {           /* the 4x4 play field frame */
+    content: ""; position: absolute;
+    left: calc(var(--c) - 6px); top: calc(var(--c) - 6px);
+    width: calc(var(--c) * 4 + 12px); height: calc(var(--c) * 4 + 12px);
+    border-radius: 14px; background: var(--frame);
+    box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 20px 50px rgba(0,0,0,.5) inset, 0 10px 40px rgba(0,0,0,.4);
+  }
+  .cell { position: relative; display: grid; place-items: center; }
+  .tile {
+    margin: 3px; border-radius: 10px; background: linear-gradient(145deg, var(--tile-hi), var(--tile));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06), inset 0 -2px 0 rgba(0,0,0,.25);
+    width: calc(100% - 6px); height: calc(100% - 6px); position: relative; overflow: hidden;
+  }
+  .tile.rot { cursor: pointer; }
+  .tile.rot:hover { filter: brightness(1.15); }
+  .tile.rot:active { transform: scale(.96); }
+
+  /* mirror */
+  .mirror {
+    position: absolute; left: 50%; top: 50%;
+    width: 118%; height: 12%;
+    border-radius: 4px;
+    background: linear-gradient(180deg, #ffffff 0%, #cfe3f2 45%, #8aa6bd 55%, #e6f2fb 100%);
+    box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 3px 6px rgba(0,0,0,.4);
+    transform: translate(-50%, -50%) rotate(var(--a));
+    transition: transform .28s cubic-bezier(.3,1.5,.5,1), box-shadow .2s;
+  }
+  .tile.lit .mirror { box-shadow: 0 0 0 1px rgba(0,0,0,.2), 0 0 14px 3px var(--glow, var(--blue)); }
+  .tile.locked { background: linear-gradient(145deg, #2a2f4a, #1b1f36); }
+  .tile.locked::after {
+    content: ""; position: absolute; inset: 6px; border-radius: 6px;
+    background:
+      radial-gradient(circle, #6b7398 2.5px, transparent 3px) 0 0 / 100% 100% no-repeat,
+      radial-gradient(circle at 8px 8px, #6b7398 2.5px, transparent 3px),
+      radial-gradient(circle at calc(100% - 8px) 8px, #6b7398 2.5px, transparent 3px),
+      radial-gradient(circle at 8px calc(100% - 8px), #6b7398 2.5px, transparent 3px),
+      radial-gradient(circle at calc(100% - 8px) calc(100% - 8px), #6b7398 2.5px, transparent 3px);
+    pointer-events: none;
+  }
+  .tile.locked .mirror { background: linear-gradient(180deg, #d9dde8, #9097ab 50%, #c2c7d6); }
+  .tile.shake { animation: shake .3s; }
+  @keyframes shake { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+
+  .tile.wall {
+    background:
+      linear-gradient(90deg, transparent 48%, rgba(0,0,0,.35) 48% 52%, transparent 52%) 0 0 / 100% 50%,
+      linear-gradient(0deg, transparent 47%, rgba(0,0,0,.35) 47% 53%, transparent 53%),
+      linear-gradient(145deg, #5b4a3c, #3a2f27);
+  }
+  .tile.wall.lit { box-shadow: inset 0 0 18px var(--glow); }
+
+  /* lantern & target */
+  .lantern, .target { width: 78%; height: 78%; position: relative; }
+  .lantern svg, .target svg { width: 100%; height: 100%; overflow: visible; }
+  .lantern { transform: rotate(var(--r)); }
+  .lantern .halo { opacity: .25; transition: opacity .3s; }
+  .lantern.on .halo { opacity: 1; }
+  .target .core { transition: fill .3s; }
+  .target.hit { animation: pulse 1s ease-in-out infinite; }
+  .target.hit .core { fill: var(--col); }
+  @keyframes pulse { 50% { filter: drop-shadow(0 0 12px var(--col)) brightness(1.3); } }
+
+  /* power button in corner */
+  #power {
+    width: 82%; height: 82%; border-radius: 50%; border: none; cursor: pointer; position: relative;
+    background: radial-gradient(circle at 35% 30%, #ff8a7a, #d63a2f 55%, #8c1c16);
+    box-shadow: 0 6px 0 #5a0f0b, 0 10px 18px rgba(0,0,0,.5), inset 0 2px 3px rgba(255,255,255,.35);
+    color: #fff; display: grid; place-items: center; transition: transform .08s, box-shadow .08s, background .3s;
+  }
+  #power svg { width: 44%; height: 44%; }
+  #power:active { transform: translateY(4px); box-shadow: 0 2px 0 #5a0f0b, 0 4px 8px rgba(0,0,0,.5), inset 0 2px 3px rgba(255,255,255,.35); }
+  #power.on {
+    background: radial-gradient(circle at 35% 30%, #a5ffb8, #2ecc71 55%, #157a3f);
+    box-shadow: 0 6px 0 #0d4d27, 0 0 24px rgba(46,204,113,.6), inset 0 2px 3px rgba(255,255,255,.35);
+  }
+  .powerlabel { position: absolute; bottom: -16px; left: 0; right: 0; text-align: center; font-size: 10px; font-weight: 800; color: var(--muted); letter-spacing: 1px; pointer-events: none; }
+
+  #beams { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; overflow: visible; }
+  .cell { z-index: 1; }
+  .cell.out { z-index: 4; }
+
+  footer { margin-top: 14px; display: flex; gap: 8px; }
+  .btn {
+    background: var(--panel); color: var(--ink); border: 1px solid rgba(255,255,255,.12);
+    border-radius: 12px; padding: 9px 14px; font-weight: 700; font-size: 14px; cursor: pointer;
+  }
+  .btn.primary { background: var(--blue); color: #04203a; border-color: transparent; }
+  .btn:active { transform: scale(.97); }
+
+  #win {
+    position: fixed; inset: 0; display: none; place-items: center; z-index: 10;
+    background: rgba(5, 8, 20, .6); backdrop-filter: blur(4px);
+  }
+  #win.show { display: grid; animation: fade .3s; }
+  @keyframes fade { from { opacity: 0; } }
+  .card {
+    background: var(--bg2); border: 1px solid rgba(255,255,255,.1); border-radius: 18px;
+    padding: 22px 26px; text-align: center; width: min(320px, calc(100vw - 32px));
+    box-shadow: 0 20px 60px rgba(0,0,0,.6);
+  }
+  .card h2 { margin: 0 0 6px; font-size: 22px; }
+  .card p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+  .stars { font-size: 34px; letter-spacing: 6px; margin-bottom: 14px; }
+  .stars .off { color: #3a4470; }
+  .stars .on { color: var(--gold); text-shadow: 0 0 14px rgba(255,209,102,.6); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Fener <span>&amp;</span> Aynalar</h1>
+  <div class="chip" id="moves">Hamle: 0</div>
+  <button class="iconbtn" id="resetBtn" title="Bölümü sıfırla" aria-label="Bölümü sıfırla">↺</button>
+</header>
+<div id="levels"></div>
+<p id="hint"></p>
+<div id="board">
+  <svg id="beams" viewBox="0 0 600 600" preserveAspectRatio="none">
+    <defs>
+      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7"/></filter>
+    </defs>
+  </svg>
+</div>
+<footer>
+  <button class="btn" id="prevBtn">‹ Önceki</button>
+  <button class="btn" id="nextBtn">Sonraki ›</button>
+</footer>
+
+<div id="win">
+  <div class="card">
+    <h2>Işık hedefte!</h2>
+    <p id="winText"></p>
+    <div class="stars" id="stars"></div>
+    <button class="btn primary" id="winNext">Sonraki bölüm</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const N = 4;
+  const COLORS = ['#45c8ff', '#ff7ad9'];
+  const COLOR_NAMES = ['mavi', 'pembe'];
+  // grid chars: '.' empty, '/' '\' rotatable mirror, 'a' locked '/', 'b' locked '\', '#' wall
+  // lantern: side (L/R/T/B) + index, target: side key like "R2"
+  const LEVELS = [
+    { grid: ["....","....","....","\\.\\."], lanterns: [{s:"T",i:2}], targets: ["B0"],
+      hint: "Aynaya dokunarak çevir, sonra köşedeki düğmeye bas." },
+    { grid: ["....","\\.\\.",".#..","../."], lanterns: [{s:"B",i:0}], targets: ["R3"],
+      hint: "Taş bloklar ışığı keser." },
+    { grid: [".a..","....","...\\",".#//"], lanterns: [{s:"T",i:2}], targets: ["R2"],
+      hint: "Vidalı aynalar sabittir, çevrilemez." },
+    { grid: ["b.#.","../.",".#//",".../"], lanterns: [{s:"R",i:3}], targets: ["R1"] },
+    { grid: ["....","#\\\\\\","....","\\./."], lanterns: [{s:"B",i:0},{s:"B",i:3}], targets: ["B1","R1"],
+      hint: "İki fener! Her ışık kendi rengindeki hedefe gitmeli." },
+    { grid: ["\\.\\.",".\\./","//..","##b."], lanterns: [{s:"R",i:3}], targets: ["B3"] },
+    { grid: ["..\\/","/..\\",".#..","\\/.a"], lanterns: [{s:"B",i:1},{s:"T",i:2}], targets: ["B2","L0"],
+      hint: "Işınlar birbirinin içinden geçebilir." },
+    { grid: [".#//",".a..",".\\a\\","#.\\\\"], lanterns: [{s:"T",i:3},{s:"B",i:2}], targets: ["B1","R2"],
+      hint: "Son bölüm. Bol şans!" },
+  ];
+  const DIR = { L: [1,0], R: [-1,0], T: [0,1], B: [0,-1] };
+  const ROT = { L: 0, T: 90, R: 180, B: 270 }; // lantern facing (svg points right by default)
+
+  const $ = id => document.getElementById(id);
+  const board = $('board'), svg = $('beams');
+  let lvl = 0, grid, angles, moves, lightOn = false, solvedLvl = false, optimal = 0;
+  let progress = {};
+  try { progress = JSON.parse(localStorage.getItem('fener-progress') || '{}'); } catch (e) {}
+  const save = () => { try { localStorage.setItem('fener-progress', JSON.stringify(progress)); } catch (e) {} };
+
+  const sidePos = (s, i) => s === 'L' ? [-1, i] : s === 'R' ? [N, i] : s === 'T' ? [i, -1] : [i, N];
+  const keyOf = (x, y) => x < 0 ? 'L' + y : x >= N ? 'R' + y : y < 0 ? 'T' + x : 'B' + x;
+  const center = (x, y) => [(x + 1) * 100 + 50, (y + 1) * 100 + 50];
+  const isSlash = c => c === '/' || c === 'a';
+  const isBack = c => c === '\\' || c === 'b';
+
+  function trace(g, l) {
+    let [x, y] = sidePos(l.s, l.i), [dx, dy] = DIR[l.s];
+    const pts = [center(x, y)], hits = [];
+    for (let k = 0; k < 80; k++) {
+      x += dx; y += dy;
+      if (x < 0 || y < 0 || x >= N || y >= N) { pts.push(center(x, y)); return { pts, hits, end: keyOf(x, y) }; }
+      const c = g[y][x];
+      if (c === '#') { const [cx, cy] = center(x, y); pts.push([cx - dx * 46, cy - dy * 46]); hits.push([x, y]); return { pts, hits, end: null }; }
+      if (isSlash(c)) { [dx, dy] = [-dy, -dx]; pts.push(center(x, y)); hits.push([x, y]); }
+      else if (isBack(c)) { [dx, dy] = [dy, dx]; pts.push(center(x, y)); hits.push([x, y]); }
+    }
+    return { pts, hits, end: null };
+  }
+  const isSolved = (g, L) => L.lanterns.every((l, i) => trace(g, l).end === L.targets[i]);
+
+  // minimum rotations: brute force over rotatable mirrors
+  function computeOptimal(L) {
+    const rot = [];
+    L.grid.forEach((row, y) => [...row].forEach((c, x) => { if (c === '/' || c === '\\') rot.push([x, y]); }));
+    let best = Infinity;
+    for (let m = 0; m < 1 << rot.length; m++) {
+      const g = L.grid.map(r => [...r]); let d = 0;
+      rot.forEach(([x, y], j) => { const want = (m >> j & 1) ? '/' : '\\'; if (g[y][x] !== want) d++; g[y][x] = want; });
+      if (d < best && isSolved(g, L)) best = d;
+    }
+    return best;
+  }
+
+  const lanternSVG = col => `
+    <svg viewBox="-50 -50 100 100">
+      <circle class="halo" cx="20" cy="0" r="34" fill="${col}" opacity=".25" filter="url(#lg)"/>
+      <defs><filter id="lg"><feGaussianBlur stdDeviation="8"/></filter></defs>
+      <rect x="-34" y="-16" width="16" height="32" rx="4" fill="#59617f"/>
+      <path d="M-20 -22 H14 L30 -30 V30 L14 22 H-20 Z" fill="#2b3150" stroke="#8a93b8" stroke-width="3" stroke-linejoin="round"/>
+      <rect x="-12" y="-12" width="22" height="24" rx="4" fill="${col}" opacity=".85"/>
+      <ellipse cx="29" cy="0" rx="5" ry="27" fill="${col}"/>
+      <circle cx="-26" cy="-26" r="5" fill="#8a93b8"/>
+    </svg>`;
+  const targetSVG = col => `
+    <svg viewBox="-50 -50 100 100">
+      <circle r="38" fill="#121936" stroke="${col}" stroke-width="4" stroke-dasharray="10 6"/>
+      <circle r="26" fill="none" stroke="${col}" stroke-opacity=".45" stroke-width="3"/>
+      <path class="core" d="M0 -16 L14 0 L0 16 L-14 0 Z" fill="#2a3363" stroke="${col}" stroke-width="3" stroke-linejoin="round"/>
+    </svg>`;
+  const powerSVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.6a8 8 0 1 0 11.4 0"/></svg>`;
+
+  function renderLevelButtons() {
+    const wrap = $('levels'); wrap.innerHTML = '';
+    LEVELS.forEach((_, i) => {
+      const b = document.createElement('button');
+      b.textContent = i + 1;
+      if (progress[i]) b.classList.add('done');
+      if (i === lvl) b.classList.add('cur');
+      b.disabled = i > 0 && !progress[i - 1] && !progress[i];
+      b.onclick = () => load(i);
+      wrap.appendChild(b);
+    });
+    $('prevBtn').disabled = lvl === 0;
+    $('nextBtn').disabled = lvl === LEVELS.length - 1 || !progress[lvl];
+  }
+
+  function load(i) {
+    lvl = i; const L = LEVELS[i];
+    grid = L.grid.map(r => [...r]);
+    angles = grid.map(r => r.map(c => isSlash(c) ? -45 : 45));
+    moves = 0; lightOn = false; solvedLvl = false;
+    optimal = computeOptimal(L);
+    $('hint').textContent = L.hint || (L.lanterns.length > 1 ? 'Her feneri kendi rengindeki hedefe yönlendir.' : 'Mavi ışığı hedefe ulaştır.');
+    build(); renderLevelButtons(); updateMoves(); drawBeams(false);
+  }
+
+  function build() {
+    const L = LEVELS[lvl];
+    [...board.querySelectorAll('.cell')].forEach(n => n.remove());
+    const lanternAt = {}, targetAt = {};
+    L.lanterns.forEach((l, i) => lanternAt[l.s + l.i] = i);
+    L.targets.forEach((t, i) => targetAt[t] = i);
+    for (let gy = -1; gy <= N; gy++) for (let gx = -1; gx <= N; gx++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.style.gridColumn = gx + 2; cell.style.gridRow = gy + 2;
+      const inside = gx >= 0 && gy >= 0 && gx < N && gy < N;
+      const corner = (gx < 0 || gx >= N) && (gy < 0 || gy >= N);
+      if (inside) {
+        const c = grid[gy][gx];
+        const t = document.createElement('div'); t.className = 'tile'; t.dataset.x = gx; t.dataset.y = gy;
+        if (c === '#') t.classList.add('wall');
+        else if (c !== '.') {
+          const m = document.createElement('div'); m.className = 'mirror';
+          m.style.setProperty('--a', angles[gy][gx] + 'deg');
+          t.appendChild(m);
+          if (c === 'a' || c === 'b') t.classList.add('locked'); else t.classList.add('rot');
+          t.onclick = () => rotate(gx, gy, t);
+        }
+        cell.appendChild(t);
+      } else if (corner) {
+        if (gx === N && gy === N) {
+          cell.classList.add('out');
+          const b = document.createElement('button'); b.id = 'power'; b.innerHTML = powerSVG;
+          b.setAttribute('aria-label', 'Feneri aç/kapat');
+          b.onclick = togglePower;
+          const lab = document.createElement('div'); lab.className = 'powerlabel'; lab.id = 'powerLabel'; lab.textContent = 'IŞIK';
+          cell.append(b, lab);
+        }
+      } else {
+        const k = keyOf(gx, gy);
+        if (k in lanternAt) {
+          const i = lanternAt[k], l = L.lanterns[i];
+          const d = document.createElement('div'); d.className = 'lantern'; d.dataset.i = i;
+          d.style.setProperty('--r', ROT[l.s] + 'deg'); d.innerHTML = lanternSVG(COLORS[i]);
+          cell.appendChild(d);
+        } else if (k in targetAt) {
+          const i = targetAt[k];
+          const d = document.createElement('div'); d.className = 'target'; d.dataset.i = i;
+          d.style.setProperty('--col', COLORS[i]); d.innerHTML = targetSVG(COLORS[i]);
+          cell.appendChild(d);
+        }
+      }
+      board.appendChild(cell);
+    }
+  }
+
+  function rotate(x, y, el) {
+    if (solvedLvl) return;
+    const c = grid[y][x];
+    if (c === 'a' || c === 'b') { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); return; }
+    grid[y][x] = c === '/' ? '\\' : '/';
+    angles[y][x] += 90;
+    el.querySelector('.mirror').style.setProperty('--a', angles[y][x] + 'deg');
+    moves++; updateMoves();
+    if (lightOn) drawBeams(false);
+  }
+
+  function togglePower() {
+    if (solvedLvl) return;
+    lightOn = !lightOn;
+    drawBeams(lightOn);
+  }
+
+  function updateMoves() { $('moves').textContent = 'Hamle: ' + moves; }
+
+  function drawBeams(animate) {
+    const L = LEVELS[lvl];
+    [...svg.querySelectorAll('g.beam')].forEach(n => n.remove());
+    board.querySelectorAll('.tile.lit').forEach(t => t.classList.remove('lit'));
+    board.querySelectorAll('.target').forEach(t => t.classList.remove('hit'));
+    board.querySelectorAll('.lantern').forEach(t => t.classList.toggle('on', lightOn));
+    const pw = $('power'); if (pw) pw.classList.toggle('on', lightOn);
+    if (!lightOn) return;
+
+    let allHit = true, maxDur = 0;
+    L.lanterns.forEach((l, i) => {
+      const r = trace(grid, l), col = COLORS[i];
+      const d = 'M' + r.pts.map(p => p.join(' ')).join(' L');
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.setAttribute('class', 'beam');
+      const mk = (w, color, op, filt) => {
+        const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        p.setAttribute('d', d); p.setAttribute('fill', 'none'); p.setAttribute('stroke', color);
+        p.setAttribute('stroke-width', w); p.setAttribute('stroke-linecap', 'round'); p.setAttribute('stroke-linejoin', 'round');
+        p.setAttribute('opacity', op); if (filt) p.setAttribute('filter', 'url(#glow)');
+        g.appendChild(p); return p;
+      };
+      const paths = [mk(22, col, .55, true), mk(9, col, .95), mk(3, '#ffffff', .9)];
+      svg.appendChild(g);
+      const hit = r.end === L.targets[i];
+      if (!hit) allHit = false;
+      const len = paths[1].getTotalLength();
+      const dur = animate ? Math.max(350, len * 1.1) : 0;
+      maxDur = Math.max(maxDur, dur);
+      if (animate) paths.forEach(p => {
+        p.style.strokeDasharray = len; p.style.strokeDashoffset = len;
+        p.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }], { duration: dur, easing: 'linear', fill: 'forwards' });
+      });
+      // light up mirrors/walls along the way, timed with the beam
+      let acc = 0;
+      for (let k = 1; k < r.pts.length; k++) {
+        const [ax, ay] = r.pts[k - 1], [bx, by] = r.pts[k];
+        acc += Math.hypot(bx - ax, by - ay);
+        const h = r.hits[k - 1];
+        if (!h) continue;
+        const t = board.querySelector(`.tile[data-x="${h[0]}"][data-y="${h[1]}"]`);
+        const at = animate ? acc / len * dur : 0;
+        setTimeout(() => { if (lightOn && t) { t.style.setProperty('--glow', col); t.classList.add('lit'); } }, at);
+      }
+      if (hit) setTimeout(() => {
+        if (!lightOn) return;
+        const tg = board.querySelector(`.target[data-i="${i}"]`); if (tg) tg.classList.add('hit');
+      }, dur);
+      if (!hit && r.end === null) addSpark(g, r.pts[r.pts.length - 1], col, dur);
+    });
+
+    if (allHit) {
+      solvedLvl = true;
+      setTimeout(win, maxDur + 500);
+    }
+  }
+
+  function addSpark(g, [x, y], col, delay) {
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 10); c.setAttribute('fill', col);
+    c.setAttribute('filter', 'url(#glow)'); c.style.opacity = 0;
+    g.appendChild(c);
+    c.animate([{ opacity: 0 }, { opacity: 1 }, { opacity: .4 }], { duration: 900, delay, iterations: Infinity, direction: 'alternate' });
+  }
+
+  function win() {
+    const stars = moves <= optimal ? 3 : moves <= optimal + 2 ? 2 : 1;
+    progress[lvl] = Math.max(progress[lvl] || 0, stars); save();
+    $('stars').innerHTML = [1, 2, 3].map(s => `<span class="${s <= stars ? 'on' : 'off'}">★</span>`).join('');
+    const last = lvl === LEVELS.length - 1;
+    $('winText').textContent = `${moves} hamlede çözdün (en iyi: ${optimal}).` + (last ? ' Tüm bölümleri bitirdin!' : '');
+    $('winNext').textContent = last ? 'Baştan oyna' : 'Sonraki bölüm';
+    $('win').classList.add('show');
+    renderLevelButtons();
+  }
+
+  $('winNext').onclick = () => { $('win').classList.remove('show'); load(lvl === LEVELS.length - 1 ? 0 : lvl + 1); };
+  $('resetBtn').onclick = () => load(lvl);
+  $('prevBtn').onclick = () => lvl > 0 && load(lvl - 1);
+  $('nextBtn').onclick = () => lvl < LEVELS.length - 1 && progress[lvl] && load(lvl + 1);
+
+  let start = 0;
+  while (progress[start] && start < LEVELS.length - 1) start++;
+  load(start);
+})();
+</script>
+</body>
+</html>
