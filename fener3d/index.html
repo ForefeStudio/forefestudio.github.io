@@ -119,6 +119,14 @@
   @keyframes tBlink1 { 0%, 40% { opacity: 0; } 44% { opacity: 1; } 52% { opacity: .3; } 60% { opacity: 1; } 68% { opacity: .3; } 76%, 88% { opacity: 1; } 96%, 100% { opacity: 0; } }
   .t-drag { animation: tDrag 5s infinite; }
   @keyframes tDrag { 0%, 8% { transform: translateX(0); opacity: 0; } 14% { opacity: 1; } 40% { transform: translateX(-34px); opacity: 1; } 48%, 100% { transform: translateX(-34px); opacity: 0; } }
+  .t-glow1 { animation: tGlow1 5s infinite; }
+  @keyframes tGlow1 { 0%, 40% { fill: #ffe2c4; } 44%, 88% { fill: #ff8a2a; } 96%, 100% { fill: #ffe2c4; } }
+  .t-sink { transform-box: fill-box; transform-origin: center bottom; animation: tSink 5s infinite; }
+  @keyframes tSink { 0%, 42% { transform: scaleY(1); opacity: 1; } 52%, 88% { transform: scaleY(.08); opacity: .5; } 96%, 100% { transform: scaleY(1); opacity: 1; } }
+  .t-bloom { transform-box: fill-box; transform-origin: left center; animation: tBloom 5s infinite; }
+  @keyframes tBloom { 0%, 40% { transform: scale(.35, .7); } 50%, 88% { transform: scale(1, 1); } 96%, 100% { transform: scale(.35, .7); } }
+  .t-rot2 { animation: tRot2 5s infinite; }
+  @keyframes tRot2 { 0%, 42% { transform: rotate(45deg); } 52%, 92% { transform: rotate(-45deg); } 100% { transform: rotate(45deg); } }
   @media (prefers-reduced-motion: reduce) { .tutart * { animation: none !important; } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
 </style>
@@ -183,7 +191,8 @@
   // ---- surface-cube light engine: six 4x4 faces, light wraps over the cube's edges ----
   // cell key "x+:u,v"  (face = axis letter + sign; u,v = the other two axes in x,y,z order)
   // cells: key -> { t: '/' | '\\' (rotatable mirror), 'a' | 'b' (locked), 'H' bump, 'L' lantern, 'T' target,
-  //                 'P' pipe mouth { o: direction the mouth faces, to: other mouth key } }
+  //                 'P' pipe mouth { o: direction the mouth faces, to: other mouth key },
+  //                 'S' sensor, 'D' door (closed blocks light), 'F' sun flower, 'c' / 'e' motor mirror ('/' / '\\', turned by a flower) }
   var SN = 4, BEAM_H = .2;
   var AX = { x: 0, y: 1, z: 2 };
   function faceInfo(f) { const a = AX[f[0]], s = f[1] === '+' ? 1 : -1, o = [0,1,2].filter(b => b !== a); return { a, s, u: o[0], v: o[1] }; }
@@ -215,7 +224,7 @@
   }
   function reflect(f, t, d) {
     const F = faceInfo(f), du = d[F.u], dv = d[F.v], n = [0,0,0];
-    if (t === '/' || t === 'a') { n[F.u] = dv; n[F.v] = du; } else { n[F.u] = -dv; n[F.v] = -du; }
+    if (t === '/' || t === 'a' || t === 'c') { n[F.u] = dv; n[F.v] = du; } else { n[F.u] = -dv; n[F.v] = -du; }
     return n;
   }
   // one step from (f,p) along d, wrapping over an edge when needed
@@ -243,7 +252,7 @@
         const sk = key + '|' + d.join(',');
         if (seen.has(sk)) { add(c); break; } seen.add(sk);
         if (!cell) continue;
-        if (cell.t === 'T') { add(c); ends[key] = (ends[key] || 0) | l.c; endD[key] = Math.max(endD[key] || 0, dist); break; }
+        if (cell.t === 'T' || cell.t === 'S' || cell.t === 'F') { add(c); ends[key] = (ends[key] || 0) | l.c; endD[key] = Math.max(endD[key] || 0, dist); break; }
         if (cell.t === 'P' && d[0] === -cell.o[0] && d[1] === -cell.o[1] && d[2] === -cell.o[2]) {
           const peer = cells[cell.to];
           pipeCurve(key, cell.o, cell.to, peer.o).forEach(add);
@@ -252,7 +261,7 @@
           seen.add(cell.to + '|' + d.join(','));
           continue;
         }
-        if (cell.t === 'H' || cell.t === 'L' || cell.t === 'P') { add([c[0] - d[0] * .42, c[1] - d[1] * .42, c[2] - d[2] * .42]); if (cell.t !== 'L') { hits.push({ k: key, c: l.c, d: dist }); sparks.push({ p: pts[pts.length - 1], c: l.c, d: dist }); } break; }
+        if (cell.t === 'H' || cell.t === 'L' || cell.t === 'P' || cell.t === 'D') { add([c[0] - d[0] * .42, c[1] - d[1] * .42, c[2] - d[2] * .42]); if (cell.t !== 'L') { hits.push({ k: key, c: l.c, d: dist }); sparks.push({ p: pts[pts.length - 1], c: l.c, d: dist }); } break; }
         add(c); hits.push({ k: key, c: l.c, d: dist });
         d = reflect(f, cell.t, d);
       }
@@ -260,20 +269,39 @@
     });
     return { paths, ends, endD, hits, sparks };
   }
-  function isWinS(cells, L) { const e = traceS(cells, L.lanterns).ends; return L.targets.every(t => e[t.k] === t.c); }
+  // sensors open doors and flowers turn motor mirrors; once triggered they stay triggered while the light is on
+  var MOTOR_FLIP = { c: 'e', e: 'c' };
+  function runS(cells, L) {
+    const opened = new Set(), flipped = new Set(), stages = [];
+    for (let it = 0; it < 8; it++) {
+      const eff = {};
+      for (const k in cells) { if (opened.has(k)) continue; const c = cells[k]; eff[k] = flipped.has(k) ? Object.assign({}, c, { t: MOTOR_FLIP[c.t] }) : c; }
+      const tr = traceS(eff, L.lanterns), acts = [];
+      (L.sensors || []).forEach(s => { if (tr.ends[s.k] && !opened.has(s.door)) acts.push({ type: 'door', src: s.k, k: s.door, d: tr.endD[s.k] }); });
+      (L.flowers || []).forEach(f => { if (tr.ends[f.k] && !flipped.has(f.m)) acts.push({ type: 'flip', src: f.k, k: f.m, d: tr.endD[f.k] }); });
+      stages.push({ tr, acts });
+      if (!acts.length) break;
+      acts.forEach(a => (a.type === 'door' ? opened : flipped).add(a.k));
+    }
+    return { stages, final: stages[stages.length - 1].tr, opened, flipped };
+  }
+  function isWinS(cells, L) { const e = runS(cells, L).final.ends; return L.targets.every(t => e[t.k] === t.c); }
   const N = SN;
   const COLORS = {
     1: { name: 'kırmızı', hex: '#ff5d73' }, 2: { name: 'yeşil', hex: '#4ee89a' }, 3: { name: 'sarı', hex: '#ffc93d' },
     4: { name: 'mavi', hex: '#4c9dff' }, 5: { name: 'mor', hex: '#d27bff' }, 6: { name: 'turkuaz', hex: '#3ef0d8' }, 7: { name: 'beyaz', hex: '#ffffff' },
   };
   const hex = c => COLORS[c].hex;
-  const LEVELS = [{"lanterns": [{"k": "x+:0,2", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z+:0,0", "c": 4}], "pipes": [], "cells": [["y-:3,2", "\\"], ["z+:3,0", "/"]]}, {"lanterns": [{"k": "y+:2,1", "d": [-1, 0, 0], "c": 3}], "targets": [{"k": "z+:3,2", "c": 3}], "pipes": [], "cells": [["y+:0,1", "\\"], ["y+:0,2", "/"], ["x-:2,2", "/"], ["z+:0,1", "H"], ["x-:1,2", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x-:2,2", "d": [0, 1, 0], "c": 2}], "targets": [{"k": "x+:3,2", "c": 2}], "pipes": [{"a": "y+:1,2", "oa": [-1, 0, 0], "b": "y+:3,2", "ob": [0, 0, 1]}], "cells": [["y+:2,2", "H"], ["y+:3,3", "\\"], ["x+:3,3", "\\"], ["x-:3,3", "H"]]}, {"lanterns": [{"k": "y+:3,1", "d": [0, 0, -1], "c": 1}], "targets": [{"k": "x-:0,0", "c": 1}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "y-:3,3", "ob": [0, 0, -1]}], "cells": [["y+:3,0", "\\"], ["y+:2,0", "/"], ["y-:3,2", "/"], ["x+:0,2", "b"], ["z+:2,2", "H"], ["z+:3,0", "H"], ["x+:2,0", "H"]]}, {"lanterns": [{"k": "z-:2,2", "d": [-1, 0, 0], "c": 4}, {"k": "x+:2,2", "d": [0, 0, -1], "c": 3}], "targets": [{"k": "y+:1,1", "c": 4}, {"k": "y-:2,0", "c": 3}], "pipes": [{"a": "x-:1,0", "oa": [0, 0, -1], "b": "x-:3,2", "ob": [0, 1, 0]}], "cells": [["z-:0,2", "/"], ["z-:0,1", "\\"], ["x-:2,1", "H"], ["y+:1,2", "/"], ["x+:2,0", "\\"], ["x+:1,1", "H"], ["z+:1,1", "H"], ["y+:0,0", "H"]]}, {"lanterns": [{"k": "y+:0,1", "d": [0, 0, -1], "c": 5}], "targets": [{"k": "y-:0,1", "c": 5}], "pipes": [{"a": "y+:1,0", "oa": [-1, 0, 0], "b": "x+:0,3", "ob": [0, 0, -1]}, {"a": "y-:3,1", "oa": [1, 0, 0], "b": "z+:2,2", "ob": [1, 0, 0]}], "cells": [["y+:0,0", "\\"], ["x+:0,1", "\\"], ["z+:3,2", "/"], ["z+:3,1", "\\"], ["z+:2,1", "a"], ["y-:2,1", "/"], ["x-:2,1", "H"], ["x+:0,0", "H"], ["z-:2,2", "H"], ["z+:1,3", "H"]]}, {"lanterns": [{"k": "x-:3,0", "d": [0, 1, 0], "c": 6}, {"k": "z+:0,1", "d": [0, 1, 0], "c": 1}], "targets": [{"k": "x+:1,1", "c": 6}, {"k": "x+:2,1", "c": 1}], "pipes": [{"a": "z+:3,2", "oa": [0, 1, 0], "b": "z+:3,0", "ob": [1, 0, 0]}, {"a": "y+:0,3", "oa": [0, 0, 1], "b": "x-:2,1", "ob": [0, -1, 0]}], "cells": [["y+:1,0", "a"], ["z+:1,3", "/"], ["z+:3,3", "\\"], ["z+:3,1", "H"], ["x+:0,1", "\\"], ["x-:1,1", "\\"], ["z-:1,1", "\\"], ["z-:1,2", "\\"], ["y-:2,3", "H"], ["y-:1,3", "H"], ["z-:2,0", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x+:0,3", "d": [0, 0, 1], "c": 1}, {"k": "y+:2,2", "d": [0, 0, -1], "c": 2}, {"k": "z-:2,1", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z-:1,0", "c": 1}, {"k": "z+:3,3", "c": 2}, {"k": "y+:0,1", "c": 4}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "z-:0,0", "ob": [0, 1, 0]}, {"a": "z-:0,1", "oa": [0, -1, 0], "b": "z-:3,3", "ob": [0, 1, 0]}, {"a": "y-:2,1", "oa": [0, 0, -1], "b": "y-:0,1", "ob": [-1, 0, 0]}], "cells": [["z+:1,0", "/"], ["z-:1,2", "H"], ["z-:2,2", "H"], ["y+:3,1", "\\"], ["x+:3,1", "b"], ["x+:3,3", "a"], ["y+:3,3", "/"], ["x-:0,1", "\\"], ["x-:0,2", "\\"], ["x-:2,2", "\\"], ["x-:2,1", "/"], ["x+:3,0", "H"], ["x+:1,1", "H"], ["x+:2,2", "H"], ["y+:2,3", "H"], ["x+:0,0", "H"]]}];
+  const LEVELS = [{"lanterns": [{"k": "x+:0,2", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z+:0,0", "c": 4}], "pipes": [], "cells": [["y-:3,2", "\\"], ["z+:3,0", "/"]]}, {"lanterns": [{"k": "y+:2,1", "d": [-1, 0, 0], "c": 3}], "targets": [{"k": "z+:3,2", "c": 3}], "pipes": [], "cells": [["y+:0,1", "\\"], ["y+:0,2", "/"], ["x-:2,2", "/"], ["z+:0,1", "H"], ["x-:1,2", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x-:2,2", "d": [0, 1, 0], "c": 2}], "targets": [{"k": "x+:3,2", "c": 2}], "pipes": [{"a": "y+:1,2", "oa": [-1, 0, 0], "b": "y+:3,2", "ob": [0, 0, 1]}], "cells": [["y+:2,2", "H"], ["y+:3,3", "\\"], ["x+:3,3", "\\"], ["x-:3,3", "H"]]}, {"lanterns": [{"k": "y+:3,1", "d": [0, 0, -1], "c": 1}], "targets": [{"k": "x-:0,0", "c": 1}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "y-:3,3", "ob": [0, 0, -1]}], "cells": [["y+:3,0", "\\"], ["y+:2,0", "/"], ["y-:3,2", "/"], ["x+:0,2", "b"], ["z+:2,2", "H"], ["z+:3,0", "H"], ["x+:2,0", "H"]]}, {"lanterns": [{"k": "z-:2,2", "d": [-1, 0, 0], "c": 4}, {"k": "x+:2,2", "d": [0, 0, -1], "c": 3}], "targets": [{"k": "y+:1,1", "c": 4}, {"k": "y-:2,0", "c": 3}], "pipes": [{"a": "x-:1,0", "oa": [0, 0, -1], "b": "x-:3,2", "ob": [0, 1, 0]}], "cells": [["z-:0,2", "/"], ["z-:0,1", "\\"], ["x-:2,1", "H"], ["y+:1,2", "/"], ["x+:2,0", "\\"], ["x+:1,1", "H"], ["z+:1,1", "H"], ["y+:0,0", "H"]]}, {"lanterns": [{"k": "y+:0,1", "d": [0, 0, -1], "c": 5}], "targets": [{"k": "y-:0,1", "c": 5}], "pipes": [{"a": "y+:1,0", "oa": [-1, 0, 0], "b": "x+:0,3", "ob": [0, 0, -1]}, {"a": "y-:3,1", "oa": [1, 0, 0], "b": "z+:2,2", "ob": [1, 0, 0]}], "cells": [["y+:0,0", "\\"], ["x+:0,1", "\\"], ["z+:3,2", "/"], ["z+:3,1", "\\"], ["z+:2,1", "a"], ["y-:2,1", "/"], ["x-:2,1", "H"], ["x+:0,0", "H"], ["z-:2,2", "H"], ["z+:1,3", "H"]]}, {"lanterns": [{"k": "x-:3,0", "d": [0, 1, 0], "c": 6}, {"k": "z+:0,1", "d": [0, 1, 0], "c": 1}], "targets": [{"k": "x+:1,1", "c": 6}, {"k": "x+:2,1", "c": 1}], "pipes": [{"a": "z+:3,2", "oa": [0, 1, 0], "b": "z+:3,0", "ob": [1, 0, 0]}, {"a": "y+:0,3", "oa": [0, 0, 1], "b": "x-:2,1", "ob": [0, -1, 0]}], "cells": [["y+:1,0", "a"], ["z+:1,3", "/"], ["z+:3,3", "\\"], ["z+:3,1", "H"], ["x+:0,1", "\\"], ["x-:1,1", "\\"], ["z-:1,1", "\\"], ["z-:1,2", "\\"], ["y-:2,3", "H"], ["y-:1,3", "H"], ["z-:2,0", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x+:0,3", "d": [0, 0, 1], "c": 1}, {"k": "y+:2,2", "d": [0, 0, -1], "c": 2}, {"k": "z-:2,1", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z-:1,0", "c": 1}, {"k": "z+:3,3", "c": 2}, {"k": "y+:0,1", "c": 4}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "z-:0,0", "ob": [0, 1, 0]}, {"a": "z-:0,1", "oa": [0, -1, 0], "b": "z-:3,3", "ob": [0, 1, 0]}, {"a": "y-:2,1", "oa": [0, 0, -1], "b": "y-:0,1", "ob": [-1, 0, 0]}], "cells": [["z+:1,0", "/"], ["z-:1,2", "H"], ["z-:2,2", "H"], ["y+:3,1", "\\"], ["x+:3,1", "b"], ["x+:3,3", "a"], ["y+:3,3", "/"], ["x-:0,1", "\\"], ["x-:0,2", "\\"], ["x-:2,2", "\\"], ["x-:2,1", "/"], ["x+:3,0", "H"], ["x+:1,1", "H"], ["x+:2,2", "H"], ["y+:2,3", "H"], ["x+:0,0", "H"]]}, {"lanterns": [{"k": "z+:1,2", "d": [-1, 0, 0], "c": 3}, {"k": "x+:3,3", "d": [0, 0, -1], "c": 4}], "targets": [{"k": "z-:0,3", "c": 4}], "pipes": [], "sensors": [{"k": "z+:1,0", "door": "x+:3,1"}], "flowers": [], "cells": [["x-:2,3", "\\"], ["x-:0,3", "/"], ["x+:3,1", "D"]]}, {"lanterns": [{"k": "z+:2,0", "d": [0, 1, 0], "c": 1}, {"k": "x+:3,2", "d": [0, 1, 0], "c": 6}], "targets": [{"k": "y-:2,0", "c": 6}], "pipes": [], "sensors": [{"k": "x-:0,3", "door": "y+:2,1"}], "flowers": [], "cells": [["z+:2,3", "/"], ["z+:0,3", "\\"], ["z+:0,1", "\\"], ["x-:1,3", "a"], ["y+:2,2", "/"], ["y+:2,1", "D"], ["x-:2,3", "H"], ["y+:3,1", "H"], ["y-:0,2", "H"]]}, {"lanterns": [{"k": "y-:3,3", "d": [0, 0, 1], "c": 3}, {"k": "y-:3,2", "d": [0, 0, -1], "c": 2}], "targets": [{"k": "x+:2,0", "c": 2}], "pipes": [], "sensors": [], "flowers": [{"k": "z+:0,1", "m": "z-:3,1"}], "cells": [["z+:3,1", "/"], ["z-:3,1", "e"], ["x+:1,0", "\\"]]}, {"lanterns": [{"k": "z-:0,0", "d": [0, 1, 0], "c": 3}, {"k": "y+:3,0", "d": [0, 0, -1], "c": 5}, {"k": "y-:0,0", "d": [-1, 0, 0], "c": 4}], "targets": [{"k": "z+:0,3", "c": 4}], "pipes": [], "sensors": [{"k": "y-:3,1", "door": "x-:0,2"}], "flowers": [{"k": "y+:0,2", "m": "x-:0,0"}], "cells": [["x-:0,0", "e"], ["x-:0,2", "D"], ["z+:0,0", "\\"], ["z+:0,1", "\\"], ["x-:1,3", "/"], ["x-:3,3", "\\"], ["y+:1,3", "H"], ["x+:3,2", "H"], ["x-:1,0", "H"]]}];
   const HINTS = {
     0: 'Aynalara dokunup çevir, sonra düğmeye bas. Işık kenara gelince <b>yandaki yüze geçer</b>: küpü çevirip takip et.',
     1: '<b>Bloklar</b> ışığı keser. Işık düz gider, bloğun üzerinden kendiliğinden geçemez.',
     2: '<b>İçi aynalı boru</b> ışığı ağzından alır, içinde yansıta yansıta öbür ağızdan çıkarır. Blokların üzerinden böyle geçilir.',
     3: 'Kilitli (mor çerçeveli) aynalar dönmez. Boru ışığı yandaki yüze de taşıyabilir.',
     4: 'İki fener! Her ışık kendi rengindeki hedefe gitmeli.',
+    8: 'Işık turuncu <b>sensöre</b> ulaşınca turuncu <b>kapı</b> yere iner, arkasından ışık geçebilir.',
+    10: 'Işık <b>güneş çiçeğine</b> ulaşınca çiçek açar ve sarı çerçeveli <b>motorlu aynayı</b> çevirir.',
+    11: 'Sensör, çiçek ve kapı bir arada. Hangi ışığın neyi tetiklediğini takip et.',
   };
   const $ = id => document.getElementById(id);
   const stage = $('stage');
@@ -438,14 +466,14 @@
   const lockBody = new THREE.BoxGeometry(.13, .11, .05), lockLoop = new THREE.TorusGeometry(.045, .016, 8, 16, Math.PI);
   function mirrorQuat(key, t) {
     const { f } = cellP(key), F = faceInfo(f), n = V(normalOf(f));
-    const a = [0,0,0]; a[F.u] = 1; a[F.v] = (t === '/' || t === 'a') ? 1 : -1;
+    const a = [0,0,0]; a[F.u] = 1; a[F.v] = (t === '/' || t === 'a' || t === 'c') ? 1 : -1;
     const along = V(a).normalize(), side = new THREE.Vector3().crossVectors(along, n);
     return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(along, n, side));
   }
   function upQuat(f) { return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), V(normalOf(f))); }
-  function makeMirror(key, locked) {
+  function makeMirror(key, locked, motor) {
     const g = new THREE.Group();
-    const frameCol = locked ? 0xa594ff : 0xffcf86, baseCol = locked ? 0x6d63c9 : 0xff9fbe;
+    const frameCol = motor ? 0xffb22e : locked ? 0xa594ff : 0xffcf86, baseCol = motor ? 0xffe066 : locked ? 0x6d63c9 : 0xff9fbe;
     const frameMat = new THREE.MeshStandardMaterial({ color: frameCol, roughness: .35, metalness: .15, emissive: 0 });
     const baseMat = new THREE.MeshStandardMaterial({ color: baseCol, roughness: .5 });
     const base = new THREE.Mesh(baseGeo, baseMat); base.position.y = .035;
@@ -462,11 +490,21 @@
       lb.position.set(0, LIFT + MH + .07, 0); ll.position.set(0, LIFT + MH + .125, 0);
       g.add(lb, ll);
     }
+    if (motor) {   // a little sun badge on top: this mirror is turned by a sun flower
+      const sun = new THREE.Mesh(new THREE.SphereGeometry(.06, 14, 10), new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xff9f1c, emissiveIntensity: .4 }));
+      sun.position.set(0, LIFT + MH + .07, 0); g.add(sun);
+      for (let i = 0; i < 8; i++) { const ray = new THREE.Mesh(new THREE.BoxGeometry(.018, .05, .018), sun.material); const an = i / 8 * Math.PI * 2; ray.position.set(Math.cos(an) * .1, LIFT + MH + .07 + Math.sin(an) * .1, 0); ray.rotation.z = an - Math.PI / 2; g.add(ray); }
+    }
     g.traverse(m => { if (m.isMesh) m.userData.key = key; });
     g.userData = { key, frame };
     return g;
   }
   const BLOCK_H = .56;
+  let doors = {}, sensorObjs = {}, flowerObjs = {}, stageTimers = [];
+  const doorMat = new THREE.MeshStandardMaterial({ color: 0xff9a52, roughness: .55 });
+  const doorTopMat = new THREE.MeshStandardMaterial({ color: 0xffc08a, roughness: .5 });
+  const petalGeo = new THREE.SphereGeometry(.12, 14, 10);
+  const petalMat = new THREE.MeshStandardMaterial({ color: 0xffd166, roughness: .5 });
   const blockGeo = (() => { const g = new THREE.ExtrudeGeometry(rrShape(.58, .58, .1), { depth: BLOCK_H - .08, bevelEnabled: true, bevelThickness: .04, bevelSize: .04, bevelSegments: 3, curveSegments: 6 });
     g.rotateX(-Math.PI / 2); g.translate(0, .04, 0); return g; })();
   const blockMat = new THREE.MeshStandardMaterial({ color: 0x6fd3a0, roughness: .6 });
@@ -481,6 +519,9 @@
     L.lanterns.forEach(l => cells[l.k] = { t: 'L' });
     L.targets.forEach(t => cells[t.k] = { t: 'T' });
     L.pipes.forEach(p => { cells[p.a] = { t: 'P', o: p.oa, to: p.b }; cells[p.b] = { t: 'P', o: p.ob, to: p.a }; });
+    (L.sensors || []).forEach(x => cells[x.k] = { t: 'S' });
+    (L.flowers || []).forEach(x => cells[x.k] = { t: 'F' });
+    doors = {}; sensorObjs = {}; flowerObjs = {};
     const add = m => { world.add(m); objs.push(m); return m; };
     Object.entries(cells).forEach(([k, c]) => {
       const { f, p } = cellP(k);
@@ -490,9 +531,38 @@
         const top = new THREE.Mesh(blockTopGeo, blockTopMat);
         top.position.copy(V(worldOf(f, p, BLOCK_H + .012))); top.quaternion.copy(upQuat(f)); add(top);
         tiles[k].material.color.setHex(0x3e8a68);
-      } else if ('/\\ab'.includes(c.t)) {
-        const locked = c.t === 'a' || c.t === 'b';
-        const g = makeMirror(k, locked);
+      } else if (c.t === 'D') {                            // door: an orange block that sinks into the cube when its sensor is lit
+        const g = new THREE.Group();
+        const body = new THREE.Mesh(blockGeo, doorMat); g.add(body);
+        const top = new THREE.Mesh(blockTopGeo, doorTopMat); top.position.y = BLOCK_H + .012; g.add(top);
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(.62, .07, .62), doorTopMat); bar.position.y = BLOCK_H * .45; g.add(bar);
+        g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(upQuat(f)); add(g); doors[k] = g;
+        tiles[k].material.color.setHex(0x8a5530);
+      } else if (c.t === 'S') {                            // sensor: an orange pad with a glass eye
+        const g = new THREE.Group();
+        const pad = new THREE.Mesh(new THREE.CylinderGeometry(.32, .34, .07, 32), doorMat); pad.position.y = .035; g.add(pad);
+        const lensMat = new THREE.MeshStandardMaterial({ color: 0xffe2c4, roughness: .2, emissive: 0x000000 });
+        const lens = new THREE.Mesh(new THREE.SphereGeometry(.17, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), lensMat); lens.position.y = .07; g.add(lens);
+        const pupil = new THREE.Mesh(new THREE.SphereGeometry(.06, 14, 10), new THREE.MeshStandardMaterial({ color: 0x5a2d0c })); pupil.position.y = .2; g.add(pupil);
+        g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(upQuat(f)); add(g); sensorObjs[k] = { lensMat };
+        tiles[k].material.color.setHex(0x8a5530);
+      } else if (c.t === 'F') {                            // sun flower: a bud that opens when light reaches it
+        const g = new THREE.Group(), petals = [];
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(.035, .045, .24, 8), new THREE.MeshStandardMaterial({ color: 0x4fbf7a })); stem.position.y = .12; g.add(stem);
+        const head = new THREE.Group(); head.position.y = .26; head.scale.setScalar(1.55); g.add(head);
+        const center = new THREE.Mesh(new THREE.SphereGeometry(.1, 16, 10), new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: .8 })); center.scale.y = .55; head.add(center);
+        for (let i = 0; i < 10; i++) {
+          const pivot = new THREE.Group(); pivot.rotation.y = i / 10 * Math.PI * 2; head.add(pivot);
+          const petal = new THREE.Mesh(petalGeo, petalMat); petal.position.x = .17; petal.scale.set(1, .35, .55); pivot.add(petal);
+          petals.push(pivot);
+        }
+        g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(upQuat(f)); add(g);
+        flowerObjs[k] = { petals, open: 0, to: 0 };
+        tiles[k].material.color.setHex(0x6b6326);
+      } else if ('/\\abce'.includes(c.t)) {
+        const locked = c.t === 'a' || c.t === 'b', motor = c.t === 'c' || c.t === 'e';
+        const g = makeMirror(k, locked, motor);
+        if (motor) { g.userData.motor = true; tiles[k].material.color.setHex(0x6b6326); }
         g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(mirrorQuat(k, c.t)); g.userData.targetQ = g.quaternion.clone();
         add(g); mirrors[k] = g;
         if (locked) tiles[k].material.color.setHex(0x3d3b6e);
@@ -556,12 +626,57 @@
   const cyl = new THREE.CylinderGeometry(1, 1, 1, 12, 1, true);
   const BEAM_SPEED = 8;
   let winTimer = 0;
+  // put doors, flowers and motor mirrors back as they are with the light off
+  function resetEffects() {
+    Object.values(doors).forEach(g => { g.userData.h = 1; g.userData.to = 1; g.scale.y = 1; });
+    Object.values(flowerObjs).forEach(o => { o.to = 0; });
+    Object.values(sensorObjs).forEach(o => o.lensMat.emissive.setHex(0));
+    Object.entries(mirrors).forEach(([k, m]) => { if (m.userData.motor) { m.userData.t0 = 0; m.quaternion.copy(mirrorQuat(k, cells[k].t)); m.userData.targetQ = m.quaternion.clone(); } });
+  }
+  function applyEffect(a, animated) {
+    if (a.type === 'door') {
+      const so = sensorObjs[a.src]; if (so) so.lensMat.emissive.setHex(0xff8a2a);
+      const g = doors[a.k]; if (g) { g.userData.to = .04; if (!animated) g.scale.y = .04; }
+      if (animated) tone(330, .25, 'square', .03);
+    } else {
+      const fo = flowerObjs[a.src]; if (fo) { fo.to = 1; if (!animated) fo.open = 1; }
+      const m = mirrors[a.k];
+      if (m) { const q = mirrorQuat(a.k, MOTOR_FLIP[cells[a.k].t]); if (animated) { m.userData.fromQ = m.quaternion.clone(); m.userData.targetQ = q; m.userData.t0 = performance.now(); } else { m.quaternion.copy(q); m.userData.targetQ = q; } }
+      if (animated) { tone(880, .2, 'sine', .05); tone(1175, .3, 'sine', .04, .08); }
+    }
+  }
   function drawBeams(animate) {
-    clearTimeout(winTimer);
+    clearTimeout(winTimer); stageTimers.forEach(clearTimeout); stageTimers = [];
+    resetEffects();
     clearBeams();
     $('power').classList.toggle('on', lightOn);
     if (!lightOn) return;
-    const tr = traceS(cells, L.lanterns);
+    const run = runS(cells, L);
+    if (!animate) {
+      run.stages.forEach(st => st.acts.forEach(a => applyEffect(a, false)));
+      renderTrace(run.final, false, 0);
+      finishStage(run.final, 0, false);
+      return;
+    }
+    playStage(run, 0, 0);
+  }
+  function playStage(run, idx, offset) {
+    const st = run.stages[idx];
+    renderTrace(st.tr, true, offset);
+    if (st.acts.length) {
+      const maxD = Math.max(...st.acts.map(a => a.d));
+      st.acts.forEach(a => stageTimers.push(setTimeout(() => applyEffect(a, true), Math.max(0, a.d - offset) / BEAM_SPEED * 1000)));
+      stageTimers.push(setTimeout(() => playStage(run, idx + 1, maxD), Math.max(0, maxD - offset) / BEAM_SPEED * 1000 + 600));
+    } else finishStage(st.tr, offset, true);
+  }
+  function finishStage(tr, offset, animate) {
+    if (!L.targets.every(t => tr.ends[t.k] === t.c)) return;
+    solved = true;
+    const longest = Math.max(...L.targets.map(t => tr.endD[t.k] || 0));
+    winTimer = setTimeout(win, (animate ? Math.max(0, longest - offset) / BEAM_SPEED * 1000 : 0) + 700);
+  }
+  function renderTrace(tr, animate, offset) {
+    clearBeams();
     tr.paths.forEach((p, li) => {
       let acc = 0;
       const d0 = V(L.lanterns[li].d);
@@ -584,17 +699,11 @@
       m.position.copy(V(s.p)); beamGroup.add(m); sparkMeshes.push(m);
       pendingHits.push({ at: s.d, fn: () => m.userData.on = true });
     });
-    let allHit = true;
     L.targets.forEach((t, i) => {
-      const got = tr.ends[t.k] || 0, ok = got === t.c; if (!ok) allHit = false;
-      if (got) pendingHits.push({ at: tr.endD[t.k] || 0, fn: () => { const sp = targetSprites[t.k]; sp.material.map = spriteTex('target', sp.userData.col, ok ? 'hit' : 'wrong'); if (ok) { sp.scale.set(.9, .9, 1); if (animate) sfx.hit(i); } } });
+      const got = tr.ends[t.k] || 0, ok = got === t.c, at = tr.endD[t.k] || 0;
+      if (got) pendingHits.push({ at, fn: () => { const sp = targetSprites[t.k]; sp.material.map = spriteTex('target', sp.userData.col, ok ? 'hit' : 'wrong'); if (ok) { sp.scale.set(.9, .9, 1); if (animate && at > offset) sfx.hit(i); } } });
     });
-    beamT0 = animate ? performance.now() : -1e9;
-    if (allHit) {
-      solved = true;
-      const longest = Math.max(...L.targets.map(t => tr.endD[t.k] || 0));
-      winTimer = setTimeout(win, (animate ? longest / BEAM_SPEED * 1000 : 0) + 700);
-    }
+    beamT0 = animate ? performance.now() - offset / BEAM_SPEED * 1000 : -1e9;
   }
   function updateBeams(now) {
     const done = (now - beamT0) / 1000 * BEAM_SPEED;
@@ -658,7 +767,7 @@
   function rotateMirror(k) {
     if (solved) return;
     const c = cells[k], m = mirrors[k];
-    if (c.t === 'a' || c.t === 'b') { sfx.locked(); m.userData.shake = performance.now(); return; }
+    if (c.t === 'a' || c.t === 'b' || c.t === 'c' || c.t === 'e') { sfx.locked(); m.userData.shake = performance.now(); return; }
     c.t = FLIP[c.t];
     m.userData.fromQ = m.quaternion.clone(); m.userData.targetQ = mirrorQuat(k, c.t); m.userData.t0 = performance.now();
     moves++; updateMoves(); sfx.rotate();
@@ -723,7 +832,7 @@
   $('prevBtn').onclick = () => lvl > 0 && load(lvl - 1);
   $('nextBtn').onclick = () => lvl < LEVELS.length - 1 && unlocked(lvl + 1) && load(lvl + 1);
   const TUT_KEY = 'fenerkup-tut-seen';
-  const LEVEL_TUT = { 0: ['wrap', 'basics'], 1: ['bump'], 2: ['pipe'], 3: ['locked'], 4: ['two'] };
+  const LEVEL_TUT = { 0: ['wrap', 'basics'], 1: ['bump'], 2: ['pipe'], 3: ['locked'], 4: ['two'], 8: ['sensor'], 10: ['flower'] };
   /* ---------- animated tutorials: shown the first time a new piece appears ---------- */
   const TUT = (() => {
     const BL = '#4c9dff', RD = '#ff5d73', PU = '#d27bff', YE = '#ffc93d';
@@ -777,6 +886,15 @@
       pipe: { title: 'Yeni: İçi aynalı boru', text: 'Boru ışığı bir ağzından alır, iç duvarlarından yansıta yansıta öbür ağzından çıkarır. Işık ağzın baktığı yönden gelmeli.',
         svg: svg(ground + hump(130) + `<path d="M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98" stroke="#bfe3ff" stroke-width="20" opacity=".35" fill="none"/><path d="M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98" stroke="#e9f7ff" stroke-width="20" opacity=".5" fill="none" stroke-dasharray="2 14"/><circle cx="64" cy="98" r="9" fill="none" stroke="#ffc6dd" stroke-width="4"/><circle cx="196" cy="98" r="9" fill="none" stroke="#ffc6dd" stroke-width="4"/>` + lantern(26, 98, '#4ee89a') + beam('M40 98 H64', '#4ee89a', 't-s1') + beam('M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98', '#4ee89a', 't-s2') + beam('M196 98 H222', '#4ee89a', 't-s3') + target(236, 98, '#4ee89a', 't-show3')) },
     };
+    const SEN = '#ff9a52';
+    const sensorI = (x, y) => `<g transform="translate(${x} ${y})"><circle r="13" fill="${SEN}"/><circle class="t-glow1" r="8" fill="#ffe2c4"/><circle r="3.5" fill="#5a2d0c"/></g>`;
+    const doorI = (x, y, cls) => `<g transform="translate(${x} ${y})"><g class="${cls}"><rect x="-16" y="-16" width="32" height="32" rx="7" fill="${SEN}"/><rect x="-16" y="-3" width="32" height="6" fill="#ffc08a"/></g></g>`;
+    const flowerI = (x, y) => `<g transform="translate(${x} ${y})">${[...Array(8)].map((_, i) => `<g style="transform: rotate(${i * 45}deg)"><ellipse class="t-bloom" cx="10" cy="0" rx="7" ry="4" fill="#ffd166"/></g>`).join('')}<circle r="6" fill="#8a5a2b"/></g>`;
+    const motorBar = `<rect x="-22" y="-3.5" width="44" height="7" rx="3.5" fill="#ffe7a8" stroke="#ffb22e" stroke-width="2"/>`;
+    CARDS.sensor = { title: 'Yeni: Sensör ve kapı', text: 'Işık turuncu sensöre ulaşınca, aynı renkteki kapı yere iner. Artık başka bir ışık o kapının olduğu yerden geçebilir.',
+      svg: svg(tiles([80, 120], 40) + tiles([80, 160], 108) + tile(120, 108) + lantern(36, 40, YE) + beam('M50 40 H150', YE, 't-s1') + sensorI(162, 40) + lantern(36, 108, BL) + doorI(120, 108, 't-sink') + beam('M50 108 H103', BL, 't-s1') + beam('M103 108 H212', BL, 't-s2') + target(224, 108, BL, 't-show2')) };
+    CARDS.flower = { title: 'Yeni: Güneş çiçeği', text: 'Işık güneş çiçeğine ulaşınca çiçek açar ve sarı çerçeveli motorlu aynayı 90° çevirir. Motorlu aynayı sen çeviremezsin.',
+      svg: svg(tiles([80, 120], 40) + tiles([80, 120, 160], 108) + lantern(36, 40, YE) + beam('M50 40 H146', YE, 't-s1') + flowerI(160, 40) + tile(200, 108) + `<g transform="translate(200 108)"><g class="t-rot2" style="transform: rotate(45deg)">${motorBar}</g><circle cx="13" cy="-13" r="4" fill="#ffb22e"/></g>` + lantern(36, 108, '#4ee89a') + beam('M50 108 H200', '#4ee89a', 't-s2') + beam('M200 108 V60', '#4ee89a', 't-s3') + target(200, 52, '#4ee89a', 't-show3')) };
     return { CARDS };
   })();
   function tutSeen() { try { return JSON.parse(localStorage.getItem(TUT_KEY) || '{}'); } catch (e) { return {}; } }
@@ -834,6 +952,8 @@
     });
     lanternSprites.forEach((sp, i) => { const b = lightOn && !reduce ? Math.sin(now / 300 + i) * .03 : 0; sp.scale.set(sp.userData.base + b, sp.userData.base + b, 1); });
     animateCamera(now); updateBeams(now);
+    Object.values(doors).forEach(g => { const to = g.userData.to ?? 1; g.scale.y += (to - g.scale.y) * .15; });
+    Object.values(flowerObjs).forEach(o => { o.open += (o.to - o.open) * .12; o.petals.forEach((pv, i) => { pv.children[0].rotation.z = (1 - o.open) * 1.25; pv.children[0].position.x = .1 + .07 * o.open; }); });
     renderer.render(scene, camera);
     requestAnimationFrame(frameLoop);
   }
