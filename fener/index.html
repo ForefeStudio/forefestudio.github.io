@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Fener ve Aynalar</title>
-<meta name="description" content="Aynaları çevir, fenerleri yak, her ışığı kendi rengindeki hedefe ulaştır. 15 bölümlük yansıma bulmacası.">
+<meta name="description" content="Aynaları çevir, fenerleri yak, her ışığı kendi rengindeki hedefe ulaştır. 27 bölümlük ışık ve yansıma bulmacası.">
 <meta name="theme-color" content="#0b1230">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,8 +25,9 @@
     --blush: #ff9ab8;
     --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
     --body: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    /* one unit = one tile; ring is 0.72 of a tile, so the board is 5.44 units wide */
-    --u: min(calc((100vw - 28px) / 5.44), calc((100dvh - 170px) / 5.44), 112px);
+    /* one unit = one tile; ring is 0.72 of a tile, so the board is n + 1.44 units wide */
+    --n: 4;
+    --u: min(calc((100vw - 28px) / (var(--n) + 1.44)), calc((100dvh - 170px) / (var(--n) + 1.44)), 112px);
     --c: var(--u);
     --r: calc(var(--u) * .72);
   }
@@ -53,7 +54,7 @@
   @media (max-width: 700px) { .moon { display: none; } }
 
   /* ---------- top bar ---------- */
-  .wrap { width: calc(var(--c) * 4 + var(--r) * 2); max-width: 100%; }
+  .wrap { width: max(340px, calc(var(--c) * var(--n) + var(--r) * 2)); max-width: 100%; }
   header { display: flex; align-items: center; gap: 8px; }
   h1 { flex: 1; margin: 0; font-family: var(--display); font-weight: 800; font-size: clamp(20px, 6vw, 26px); line-height: 1; color: var(--sun); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .iconbtn {
@@ -76,15 +77,15 @@
   /* ---------- board ---------- */
   #board {
     position: relative; margin: auto; flex: none;
-    width: calc(var(--c) * 4 + var(--r) * 2); height: calc(var(--c) * 4 + var(--r) * 2);
+    width: calc(var(--c) * var(--n) + var(--r) * 2); height: calc(var(--c) * var(--n) + var(--r) * 2);
     display: grid;
-    grid-template-columns: var(--r) repeat(4, var(--c)) var(--r);
-    grid-template-rows: var(--r) repeat(4, var(--c)) var(--r);
+    grid-template-columns: var(--r) repeat(var(--n), var(--c)) var(--r);
+    grid-template-rows: var(--r) repeat(var(--n), var(--c)) var(--r);
   }
   #board::before {
     content: ""; position: absolute; border-radius: 22px; background: var(--field);
     left: calc(var(--r) - 6px); top: calc(var(--r) - 6px);
-    width: calc(var(--c) * 4 + 12px); height: calc(var(--c) * 4 + 12px);
+    width: calc(var(--c) * var(--n) + 12px); height: calc(var(--c) * var(--n) + 12px);
   }
   .cell { position: relative; display: grid; place-items: center; z-index: 1; }
   .cell.out { z-index: 4; }
@@ -117,6 +118,18 @@
   .tile.wall { background: #8a5f45; }
   .tile.wall svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 
+  .tile.water { background: #2f6fd6; }
+  .tile.water.lit { background: color-mix(in srgb, var(--glow) 30%, #2f6fd6); }
+  .tile.water svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .tile.water .wv { animation: wave 3s ease-in-out infinite alternate; }
+  .tile.water .w2 { animation-delay: -1.5s; }
+  @keyframes wave { to { transform: translateX(-16px); } }
+  .mirror.half { background: rgba(200, 240, 255, .45); outline: 3px dashed rgba(233, 247, 255, .95); outline-offset: -3px; }
+  .mirror.half::before, .mirror.half::after { display: none; }
+  .target .wrong { display: none; }
+  .target.wrongc .wrong { display: inline; }
+  .target.wrongc .sleepy { display: none; }
+  .target.wrongc { animation: shake .4s; }
   .lantern, .target { width: 92%; height: 92%; position: relative; }
   .lantern svg, .target svg { width: 100%; height: 100%; overflow: visible; display: block; }
   .lantern .body { transition: opacity .3s; opacity: .7; }
@@ -150,6 +163,7 @@
   .overlay.show { display: grid; animation: fade .25s; }
   @keyframes fade { from { opacity: 0; } }
   .card {
+    max-height: calc(100dvh - 32px); overflow-y: auto;
     background: var(--sky-1); border-radius: 26px; padding: 24px 22px 22px; text-align: center; width: min(340px, 100%);
     animation: pop .4s cubic-bezier(.3,1.6,.5,1);
   }
@@ -229,52 +243,90 @@
 
 <script>
 (() => {
-  const N = 4, RING = 72, CELL = 100;
-  const PALETTE = {
-    mavi:   '#4cc9ff',
-    kırmızı:'#ff5d73',
-    yeşil:  '#4ee89a',
-    sarı:   '#ffc93d',
-    mor:    '#b58cff',
-    pembe:  '#ff7ad9',
+  // ---- shared light engine (also used by the level generator) ----
+  // grid tokens: '.' empty, '#' brick, '~' water, '/' '\' mirror, 'a' 'b' locked mirror, 'p' 'q' half mirror (splitter, rotatable)
+  // colours are RGB bitmasks: 1 red, 2 green, 4 blue
+  const RING = 72, CELL = 100;
+  const DIRS = { L: [1,0], R: [-1,0], T: [0,1], B: [0,-1] };
+  function sidePos(N, s, i) { return s === 'L' ? [-1, i] : s === 'R' ? [N, i] : s === 'T' ? [i, -1] : [i, N]; }
+  function keyOf(N, x, y) { return x < 0 ? 'L' + y : x >= N ? 'R' + y : y < 0 ? 'T' + x : 'B' + x; }
+  function coordOf(N, v) { return v < 0 ? RING / 2 : v >= N ? RING + N * CELL + RING / 2 : RING + v * CELL + CELL / 2; }
+  function turnSlash(dx, dy) { return [-dy, -dx]; }
+  function turnBack(dx, dy) { return [dy, dx]; }
+  function traceAll(g, N, lanterns) {
+    const paths = [], ends = {}, endD = {}, hits = [], sparks = [], seen = new Set();
+    const C = (x, y) => [coordOf(N, x), coordOf(N, y)];
+    const queue = [];
+    lanterns.forEach((l, li) => {
+      const [x, y] = sidePos(N, l.s, l.i), [dx, dy] = DIRS[l.s], [cx, cy] = C(x, y);
+      queue.push({ x, y, dx, dy, c: l.c, w: 0, start: [cx + dx * 26, cy + dy * 26], d0: 0 });
+    });
+    let guard = 0;
+    while (queue.length && guard++ < 400) {
+      const r = queue.shift();
+      let { x, y, dx, dy, c, w, d0 } = r;
+      let pts = [r.start], dist = d0;
+      const push = p => { const q = pts[pts.length - 1]; dist += Math.hypot(p[0] - q[0], p[1] - q[1]); pts.push(p); };
+      const finish = () => { if (pts.length > 1) paths.push({ pts, c, d0 }); };
+      for (let k = 0; k < 200; k++) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= N || ny >= N) {
+          { const [ex, ey] = C(nx, ny); push([ex - dx * 24, ey - dy * 24]); } const key = keyOf(N, nx, ny);
+          ends[key] = (ends[key] || 0) | c; endD[key] = Math.max(endD[key] || 0, dist); finish(); break;
+        }
+        const sk = nx + ',' + ny + ',' + dx + ',' + dy + ',' + c + ',' + Math.min(w, 3);
+        if (seen.has(sk)) { push(C(nx, ny)); finish(); break; }
+        seen.add(sk);
+        const t = g[ny][nx], [cx, cy] = C(nx, ny);
+        x = nx; y = ny;
+        if (t === '#') { push([cx - dx * 44, cy - dy * 44]); hits.push({ x, y, c, d: dist }); sparks.push({ p: pts[pts.length - 1], c, d: dist }); finish(); break; }
+        if (t === '~') {
+          w++;
+          let nc = c; if (w >= 1) nc &= ~1; if (w >= 3) nc &= ~2;
+          hits.push({ x, y, c: nc || c, d: dist + 50 });
+          if (nc !== c) {
+            const b = [cx - dx * 50, cy - dy * 50]; push(b); finish();
+            if (!nc) { const e = [cx, cy]; paths.push({ pts: [b, e], c, d0: dist, fade: true }); break; }
+            c = nc; pts = [b]; d0 = dist;
+          }
+          continue;
+        }
+        if (t === '/' || t === 'a') { push([cx, cy]); hits.push({ x, y, c, d: dist }); [dx, dy] = turnSlash(dx, dy); continue; }
+        if (t === '\\' || t === 'b') { push([cx, cy]); hits.push({ x, y, c, d: dist }); [dx, dy] = turnBack(dx, dy); continue; }
+        if (t === 'p' || t === 'q') {
+          push([cx, cy]); hits.push({ x, y, c, d: dist });
+          const [rx, ry] = t === 'p' ? turnSlash(dx, dy) : turnBack(dx, dy);
+          queue.push({ x, y, dx: rx, dy: ry, c, w, start: [cx, cy], d0: dist });
+          continue;
+        }
+      }
+    }
+    return { paths, ends, endD, hits, sparks };
+  }
+  function isWin(g, L) {
+    const e = traceAll(g, L.n, L.lanterns).ends;
+    return L.targets.every(t => e[t.k] === t.c);
+  }
+  const COLORS = {
+    1: { name: 'kırmızı', hex: '#ff5d73' },
+    2: { name: 'yeşil',   hex: '#4ee89a' },
+    3: { name: 'sarı',    hex: '#ffc93d' },
+    4: { name: 'mavi',    hex: '#4c9dff' },
+    5: { name: 'mor',     hex: '#d27bff' },
+    6: { name: 'turkuaz', hex: '#3ef0d8' },
+    7: { name: 'beyaz',   hex: '#ffffff' },
   };
-  // grid: '.' empty, '/' '\' rotatable mirror, 'a' locked '/', 'b' locked '\', '#' block
-  // lanterns: side (L/R/T/B) + index; targets[i] is where lantern i must land; colors[i] its light colour
-  const LEVELS = [
-    { grid: ["....","....","....","\\.\\."], lanterns: [{s:"T",i:2}], targets: ["B0"], colors: ["mavi"],
-      hint: "Aynalara dokunup çevir, sonra köşedeki <b>düğmeye</b> bas." },
-    { grid: ["....","\\.\\.",".#..","../."], lanterns: [{s:"B",i:0}], targets: ["R3"], colors: ["sarı"],
-      hint: "Tuğla bloklar ışığı keser." },
-    { grid: [".a..","....","...\\",".#//"], lanterns: [{s:"T",i:2}], targets: ["R2"], colors: ["yeşil"],
-      hint: "Kilitli aynalar çevrilemez." },
-    { grid: ["b.#.","../.",".#//",".../"], lanterns: [{s:"R",i:3}], targets: ["R1"], colors: ["kırmızı"] },
-    { grid: ["....","#\\\\\\","....","\\./."], lanterns: [{s:"B",i:0},{s:"B",i:3}], targets: ["B1","R1"], colors: ["mavi","kırmızı"],
-      hint: "İki fener! Her ışık <b>kendi rengindeki</b> hedefe gitmeli." },
-    { grid: ["\\.\\.",".\\./","//..","##b."], lanterns: [{s:"R",i:3}], targets: ["B3"], colors: ["mor"] },
-    { grid: ["..\\/","/..\\",".#..","\\/.a"], lanterns: [{s:"B",i:1},{s:"T",i:2}], targets: ["B2","L0"], colors: ["sarı","yeşil"],
-      hint: "Işınlar birbirinin içinden geçebilir." },
-    { grid: [".#//",".a..",".\\a\\","#.\\\\"], lanterns: [{s:"T",i:3},{s:"B",i:2}], targets: ["B1","R2"], colors: ["pembe","mavi"] },
-    { grid: [".\\.b","..#.","//./",".\\/."], lanterns: [{s:"T",i:0},{s:"T",i:1}], targets: ["B2","R2"], colors: ["yeşil","mor"] },
-    { grid: [".#//",".../","\\./.","../b"], lanterns: [{s:"B",i:0},{s:"T",i:3},{s:"L",i:1}], targets: ["B3","R0","R2"], colors: ["kırmızı","mavi","sarı"],
-      hint: "Üç fener! Tüm ışıklar aynı anda hedefe ulaşmalı." },
-    { grid: ["a.\\.","\\./\\",".//.","#/.."], lanterns: [{s:"T",i:3},{s:"R",i:3},{s:"T",i:2}], targets: ["R2","B2","L1"], colors: ["yeşil","pembe","mavi"] },
-    { grid: ["\\\\/a","/../","..b#","/./."], lanterns: [{s:"R",i:0},{s:"T",i:3},{s:"L",i:1}], targets: ["B1","T2","B2"], colors: ["sarı","mor","kırmızı"] },
-    { grid: ["b\\\\.","\\.\\\\","/../","\\#.."], lanterns: [{s:"T",i:1},{s:"B",i:2},{s:"L",i:2},{s:"L",i:1}], targets: ["T0","L3","R0","L0"], colors: ["mavi","kırmızı","yeşil","sarı"],
-      hint: "Dört fener! Bir ayna birden fazla ışığı etkileyebilir." },
-    { grid: ["b#b\\","\\/..","\\//.","..\\\\"], lanterns: [{s:"B",i:1},{s:"B",i:2},{s:"R",i:1},{s:"L",i:2}], targets: ["B0","T2","L3","L1"], colors: ["mor","sarı","mavi","pembe"] },
-    { grid: ["\\aa/","\\.\\.","//#/","/..\\"], lanterns: [{s:"T",i:3},{s:"B",i:0},{s:"L",i:1},{s:"R",i:2}], targets: ["B1","B3","T1","R0"], colors: ["kırmızı","yeşil","mavi","sarı"],
-      hint: "Son bölüm. Bol şans!" },
-  ];
-  const DIR = { L: [1,0], R: [-1,0], T: [0,1], B: [0,-1] };
+  const LEVELS = [{"n": 4, "grid": ["....", "....", "....", "\\.\\."], "lanterns": [{"s": "T", "i": 2, "c": 4}], "targets": [{"k": "B0", "c": 4}], "hint": "Aynalara dokunup çevir, sonra köşedeki <b>düğmeye</b> bas."}, {"n": 4, "grid": ["....", "\\.\\.", ".#..", "../."], "lanterns": [{"s": "B", "i": 0, "c": 3}], "targets": [{"k": "R3", "c": 3}], "hint": "Tuğla bloklar ışığı keser."}, {"n": 4, "grid": [".a..", "....", "...\\", ".#//"], "lanterns": [{"s": "T", "i": 2, "c": 2}], "targets": [{"k": "R2", "c": 2}], "hint": "Kilitli aynalar çevrilemez."}, {"n": 4, "grid": ["b.#.", "../.", ".#//", ".../"], "lanterns": [{"s": "R", "i": 3, "c": 1}], "targets": [{"k": "R1", "c": 1}]}, {"n": 4, "grid": ["....", "#\\\\\\", "....", "\\./."], "lanterns": [{"s": "B", "i": 0, "c": 4}, {"s": "B", "i": 3, "c": 1}], "targets": [{"k": "B1", "c": 4}, {"k": "R1", "c": 1}], "hint": "İki fener! Her ışık <b>kendi rengindeki</b> hedefe gitmeli."}, {"n": 4, "grid": ["\\.\\.", ".\\./", "//..", "##b."], "lanterns": [{"s": "R", "i": 3, "c": 5}], "targets": [{"k": "B3", "c": 5}]}, {"n": 4, "grid": ["..\\/", "/..\\", ".#..", "\\/.a"], "lanterns": [{"s": "B", "i": 1, "c": 3}, {"s": "T", "i": 2, "c": 2}], "targets": [{"k": "B2", "c": 3}, {"k": "L0", "c": 2}], "hint": "Işınlar birbirinin içinden geçebilir."}, {"n": 4, "grid": [".#//", ".a..", ".\\a\\", "#.\\\\"], "lanterns": [{"s": "T", "i": 3, "c": 6}, {"s": "B", "i": 2, "c": 4}], "targets": [{"k": "B1", "c": 6}, {"k": "R2", "c": 4}]}, {"n": 4, "grid": [".\\.b", "..#.", "//./", ".\\/."], "lanterns": [{"s": "T", "i": 0, "c": 2}, {"s": "T", "i": 1, "c": 5}], "targets": [{"k": "B2", "c": 2}, {"k": "R2", "c": 5}]}, {"n": 4, "grid": [".#//", ".../", "\\./.", "../b"], "lanterns": [{"s": "B", "i": 0, "c": 1}, {"s": "T", "i": 3, "c": 4}, {"s": "L", "i": 1, "c": 3}], "targets": [{"k": "B3", "c": 1}, {"k": "R0", "c": 4}, {"k": "R2", "c": 3}], "hint": "Üç fener! Tüm ışıklar aynı anda hedefe ulaşmalı."}, {"n": 4, "grid": ["a.\\.", "\\./\\", ".//.", "#/.."], "lanterns": [{"s": "T", "i": 3, "c": 2}, {"s": "R", "i": 3, "c": 6}, {"s": "T", "i": 2, "c": 4}], "targets": [{"k": "R2", "c": 2}, {"k": "B2", "c": 6}, {"k": "L1", "c": 4}]}, {"n": 4, "grid": ["\\\\/a", "/../", "..b#", "/./."], "lanterns": [{"s": "R", "i": 0, "c": 3}, {"s": "T", "i": 3, "c": 5}, {"s": "L", "i": 1, "c": 1}], "targets": [{"k": "B1", "c": 3}, {"k": "T2", "c": 5}, {"k": "B2", "c": 1}]}, {"n": 4, "grid": ["b\\\\.", "\\.\\\\", "/../", "\\#.."], "lanterns": [{"s": "T", "i": 1, "c": 4}, {"s": "B", "i": 2, "c": 1}, {"s": "L", "i": 2, "c": 2}, {"s": "L", "i": 1, "c": 3}], "targets": [{"k": "T0", "c": 4}, {"k": "L3", "c": 1}, {"k": "R0", "c": 2}, {"k": "L0", "c": 3}], "hint": "Dört fener! Bir ayna birden fazla ışığı etkileyebilir."}, {"n": 4, "grid": ["b#b\\", "\\/..", "\\//.", "..\\\\"], "lanterns": [{"s": "B", "i": 1, "c": 5}, {"s": "B", "i": 2, "c": 3}, {"s": "R", "i": 1, "c": 4}, {"s": "L", "i": 2, "c": 6}], "targets": [{"k": "B0", "c": 5}, {"k": "T2", "c": 3}, {"k": "L3", "c": 4}, {"k": "L1", "c": 6}]}, {"n": 4, "grid": ["\\aa/", "\\.\\.", "//#/", "/..\\"], "lanterns": [{"s": "T", "i": 3, "c": 1}, {"s": "B", "i": 0, "c": 2}, {"s": "L", "i": 1, "c": 4}, {"s": "R", "i": 2, "c": 3}], "targets": [{"k": "B1", "c": 1}, {"k": "B3", "c": 2}, {"k": "T1", "c": 4}, {"k": "R0", "c": 3}]}, {"n": 5, "grid": ["...#.", "././.", ".....", "#./\\.", "..\\.."], "lanterns": [{"s": "T", "i": 1, "c": 4}], "targets": [{"k": "R4", "c": 4}], "hint": "Büyük alan! Artık 5x5."}, {"n": 5, "grid": ["/..\\.", ".....", ".b.\\\\", "/..\\#", "#...."], "lanterns": [{"s": "B", "i": 3, "c": 1}, {"s": "T", "i": 4, "c": 2}], "targets": [{"k": "L0", "c": 1}, {"k": "R0", "c": 2}]}, {"n": 4, "grid": ["....", "/...", "....", "p\\.#"], "lanterns": [{"s": "L", "i": 3, "c": 3}], "targets": [{"k": "T1", "c": 3}, {"k": "L1", "c": 3}], "hint": "<b>Yarı saydam ayna</b>: ışığın yarısı geçer, yarısı yansır. Tek fener iki hedef!"}, {"n": 5, "grid": ["....#", "\\/#.b", "./.q.", "...\\.", "....."], "lanterns": [{"s": "L", "i": 2, "c": 4}, {"s": "T", "i": 0, "c": 1}], "targets": [{"k": "B1", "c": 4}, {"k": "R2", "c": 1}, {"k": "L3", "c": 1}]}, {"n": 5, "grid": [".#q/.", "..q/\\", ".../.", "..\\..", "..#.."], "lanterns": [{"s": "R", "i": 3, "c": 2}], "targets": [{"k": "T2", "c": 2}, {"k": "R2", "c": 2}, {"k": "B4", "c": 2}]}, {"n": 4, "grid": ["....", "./~.", "./~.", "..~."], "lanterns": [{"s": "L", "i": 1, "c": 7}], "targets": [{"k": "R2", "c": 6}], "hint": "<b>Su</b> renkleri yutar: kırmızıyı hemen, yeşili 3. kutuda, maviyi hiç. Beyaz ışık suda <b>turkuaz</b>, sonra <b>mavi</b> olur."}, {"n": 5, "grid": ["\\\\...", ".\\..#", "...\\.", "~~...", ".~~\\."], "lanterns": [{"s": "L", "i": 4, "c": 3}, {"s": "L", "i": 1, "c": 5}], "targets": [{"k": "L2", "c": 2}, {"k": "B0", "c": 4}]}, {"n": 5, "grid": [".....", "p././", "~~...", "/~\\#.", ".~..."], "lanterns": [{"s": "B", "i": 4, "c": 7}], "targets": [{"k": "T0", "c": 6}, {"k": "T2", "c": 6}]}, {"n": 4, "grid": [".\\./", "#...", ".q.\\", "...."], "lanterns": [{"s": "B", "i": 3, "c": 1}, {"s": "R", "i": 2, "c": 4}], "targets": [{"k": "L2", "c": 5}, {"k": "B1", "c": 5}], "hint": "Işıklar yarı saydam aynada <b>birleşir</b>: kırmızı + mavi = mor."}, {"n": 6, "grid": ["#.....", "..../.", "..\\..\\", ".\\~/.a", ".~~~.#", "a/~q.."], "lanterns": [{"s": "B", "i": 2, "c": 7}, {"s": "R", "i": 1, "c": 1}], "targets": [{"k": "B3", "c": 4}, {"k": "T4", "c": 1}, {"k": "T3", "c": 4}], "hint": "6x6! Suyu ve aynaları birlikte kullan."}, {"n": 6, "grid": ["\\p../~", "#..a//", "..b.~~", "#..~//", "......", "...q.."], "lanterns": [{"s": "B", "i": 5, "c": 3}, {"s": "R", "i": 5, "c": 4}], "targets": [{"k": "R3", "c": 2}, {"k": "L5", "c": 4}, {"k": "T0", "c": 4}, {"k": "T1", "c": 4}]}, {"n": 6, "grid": [".b....", "\\.~~.#", "/~~~./", "#...\\\\", "...\\p.", "./.b./"], "lanterns": [{"s": "L", "i": 5, "c": 7}, {"s": "B", "i": 5, "c": 5}, {"s": "B", "i": 2, "c": 2}], "targets": [{"k": "L0", "c": 6}, {"k": "R4", "c": 5}, {"k": "T2", "c": 2}, {"k": "L1", "c": 4}]}];
+  const ROTS = { '/': '\\', '\\': '/', p: 'q', q: 'p' };
   const ROT = { L: 0, T: 90, R: 180, B: 270 };
+  const hex = c => COLORS[c].hex;
 
   const $ = id => document.getElementById(id);
   const board = $('board'), svg = $('beams');
-  let lvl = 0, grid, angles, moves, lightOn = false, solvedLvl = false, optimal = 0, timers = [];
+  let lvl = 0, L, N, grid, angles, moves, lightOn = false, solvedLvl = false, optimal = 0, timers = [];
   let progress = {}, soundOn = true;
   try { progress = JSON.parse(localStorage.getItem('fener-progress') || '{}'); soundOn = localStorage.getItem('fener-sound') !== '0'; } catch (e) {}
   const save = () => { try { localStorage.setItem('fener-progress', JSON.stringify(progress)); localStorage.setItem('fener-sound', soundOn ? '1' : '0'); } catch (e) {} };
-  const col = (L, i) => PALETTE[L.colors[i]];
   const unlocked = i => i === 0 || !!progress[i - 1] || !!progress[i];
 
   /* ---------- sound ---------- */
@@ -294,51 +346,28 @@
     locked: () => tone(150, .12, 'square', .035),
     on: () => { tone(330, .15, 'sine', .07); tone(660, .25, 'sine', .05, .05); },
     off: () => tone(240, .12, 'sine', .05),
-    hit: i => tone(660 + i * 130, .35, 'sine', .06),
+    hit: i => tone(660 + i * 110, .35, 'sine', .06),
     win: () => [523, 659, 784, 1046].forEach((f, k) => tone(f, .4, 'triangle', .07, k * .11)),
   };
   const soundIcon = () => $('soundBtn').innerHTML = soundOn
     ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>'
     : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
 
-  /* ---------- logic ---------- */
-  const sidePos = (s, i) => s === 'L' ? [-1, i] : s === 'R' ? [N, i] : s === 'T' ? [i, -1] : [i, N];
-  const keyOf = (x, y) => x < 0 ? 'L' + y : x >= N ? 'R' + y : y < 0 ? 'T' + x : 'B' + x;
-  const coord = v => v < 0 ? RING / 2 : v >= N ? RING + N * CELL + RING / 2 : RING + v * CELL + CELL / 2;
-  const center = (x, y) => [coord(x), coord(y)];
-  const isSlash = c => c === '/' || c === 'a';
-  const isBack = c => c === '\\' || c === 'b';
-
-  function trace(g, l) {
-    let [x, y] = sidePos(l.s, l.i), [dx, dy] = DIR[l.s];
-    const [sx, sy] = center(x, y);
-    const pts = [[sx + dx * 26, sy + dy * 26]], hits = [];
-    for (let k = 0; k < 80; k++) {
-      x += dx; y += dy;
-      if (x < 0 || y < 0 || x >= N || y >= N) { pts.push(center(x, y)); return { pts, hits, end: keyOf(x, y) }; }
-      const c = g[y][x];
-      if (c === '#') { const [cx, cy] = center(x, y); pts.push([cx - dx * 44, cy - dy * 44]); hits.push([x, y]); return { pts, hits, end: null }; }
-      if (isSlash(c)) { [dx, dy] = [-dy, -dx]; pts.push(center(x, y)); hits.push([x, y]); }
-      else if (isBack(c)) { [dx, dy] = [dy, dx]; pts.push(center(x, y)); hits.push([x, y]); }
-    }
-    return { pts, hits, end: null };
-  }
-  const isSolved = (g, L) => L.lanterns.every((l, i) => trace(g, l).end === L.targets[i]);
-
-  function computeOptimal(L) {
+  function computeOptimal() {
     const rot = [];
-    L.grid.forEach((row, y) => [...row].forEach((c, x) => { if (c === '/' || c === '\\') rot.push([x, y]); }));
+    L.grid.forEach((row, y) => [...row].forEach((c, x) => { if (c in ROTS) rot.push([x, y]); }));
     let best = Infinity;
     for (let m = 0; m < 1 << rot.length; m++) {
-      const g = L.grid.map(r => [...r]); let d = 0;
-      rot.forEach(([x, y], j) => { const want = (m >> j & 1) ? '/' : '\\'; if (g[y][x] !== want) d++; g[y][x] = want; });
-      if (d < best && isSolved(g, L)) best = d;
+      let d = 0; for (let j = 0; j < rot.length; j++) if (m >> j & 1) d++;
+      if (d >= best) continue;
+      const g = L.grid.map(r => [...r]);
+      rot.forEach(([x, y], j) => { if (m >> j & 1) g[y][x] = ROTS[g[y][x]]; });
+      if (isWin(g, L)) best = d;
     }
     return best;
   }
 
   /* ---------- cute pieces ---------- */
-  // lantern: upright body with a face; the little nozzle turns toward the board
   const lanternSVG = (c, rot) => `
     <svg viewBox="-50 -50 100 100">
       <g transform="rotate(${rot})"><path d="M22 -15 L44 -24 Q48 0 44 24 L22 15 Z" fill="${c}"/></g>
@@ -348,7 +377,7 @@
         <rect x="-28" y="-32" width="56" height="58" rx="20" fill="${c}"/>
         <rect x="-20" y="-25" width="10" height="16" rx="5" fill="#fff" opacity=".35"/>
         <rect x="-18" y="24" width="36" height="9" rx="4.5" fill="#ffe9a8"/>
-        <g class="asleep" stroke="${'#1b1f3b'}" stroke-width="3.5" stroke-linecap="round" fill="none">
+        <g class="asleep" stroke="#1b1f3b" stroke-width="3.5" stroke-linecap="round" fill="none">
           <path d="M-14 -2 q5 4 10 0"/><path d="M4 -2 q5 4 10 0"/>
         </g>
         <g class="awake" fill="#1b1f3b">
@@ -359,7 +388,6 @@
         <path d="M-5 9 q5 5 10 0" stroke="#1b1f3b" stroke-width="3" fill="none" stroke-linecap="round"/>
       </g>
     </svg>`;
-  // target: a little round friend that sleeps until its light arrives
   const targetSVG = c => `
     <svg viewBox="-50 -50 100 100">
       <circle r="40" fill="none" stroke="${c}" stroke-width="5" stroke-dasharray="11 9" stroke-linecap="round"/>
@@ -372,9 +400,13 @@
         <path d="M-8 9 q8 9 16 0" fill="#1b1f3b"/>
       </g>
       <g class="happy"><circle cx="-19" cy="10" r="4" fill="#ff9ab8"/><circle cx="19" cy="10" r="4" fill="#ff9ab8"/></g>
+      <g class="wrong" stroke="#1b1f3b" stroke-width="3.5" stroke-linecap="round" fill="none">
+        <path d="M-15 -6 l7 5 M-15 -1 l7 -5"/><path d="M8 -6 l7 5 M8 -1 l7 -5"/><path d="M-6 13 q6 -6 12 0"/>
+      </g>
     </svg>`;
   const lockSVG = `<svg class="lock" viewBox="0 0 16 16"><path d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2" fill="none" stroke="#fff" stroke-width="2"/><rect x="2.5" y="7" width="11" height="8" rx="2.5" fill="#fff"/></svg>`;
   const wallSVG = `<svg viewBox="0 0 100 100" preserveAspectRatio="none"><g fill="#a8775a"><rect x="6" y="8" width="40" height="22" rx="6"/><rect x="54" y="8" width="40" height="22" rx="6"/><rect x="-14" y="39" width="40" height="22" rx="6"/><rect x="31" y="39" width="38" height="22" rx="6"/><rect x="74" y="39" width="40" height="22" rx="6"/><rect x="6" y="70" width="40" height="22" rx="6"/><rect x="54" y="70" width="40" height="22" rx="6"/></g></svg>`;
+  const waterSVG = `<svg viewBox="0 0 100 100" preserveAspectRatio="none"><g fill="none" stroke="#8fd3ff" stroke-width="5" stroke-linecap="round" opacity=".55"><path class="wv" d="M-10 30 q10 -8 20 0 t20 0 t20 0 t20 0 t20 0 t20 0"/><path class="wv w2" d="M-10 62 q10 -8 20 0 t20 0 t20 0 t20 0 t20 0 t20 0"/></g><circle cx="74" cy="80" r="4" fill="#bfe6ff" opacity=".6"/><circle cx="24" cy="46" r="3" fill="#bfe6ff" opacity=".5"/></svg>`;
   const powerSVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.6a8 8 0 1 0 11.4 0"/></svg>`;
 
   function renderNav() {
@@ -383,7 +415,7 @@
   }
   function renderLevelGrid() {
     const wrap = $('levelGrid'); wrap.innerHTML = '';
-    LEVELS.forEach((L, i) => {
+    LEVELS.forEach((lv, i) => {
       const b = document.createElement('button');
       b.innerHTML = `${i + 1}<small>${'★'.repeat(progress[i] || 0)}</small>`;
       b.setAttribute('aria-label', 'Bölüm ' + (i + 1));
@@ -396,27 +428,30 @@
 
   function load(i) {
     timers.forEach(clearTimeout); timers = [];
-    lvl = i; const L = LEVELS[i];
+    lvl = i; L = LEVELS[i]; N = L.n;
     grid = L.grid.map(r => [...r]);
-    angles = grid.map(r => r.map(c => isSlash(c) ? -45 : 45));
+    angles = grid.map(r => r.map(c => (c === '/' || c === 'a' || c === 'p') ? -45 : 45));
     moves = 0; lightOn = false; solvedLvl = false;
-    optimal = computeOptimal(L);
+    optimal = computeOptimal();
+    document.documentElement.style.setProperty('--n', N);
+    const size = 2 * RING + N * CELL;
+    svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
     $('levelTitle').textContent = `Bölüm ${i + 1}`;
-    $('levelLights').innerHTML = L.colors.map(c => `<i style="color:${PALETTE[c]}" title="${c}"></i>`).join('');
+    $('levelLights').innerHTML = L.lanterns.map(l => `<i style="color:${hex(l.c)}" title="${COLORS[l.c].name}"></i>`).join('');
     const cap = w => w.charAt(0).toLocaleUpperCase('tr') + w.slice(1);
-    $('hint').innerHTML = L.hint || (L.colors.length > 1
-      ? 'Her feneri kendi rengindeki hedefe yönlendir.'
-      : `<b style="color:${PALETTE[L.colors[0]]}">${cap(L.colors[0])}</b> ışığı hedefe ulaştır.`);
-    tint = L.colors.map(c => PALETTE[c]);
+    const multi = L.lanterns.length > 1 || L.targets.length > 1;
+    $('hint').innerHTML = L.hint || (multi
+      ? 'Her hedef kendi rengindeki ışığı bekliyor.'
+      : `<b style="color:${hex(L.lanterns[0].c)}">${cap(COLORS[L.lanterns[0].c].name)}</b> ışığı hedefe ulaştır.`);
+    tint = L.lanterns.map(l => hex(l.c));
     build(); renderNav(); updateMoves(); drawBeams(false);
   }
 
   function build() {
-    const L = LEVELS[lvl];
     [...board.querySelectorAll('.cell')].forEach(n => n.remove());
     const lanternAt = {}, targetAt = {};
     L.lanterns.forEach((l, i) => lanternAt[l.s + l.i] = i);
-    L.targets.forEach((t, i) => targetAt[t] = i);
+    L.targets.forEach((t, i) => targetAt[t.k] = i);
     for (let gy = -1; gy <= N; gy++) for (let gx = -1; gx <= N; gx++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
@@ -427,8 +462,9 @@
         const c = grid[gy][gx];
         const t = document.createElement('div'); t.className = 'tile'; t.dataset.x = gx; t.dataset.y = gy;
         if (c === '#') { t.classList.add('wall'); t.innerHTML = wallSVG; }
+        else if (c === '~') { t.classList.add('water'); t.innerHTML = waterSVG; }
         else if (c !== '.') {
-          const m = document.createElement('div'); m.className = 'mirror';
+          const m = document.createElement('div'); m.className = (c === 'p' || c === 'q') ? 'mirror half' : 'mirror';
           m.style.setProperty('--a', angles[gy][gx] + 'deg');
           t.appendChild(m);
           if (c === 'a' || c === 'b') { t.classList.add('locked'); t.insertAdjacentHTML('beforeend', lockSVG); }
@@ -445,16 +481,17 @@
           cell.appendChild(b);
         }
       } else {
-        const k = keyOf(gx, gy);
+        const k = keyOf(N, gx, gy);
         if (k in lanternAt) {
           const i = lanternAt[k], l = L.lanterns[i];
-          const d = document.createElement('div'); d.className = 'lantern'; d.dataset.i = i;
-          d.innerHTML = lanternSVG(col(L, i), ROT[l.s]);
+          const d = document.createElement('div'); d.className = 'lantern';
+          d.innerHTML = lanternSVG(hex(l.c), ROT[l.s]);
           cell.appendChild(d);
         } else if (k in targetAt) {
-          const i = targetAt[k];
-          const d = document.createElement('div'); d.className = 'target'; d.dataset.i = i;
-          d.style.setProperty('--col', col(L, i)); d.innerHTML = targetSVG(col(L, i));
+          const i = targetAt[k], t = L.targets[i];
+          const d = document.createElement('div'); d.className = 'target'; d.dataset.k = k;
+          d.style.setProperty('--col', hex(t.c)); d.innerHTML = targetSVG(hex(t.c));
+          d.title = COLORS[t.c].name + ' ışık bekliyor';
           cell.appendChild(d);
         }
       }
@@ -467,7 +504,7 @@
     if (solvedLvl) return;
     const c = grid[y][x];
     if (c === 'a' || c === 'b') { sfx.locked(); el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); return; }
-    grid[y][x] = c === '/' ? '\\' : '/';
+    grid[y][x] = ROTS[c];
     angles[y][x] += 90;
     el.querySelector('.mirror').style.setProperty('--a', angles[y][x] + 'deg');
     moves++; updateMoves(); sfx.rotate();
@@ -484,79 +521,74 @@
 
   function updateMoves() { $('moves').textContent = 'Hamle ' + moves; }
 
+  const SPEED = 1.1; // ms per svg unit
   function drawBeams(animate) {
-    const L = LEVELS[lvl];
     timers.forEach(clearTimeout); timers = [];
     [...svg.querySelectorAll('g.beam')].forEach(n => n.remove());
     board.querySelectorAll('.tile.lit').forEach(t => t.classList.remove('lit'));
-    board.querySelectorAll('.target').forEach(t => t.classList.remove('hit'));
+    board.querySelectorAll('.target').forEach(t => t.classList.remove('hit', 'wrongc'));
     board.querySelectorAll('.lantern').forEach(t => t.classList.toggle('on', lightOn));
     $('power').classList.toggle('on', lightOn);
     if (!lightOn) return;
 
-    let allHit = true, maxDur = 0;
-    L.lanterns.forEach((l, i) => {
-      const r = trace(grid, l), c = col(L, i);
-      const d = 'M' + r.pts.map(p => p.join(' ')).join(' L');
-      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.setAttribute('class', 'beam');
+    const tr = traceAll(grid, N, L.lanterns);
+    const NS = 'http://www.w3.org/2000/svg';
+    let maxT = 0;
+    const later = (fn, t) => { if (animate && t > 0) timers.push(setTimeout(fn, t)); else fn(); };
+    tr.paths.forEach(p => {
+      const c = hex(p.c), d = 'M' + p.pts.map(q => q.join(' ')).join(' L');
+      const g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'beam');
+      if (p.fade) g.setAttribute('opacity', '.35');
       const mk = (w, color, op, filt) => {
-        const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        p.setAttribute('d', d); p.setAttribute('fill', 'none'); p.setAttribute('stroke', color);
-        p.setAttribute('stroke-width', w); p.setAttribute('stroke-linecap', 'round'); p.setAttribute('stroke-linejoin', 'round');
-        p.setAttribute('opacity', op); if (filt) p.setAttribute('filter', 'url(#glow)');
-        g.appendChild(p); return p;
+        const e = document.createElementNS(NS, 'path');
+        e.setAttribute('d', d); e.setAttribute('fill', 'none'); e.setAttribute('stroke', color);
+        e.setAttribute('stroke-width', w); e.setAttribute('stroke-linecap', 'round'); e.setAttribute('stroke-linejoin', 'round');
+        e.setAttribute('opacity', op); if (filt) e.setAttribute('filter', 'url(#glow)');
+        g.appendChild(e); return e;
       };
-      const paths = [mk(20, c, .5, true), mk(9, c, 1), mk(3, '#ffffff', .8)];
+      const els = [mk(20, c, .5, true), mk(9, c, 1), mk(3, '#ffffff', .8)];
       svg.appendChild(g);
-      const hit = r.end === L.targets[i];
-      if (!hit) allHit = false;
-      const len = paths[1].getTotalLength();
-      const dur = animate ? Math.max(350, len * 1.1) : 0;
-      maxDur = Math.max(maxDur, dur);
-      if (animate) paths.forEach(p => {
-        p.style.strokeDasharray = len; p.style.strokeDashoffset = len;
-        p.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }], { duration: dur, easing: 'linear', fill: 'forwards' });
+      const len = els[1].getTotalLength();
+      const delay = p.d0 * SPEED, dur = Math.max(1, len * SPEED);
+      maxT = Math.max(maxT, delay + dur);
+      if (animate) els.forEach(e => {
+        e.style.strokeDasharray = len + 1; e.style.strokeDashoffset = len + 1;
+        e.animate([{ strokeDashoffset: len + 1 }, { strokeDashoffset: 0 }], { duration: dur, delay, easing: 'linear', fill: 'forwards' });
       });
-      let acc = 0;
-      for (let k = 1; k < r.pts.length; k++) {
-        const [ax, ay] = r.pts[k - 1], [bx, by] = r.pts[k];
-        acc += Math.hypot(bx - ax, by - ay);
-        const h = r.hits[k - 1];
-        if (!h) continue;
-        const t = board.querySelector(`.tile[data-x="${h[0]}"][data-y="${h[1]}"]`);
-        timers.push(setTimeout(() => { if (lightOn && t) { t.style.setProperty('--glow', c); t.classList.add('lit'); } }, animate ? acc / len * dur : 0));
-      }
-      if (hit) timers.push(setTimeout(() => {
-        if (!lightOn) return;
-        const tg = board.querySelector(`.target[data-i="${i}"]`); if (tg) tg.classList.add('hit');
-        if (animate) sfx.hit(i);
-      }, dur));
-      else addSpark(g, r.pts[r.pts.length - 1], c, dur);
     });
-
-    if (allHit) { solvedLvl = true; timers.push(setTimeout(win, maxDur + 600)); }
-  }
-
-  function addSpark(g, [x, y], c, delay) {
-    const s = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    s.setAttribute('cx', x); s.setAttribute('cy', y); s.setAttribute('r', 11); s.setAttribute('fill', c);
-    s.setAttribute('filter', 'url(#glow)'); s.style.opacity = 0;
-    g.appendChild(s);
-    s.animate([{ opacity: 0 }, { opacity: 1 }, { opacity: .35 }], { duration: 800, delay, iterations: Infinity, direction: 'alternate' });
+    tr.hits.forEach(h => {
+      const t = board.querySelector(`.tile[data-x="${h.x}"][data-y="${h.y}"]`);
+      later(() => { if (lightOn && t) { t.style.setProperty('--glow', hex(h.c)); t.classList.add('lit'); } }, h.d * SPEED);
+    });
+    tr.sparks.forEach(s => {
+      const e = document.createElementNS(NS, 'circle');
+      e.setAttribute('cx', s.p[0]); e.setAttribute('cy', s.p[1]); e.setAttribute('r', 11); e.setAttribute('fill', hex(s.c));
+      e.setAttribute('filter', 'url(#glow)'); e.style.opacity = 0;
+      const g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'beam'); g.appendChild(e); svg.appendChild(g);
+      e.animate([{ opacity: 0 }, { opacity: 1 }, { opacity: .35 }], { duration: 800, delay: animate ? s.d * SPEED : 0, iterations: Infinity, direction: 'alternate' });
+    });
+    let allHit = true;
+    L.targets.forEach((t, i) => {
+      const got = tr.ends[t.k] || 0, ok = got === t.c;
+      if (!ok) allHit = false;
+      if (!got) return;
+      const el = board.querySelector(`.target[data-k="${t.k}"]`);
+      later(() => { if (!lightOn || !el) return; el.classList.add(ok ? 'hit' : 'wrongc'); if (ok && animate) sfx.hit(i); }, (tr.endD[t.k] || 0) * SPEED);
+    });
+    if (allHit) { solvedLvl = true; timers.push(setTimeout(win, (animate ? maxT : 0) + 600)); }
   }
 
   function win() {
-    const L = LEVELS[lvl];
     const stars = moves <= optimal ? 3 : moves <= optimal + 2 ? 2 : 1;
     progress[lvl] = Math.max(progress[lvl] || 0, stars); save();
     $('stars').innerHTML = [1, 2, 3].map(s => `<span class="${s <= stars ? 'on' : 'off'}">★</span>`).join('');
     const last = lvl === LEVELS.length - 1;
-    $('winTitle').textContent = L.colors.length > 1 ? 'Işıklar hedefte!' : 'Işık hedefte!';
+    $('winTitle').textContent = L.targets.length > 1 ? 'Işıklar hedefte!' : 'Işık hedefte!';
     $('winText').textContent = `${moves} hamlede çözdün (en az: ${optimal}).` + (last ? ' Tüm bölümleri bitirdin!' : '');
     $('winNext').textContent = last ? 'Baştan oyna' : 'Sonraki bölüm';
     $('win').classList.add('show');
     sfx.win();
-    burst(L.colors.map(c => PALETTE[c]));
+    burst([...new Set(L.targets.map(t => hex(t.c)))]);
     renderNav();
     $('winNext').focus();
   }
