@@ -194,6 +194,7 @@
   // cell key "x+:u,v"  (face = axis letter + sign; u,v = the other two axes in x,y,z order)
   // cells: key -> { t: '/' | '\\' (rotatable mirror), 'a' | 'b' (locked), 'H' bump, 'L' lantern, 'T' target,
   //                 'P' pipe mouth { o: direction the mouth faces, to: other mouth key },
+  //                 'O' hole mouth (open), 'U' hole mouth with a 45° tilt mirror { fi: which of the 4 surface directions it faces },
   //                 'S' sensor, 'D' door (closed blocks light), 'F' sun flower, 'c' / 'e' motor mirror ('/' / '\\', turned by a flower) }
   var SN = 4, BEAM_H = .2;
   var AX = { x: 0, y: 1, z: 2 };
@@ -207,6 +208,9 @@
     for (let i = 0; i < 3; i++) w[i] = i === F.a ? F.s * SN / 2 + F.s * h : p[i] - (SN - 1) / 2;
     return w;
   }
+  function tangentDirsS(f) { const F = faceInfo(f), out = []; [F.u, F.v].forEach(ax => [1, -1].forEach(s => { const d = [0,0,0]; d[ax] = s; out.push(d); })); return out; }
+  // the cell straight across the cube (the other end of a hole)
+  function oppositeCell(key) { const { f, F, p } = cellP(key), q = p.slice(); q[F.a] = F.s < 0 ? SN : -1; const g = f[0] + (f[1] === '+' ? '-' : '+'); return { f: g, p: q, key: keyFromP(g, q) }; }
   var add3 = (a, b, k) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
   // points along a mirrored pipe from mouth A (light enters) to mouth B (light leaves)
   function pipeCurve(ka, oa, kb, ob) {
@@ -253,7 +257,20 @@
         const key = keyFromP(f, p), cell = cells[key], c = worldOf(f, p, BEAM_H);
         const sk = key + '|' + d.join(',');
         if (seen.has(sk)) { add(c); break; } seen.add(sk);
-        if (!cell) continue;
+        if (!cell || cell.t === 'O') continue;
+        if (cell.t === 'U') {
+          const fd = tangentDirsS(f)[cell.fi];
+          if (d[0] === -fd[0] && d[1] === -fd[1] && d[2] === -fd[2]) {
+            // the tilt mirror sends the light down the hole, straight through the cube
+            add(c); hits.push({ k: key, c: l.c, d: dist });
+            const ex = oppositeCell(key), ce = worldOf(ex.f, ex.p, BEAM_H), exCell = cells[ex.key];
+            add(ce); hits.push({ k: ex.key, c: l.c, d: dist });
+            f = ex.f; p = ex.p;
+            if (exCell && exCell.t === 'U') { d = tangentDirsS(f)[exCell.fi]; seen.add(ex.key + '|' + d.join(',')); continue; }
+            add(add3(ce, normalOf(f), 2.6)); break;          // open far end: the light leaves into space
+          }
+          add([c[0] - d[0] * .42, c[1] - d[1] * .42, c[2] - d[2] * .42]); hits.push({ k: key, c: l.c, d: dist }); sparks.push({ p: pts[pts.length - 1], c: l.c, d: dist }); break;
+        }
         if (cell.t === 'T' || cell.t === 'S' || cell.t === 'F') { add(c); ends[key] = (ends[key] || 0) | l.c; endD[key] = Math.max(endD[key] || 0, dist); break; }
         if (cell.t === 'P' && d[0] === -cell.o[0] && d[1] === -cell.o[1] && d[2] === -cell.o[2]) {
           const peer = cells[cell.to];
@@ -294,7 +311,7 @@
     4: { name: 'mavi', hex: '#4c9dff' }, 5: { name: 'mor', hex: '#d27bff' }, 6: { name: 'turkuaz', hex: '#3ef0d8' }, 7: { name: 'beyaz', hex: '#ffffff' },
   };
   const hex = c => COLORS[c].hex;
-  const LEVELS = [{"lanterns": [{"k": "x+:0,2", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z+:0,0", "c": 4}], "pipes": [], "cells": [["y-:3,2", "\\"], ["z+:3,0", "/"]]}, {"lanterns": [{"k": "y+:2,1", "d": [-1, 0, 0], "c": 3}], "targets": [{"k": "z+:3,2", "c": 3}], "pipes": [], "cells": [["y+:0,1", "\\"], ["y+:0,2", "/"], ["x-:2,2", "/"], ["z+:0,1", "H"], ["x-:1,2", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x-:2,2", "d": [0, 1, 0], "c": 2}], "targets": [{"k": "x+:3,2", "c": 2}], "pipes": [{"a": "y+:1,2", "oa": [-1, 0, 0], "b": "y+:3,2", "ob": [0, 0, 1]}], "cells": [["y+:2,2", "H"], ["y+:3,3", "\\"], ["x+:3,3", "\\"], ["x-:3,3", "H"]]}, {"lanterns": [{"k": "y+:3,1", "d": [0, 0, -1], "c": 1}], "targets": [{"k": "x-:0,0", "c": 1}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "y-:3,3", "ob": [0, 0, -1]}], "cells": [["y+:3,0", "\\"], ["y+:2,0", "/"], ["y-:3,2", "/"], ["x+:0,2", "b"], ["z+:2,2", "H"], ["z+:3,0", "H"], ["x+:2,0", "H"]]}, {"lanterns": [{"k": "z-:2,2", "d": [-1, 0, 0], "c": 4}, {"k": "x+:2,2", "d": [0, 0, -1], "c": 3}], "targets": [{"k": "y+:1,1", "c": 4}, {"k": "y-:2,0", "c": 3}], "pipes": [{"a": "x-:1,0", "oa": [0, 0, -1], "b": "x-:3,2", "ob": [0, 1, 0]}], "cells": [["z-:0,2", "/"], ["z-:0,1", "\\"], ["x-:2,1", "H"], ["y+:1,2", "/"], ["x+:2,0", "\\"], ["x+:1,1", "H"], ["z+:1,1", "H"], ["y+:0,0", "H"]]}, {"lanterns": [{"k": "y+:0,1", "d": [0, 0, -1], "c": 5}], "targets": [{"k": "y-:0,1", "c": 5}], "pipes": [{"a": "y+:1,0", "oa": [-1, 0, 0], "b": "x+:0,3", "ob": [0, 0, -1]}, {"a": "y-:3,1", "oa": [1, 0, 0], "b": "z+:2,2", "ob": [1, 0, 0]}], "cells": [["y+:0,0", "\\"], ["x+:0,1", "\\"], ["z+:3,2", "/"], ["z+:3,1", "\\"], ["z+:2,1", "a"], ["y-:2,1", "/"], ["x-:2,1", "H"], ["x+:0,0", "H"], ["z-:2,2", "H"], ["z+:1,3", "H"]]}, {"lanterns": [{"k": "x-:3,0", "d": [0, 1, 0], "c": 6}, {"k": "z+:0,1", "d": [0, 1, 0], "c": 1}], "targets": [{"k": "x+:1,1", "c": 6}, {"k": "x+:2,1", "c": 1}], "pipes": [{"a": "z+:3,2", "oa": [0, 1, 0], "b": "z+:3,0", "ob": [1, 0, 0]}, {"a": "y+:0,3", "oa": [0, 0, 1], "b": "x-:2,1", "ob": [0, -1, 0]}], "cells": [["y+:1,0", "a"], ["z+:1,3", "/"], ["z+:3,3", "\\"], ["z+:3,1", "H"], ["x+:0,1", "\\"], ["x-:1,1", "\\"], ["z-:1,1", "\\"], ["z-:1,2", "\\"], ["y-:2,3", "H"], ["y-:1,3", "H"], ["z-:2,0", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x+:0,3", "d": [0, 0, 1], "c": 1}, {"k": "y+:2,2", "d": [0, 0, -1], "c": 2}, {"k": "z-:2,1", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z-:1,0", "c": 1}, {"k": "z+:3,3", "c": 2}, {"k": "y+:0,1", "c": 4}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "z-:0,0", "ob": [0, 1, 0]}, {"a": "z-:0,1", "oa": [0, -1, 0], "b": "z-:3,3", "ob": [0, 1, 0]}, {"a": "y-:2,1", "oa": [0, 0, -1], "b": "y-:0,1", "ob": [-1, 0, 0]}], "cells": [["z+:1,0", "/"], ["z-:1,2", "H"], ["z-:2,2", "H"], ["y+:3,1", "\\"], ["x+:3,1", "b"], ["x+:3,3", "a"], ["y+:3,3", "/"], ["x-:0,1", "\\"], ["x-:0,2", "\\"], ["x-:2,2", "\\"], ["x-:2,1", "/"], ["x+:3,0", "H"], ["x+:1,1", "H"], ["x+:2,2", "H"], ["y+:2,3", "H"], ["x+:0,0", "H"]]}, {"lanterns": [{"k": "z+:1,2", "d": [-1, 0, 0], "c": 3}, {"k": "x+:3,3", "d": [0, 0, -1], "c": 4}], "targets": [{"k": "z-:0,3", "c": 4}], "pipes": [], "sensors": [{"k": "z+:1,0", "door": "x+:3,1"}], "flowers": [], "cells": [["x-:2,3", "\\"], ["x-:0,3", "/"], ["x+:3,1", "D"]]}, {"lanterns": [{"k": "z+:2,0", "d": [0, 1, 0], "c": 1}, {"k": "x+:3,2", "d": [0, 1, 0], "c": 6}], "targets": [{"k": "y-:2,0", "c": 6}], "pipes": [], "sensors": [{"k": "x-:0,3", "door": "y+:2,1"}], "flowers": [], "cells": [["z+:2,3", "/"], ["z+:0,3", "\\"], ["z+:0,1", "\\"], ["x-:1,3", "a"], ["y+:2,2", "/"], ["y+:2,1", "D"], ["x-:2,3", "H"], ["y+:3,1", "H"], ["y-:0,2", "H"]]}, {"lanterns": [{"k": "y-:3,3", "d": [0, 0, 1], "c": 3}, {"k": "y-:3,2", "d": [0, 0, -1], "c": 2}], "targets": [{"k": "x+:2,0", "c": 2}], "pipes": [], "sensors": [], "flowers": [{"k": "z+:0,1", "m": "z-:3,1"}], "cells": [["z+:3,1", "/"], ["z-:3,1", "e"], ["x+:1,0", "\\"]]}, {"lanterns": [{"k": "z-:0,0", "d": [0, 1, 0], "c": 3}, {"k": "y+:3,0", "d": [0, 0, -1], "c": 5}, {"k": "y-:0,0", "d": [-1, 0, 0], "c": 4}], "targets": [{"k": "z+:0,3", "c": 4}], "pipes": [], "sensors": [{"k": "y-:3,1", "door": "x-:0,2"}], "flowers": [{"k": "y+:0,2", "m": "x-:0,0"}], "cells": [["x-:0,0", "e"], ["x-:0,2", "D"], ["z+:0,0", "\\"], ["z+:0,1", "\\"], ["x-:1,3", "/"], ["x-:3,3", "\\"], ["y+:1,3", "H"], ["x+:3,2", "H"], ["x-:1,0", "H"]]}];
+  const LEVELS = [{"lanterns": [{"k": "x+:0,2", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z+:0,0", "c": 4}], "pipes": [], "cells": [["y-:3,2", "\\"], ["z+:3,0", "/"]]}, {"lanterns": [{"k": "y+:2,1", "d": [-1, 0, 0], "c": 3}], "targets": [{"k": "z+:3,2", "c": 3}], "pipes": [], "cells": [["y+:0,1", "\\"], ["y+:0,2", "/"], ["x-:2,2", "/"], ["z+:0,1", "H"], ["x-:1,2", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x-:2,2", "d": [0, 1, 0], "c": 2}], "targets": [{"k": "x+:3,2", "c": 2}], "pipes": [{"a": "y+:1,2", "oa": [-1, 0, 0], "b": "y+:3,2", "ob": [0, 0, 1]}], "cells": [["y+:2,2", "H"], ["y+:3,3", "\\"], ["x+:3,3", "\\"], ["x-:3,3", "H"]]}, {"lanterns": [{"k": "y+:3,1", "d": [0, 0, -1], "c": 1}], "targets": [{"k": "x-:0,0", "c": 1}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "y-:3,3", "ob": [0, 0, -1]}], "cells": [["y+:3,0", "\\"], ["y+:2,0", "/"], ["y-:3,2", "/"], ["x+:0,2", "b"], ["z+:2,2", "H"], ["z+:3,0", "H"], ["x+:2,0", "H"]]}, {"lanterns": [{"k": "z-:2,2", "d": [-1, 0, 0], "c": 4}, {"k": "x+:2,2", "d": [0, 0, -1], "c": 3}], "targets": [{"k": "y+:1,1", "c": 4}, {"k": "y-:2,0", "c": 3}], "pipes": [{"a": "x-:1,0", "oa": [0, 0, -1], "b": "x-:3,2", "ob": [0, 1, 0]}], "cells": [["z-:0,2", "/"], ["z-:0,1", "\\"], ["x-:2,1", "H"], ["y+:1,2", "/"], ["x+:2,0", "\\"], ["x+:1,1", "H"], ["z+:1,1", "H"], ["y+:0,0", "H"]]}, {"lanterns": [{"k": "y+:0,1", "d": [0, 0, -1], "c": 5}], "targets": [{"k": "y-:0,1", "c": 5}], "pipes": [{"a": "y+:1,0", "oa": [-1, 0, 0], "b": "x+:0,3", "ob": [0, 0, -1]}, {"a": "y-:3,1", "oa": [1, 0, 0], "b": "z+:2,2", "ob": [1, 0, 0]}], "cells": [["y+:0,0", "\\"], ["x+:0,1", "\\"], ["z+:3,2", "/"], ["z+:3,1", "\\"], ["z+:2,1", "a"], ["y-:2,1", "/"], ["x-:2,1", "H"], ["x+:0,0", "H"], ["z-:2,2", "H"], ["z+:1,3", "H"]]}, {"lanterns": [{"k": "x-:3,0", "d": [0, 1, 0], "c": 6}, {"k": "z+:0,1", "d": [0, 1, 0], "c": 1}], "targets": [{"k": "x+:1,1", "c": 6}, {"k": "x+:2,1", "c": 1}], "pipes": [{"a": "z+:3,2", "oa": [0, 1, 0], "b": "z+:3,0", "ob": [1, 0, 0]}, {"a": "y+:0,3", "oa": [0, 0, 1], "b": "x-:2,1", "ob": [0, -1, 0]}], "cells": [["y+:1,0", "a"], ["z+:1,3", "/"], ["z+:3,3", "\\"], ["z+:3,1", "H"], ["x+:0,1", "\\"], ["x-:1,1", "\\"], ["z-:1,1", "\\"], ["z-:1,2", "\\"], ["y-:2,3", "H"], ["y-:1,3", "H"], ["z-:2,0", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x+:0,3", "d": [0, 0, 1], "c": 1}, {"k": "y+:2,2", "d": [0, 0, -1], "c": 2}, {"k": "z-:2,1", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z-:1,0", "c": 1}, {"k": "z+:3,3", "c": 2}, {"k": "y+:0,1", "c": 4}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "z-:0,0", "ob": [0, 1, 0]}, {"a": "z-:0,1", "oa": [0, -1, 0], "b": "z-:3,3", "ob": [0, 1, 0]}, {"a": "y-:2,1", "oa": [0, 0, -1], "b": "y-:0,1", "ob": [-1, 0, 0]}], "cells": [["z+:1,0", "/"], ["z-:1,2", "H"], ["z-:2,2", "H"], ["y+:3,1", "\\"], ["x+:3,1", "b"], ["x+:3,3", "a"], ["y+:3,3", "/"], ["x-:0,1", "\\"], ["x-:0,2", "\\"], ["x-:2,2", "\\"], ["x-:2,1", "/"], ["x+:3,0", "H"], ["x+:1,1", "H"], ["x+:2,2", "H"], ["y+:2,3", "H"], ["x+:0,0", "H"]]}, {"lanterns": [{"k": "z+:1,2", "d": [-1, 0, 0], "c": 3}, {"k": "x+:3,3", "d": [0, 0, -1], "c": 4}], "targets": [{"k": "z-:0,3", "c": 4}], "pipes": [], "sensors": [{"k": "z+:1,0", "door": "x+:3,1"}], "flowers": [], "cells": [["x-:2,3", "\\"], ["x-:0,3", "/"], ["x+:3,1", "D"]]}, {"lanterns": [{"k": "z+:2,0", "d": [0, 1, 0], "c": 1}, {"k": "x+:3,2", "d": [0, 1, 0], "c": 6}], "targets": [{"k": "y-:2,0", "c": 6}], "pipes": [], "sensors": [{"k": "x-:0,3", "door": "y+:2,1"}], "flowers": [], "cells": [["z+:2,3", "/"], ["z+:0,3", "\\"], ["z+:0,1", "\\"], ["x-:1,3", "a"], ["y+:2,2", "/"], ["y+:2,1", "D"], ["x-:2,3", "H"], ["y+:3,1", "H"], ["y-:0,2", "H"]]}, {"lanterns": [{"k": "y-:3,3", "d": [0, 0, 1], "c": 3}, {"k": "y-:3,2", "d": [0, 0, -1], "c": 2}], "targets": [{"k": "x+:2,0", "c": 2}], "pipes": [], "sensors": [], "flowers": [{"k": "z+:0,1", "m": "z-:3,1"}], "cells": [["z+:3,1", "/"], ["z-:3,1", "e"], ["x+:1,0", "\\"]]}, {"lanterns": [{"k": "z-:0,0", "d": [0, 1, 0], "c": 3}, {"k": "y+:3,0", "d": [0, 0, -1], "c": 5}, {"k": "y-:0,0", "d": [-1, 0, 0], "c": 4}], "targets": [{"k": "z+:0,3", "c": 4}], "pipes": [], "sensors": [{"k": "y-:3,1", "door": "x-:0,2"}], "flowers": [{"k": "y+:0,2", "m": "x-:0,0"}], "cells": [["x-:0,0", "e"], ["x-:0,2", "D"], ["z+:0,0", "\\"], ["z+:0,1", "\\"], ["x-:1,3", "/"], ["x-:3,3", "\\"], ["y+:1,3", "H"], ["x+:3,2", "H"], ["x-:1,0", "H"]]}, {"lanterns": [{"k": "z-:1,3", "d": [1, 0, 0], "c": 4}], "targets": [{"k": "x-:1,2", "c": 4}], "pipes": [], "sensors": [], "flowers": [], "cells": [["z-:2,3", "U", 3], ["z+:2,3", "U", 2], ["z+:2,1", "/"]]}, {"lanterns": [{"k": "x+:1,2", "d": [0, 0, 1], "c": 3}], "targets": [{"k": "x+:2,0", "c": 3}], "pipes": [], "sensors": [], "flowers": [], "cells": [["x+:1,3", "U", 3], ["x-:1,3", "U", 0], ["x-:1,2", "\\"], ["y-:3,2", "/"], ["y-:3,0", "\\"], ["y-:2,2", "O"], ["y+:2,2", "O"], ["z+:3,3", "H"], ["y+:0,0", "H"]]}, {"lanterns": [{"k": "z+:3,3", "d": [-1, 0, 0], "c": 1}, {"k": "x-:2,0", "d": [0, 0, 1], "c": 2}], "targets": [{"k": "z-:1,0", "c": 1}, {"k": "z+:0,0", "c": 2}], "pipes": [], "sensors": [], "flowers": [], "cells": [["z+:0,3", "\\"], ["z+:0,2", "/"], ["z+:1,2", "U", 2], ["z-:1,2", "U", 2], ["x-:2,2", "U", 3], ["x+:2,2", "U", 2], ["x+:0,2", "\\"], ["z+:1,3", "O"], ["z-:1,3", "O"], ["x-:1,3", "H"], ["z-:2,2", "H"]]}, {"lanterns": [{"k": "y-:0,3", "d": [0, 0, -1], "c": 5}, {"k": "z-:3,0", "d": [1, 0, 0], "c": 6}], "targets": [{"k": "z+:3,3", "c": 6}], "pipes": [], "sensors": [{"k": "z-:1,2", "door": "y+:3,3"}], "flowers": [], "cells": [["z-:0,0", "/"], ["z-:1,0", "\\"], ["x+:0,1", "\\"], ["y-:3,1", "U", 1], ["y+:3,1", "U", 3], ["y+:3,3", "D"], ["y-:1,1", "H"], ["z+:3,2", "H"]]}];
   const HINTS = {
     0: 'Aynalara dokunup çevir, sonra düğmeye bas. Işık kenara gelince <b>yandaki yüze geçer</b>: küpü çevirip takip et.',
     1: '<b>Bloklar</b> ışığı keser. Işık düz gider, bloğun üzerinden kendiliğinden geçemez.',
@@ -304,6 +321,10 @@
     8: 'Işık <b>güneş paneline</b> ulaşınca turuncu <b>kapı</b> yere iner, oradan ışık geçebilir.',
     10: 'Işık <b>güneş çiçeğine</b> ulaşınca çiçek açar ve sarı çerçeveli <b>motorlu aynayı</b> çevirir.',
     11: 'Güneş paneli, çiçek ve kapı bir arada. Hangi ışığın neyi tetiklediğini takip et.',
+    12: 'Deliğin ağzındaki <b>eğik ayna</b> ışığı küpün içine yollar, karşı yüzdeki eğik ayna dışarı çıkarır. Eğik aynaya dokununca 4 yönden birine döner.',
+    13: 'Ağzında ayna olmayan deliğin üzerinden ışık düz geçer.',
+    14: 'İki fener, iki delik. Küpü çevirip deliğin öbür ucunu bul.',
+    15: 'Delik, güneş paneli ve kapı bir arada.',
   };
   const $ = id => document.getElementById(id);
   const stage = $('stage');
@@ -313,7 +334,7 @@
   let progress = {}, soundOn = true;
   try { progress = JSON.parse(localStorage.getItem('fenerkup-progress') || '{}'); soundOn = localStorage.getItem('fener-sound') !== '0'; } catch (e) {}
   const save = () => { try { localStorage.setItem('fenerkup-progress', JSON.stringify(progress)); localStorage.setItem('fener-sound', soundOn ? '1' : '0'); } catch (e) {} };
-  const START_LEVEL = 8;  // the game opens at level 9; levels 1-9 are always open
+  const START_LEVEL = 12;  // the game opens at level 13; levels 1-13 are always open
   const unlocked = i => i <= START_LEVEL || !!progress[i - 1] || !!progress[i];
 
   /* ---------- sound ---------- */
@@ -503,6 +524,29 @@
     return g;
   }
   const BLOCK_H = .56;
+  let holeRings = {};
+  const holeDiscGeo = new THREE.CircleGeometry(.3, 32), holeDiscMat = new THREE.MeshBasicMaterial({ color: 0x05081a });
+  const holeRingGeo = new THREE.TorusGeometry(.31, .03, 10, 36);
+  const holeTubeGeo = new THREE.CylinderGeometry(.3, .3, .4, 32, 1, true), holeTubeMat = new THREE.MeshBasicMaterial({ color: 0x0a0f2a, side: THREE.BackSide });
+  // 45° tilt mirror over a hole: catches light coming from the side it faces and sends it down the hole (and the other way round)
+  function tiltQuat(key, fi) {
+    const { f } = cellP(key), n = V(normalOf(f)), fd = V(tangentDirsS(f)[fi]);
+    const x = new THREE.Vector3().crossVectors(n, fd), y = fd.clone().add(n).normalize(), z = fd.clone().sub(n).normalize();
+    return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+  }
+  function makeTiltMirror(key) {
+    const g = new THREE.Group();
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x5ee0d0, roughness: .35, metalness: .15, emissive: 0 });
+    const frame = new THREE.Mesh(frameGeo, frameMat); frame.scale.set(.82, 1.15, 1);
+    const gF = new THREE.Mesh(glassGeo, glassMat); gF.scale.set(.82, 1.15, 1); gF.position.z = .004;
+    const gB = new THREE.Mesh(glassGeo, glassMat); gB.scale.set(.82, 1.15, 1); gB.position.z = -.004; gB.rotation.y = Math.PI;
+    const sF = new THREE.Mesh(streakGeo, streakMat); sF.scale.set(.82, 1.15, 1); sF.position.z = .012;
+    const sB = new THREE.Mesh(streakGeo, streakMat); sB.scale.set(.82, 1.15, 1); sB.position.z = -.012; sB.rotation.y = Math.PI;
+    g.add(frame, gF, gB, sF, sB);
+    g.traverse(m => { if (m.isMesh) m.userData.key = key; });
+    g.userData = { key, frame };
+    return g;
+  }
   let doors = {}, sensorObjs = {}, flowerObjs = {}, stageTimers = [];
   const doorMat = new THREE.MeshStandardMaterial({ color: 0xff9a52, roughness: .55 });
   const doorTopMat = new THREE.MeshStandardMaterial({ color: 0xffc08a, roughness: .5 });
@@ -523,13 +567,13 @@
     Object.values(tiles).forEach(t => t.material.color.setHex(0x2b3778));
     clearBeams();
     cells = {};
-    L.cells.forEach(([k, t]) => cells[k] = { t });
+    L.cells.forEach(([k, t, fi]) => cells[k] = { t, fi });
     L.lanterns.forEach(l => cells[l.k] = { t: 'L' });
     L.targets.forEach(t => cells[t.k] = { t: 'T' });
     L.pipes.forEach(p => { cells[p.a] = { t: 'P', o: p.oa, to: p.b }; cells[p.b] = { t: 'P', o: p.ob, to: p.a }; });
     (L.sensors || []).forEach(x => cells[x.k] = { t: 'S' });
     (L.flowers || []).forEach(x => cells[x.k] = { t: 'F' });
-    doors = {}; sensorObjs = {}; flowerObjs = {};
+    doors = {}; sensorObjs = {}; flowerObjs = {}; holeRings = {};
     const add = m => { world.add(m); objs.push(m); return m; };
     Object.entries(cells).forEach(([k, c]) => {
       const { f, p } = cellP(k);
@@ -539,6 +583,18 @@
         const top = new THREE.Mesh(blockTopGeo, blockTopMat);
         top.position.copy(V(worldOf(f, p, BLOCK_H + .012))); top.quaternion.copy(upQuat(f)); add(top);
         tiles[k].material.color.setHex(0x3e8a68);
+      } else if (c.t === 'O' || c.t === 'U') {              // hole mouth (+ tilt mirror)
+        const n = V(normalOf(f)), q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+        const disc = new THREE.Mesh(holeDiscGeo, holeDiscMat); disc.position.copy(V(worldOf(f, p, .008))); disc.quaternion.copy(q); add(disc);
+        const ringMat = new THREE.MeshStandardMaterial({ color: 0x9d8cff, roughness: .4, emissive: 0 });
+        const ring = new THREE.Mesh(holeRingGeo, ringMat); ring.position.copy(disc.position); ring.quaternion.copy(q); add(ring); holeRings[k] = ringMat;
+        const tube = new THREE.Mesh(holeTubeGeo, holeTubeMat); tube.position.copy(V(worldOf(f, p, -.2))); tube.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n); add(tube);
+        tiles[k].material.color.setHex(0x3a3470);
+        if (c.t === 'U') {
+          const g = makeTiltMirror(k);
+          g.position.copy(V(worldOf(f, p, BEAM_H))); g.quaternion.copy(tiltQuat(k, c.fi)); g.userData.targetQ = g.quaternion.clone(); g.userData.tilt = true;
+          add(g); mirrors[k] = g;
+        }
       } else if (c.t === 'D') {                            // door: an orange block that sinks into the cube when its sensor is lit
         const g = new THREE.Group();
         const body = new THREE.Mesh(blockGeo, doorMat); g.add(body);
@@ -629,6 +685,7 @@
     beams.forEach(b => { beamGroup.remove(b.core); beamGroup.remove(b.glow); }); beams = []; pendingHits = [];
     sparkMeshes.forEach(s => beamGroup.remove(s)); sparkMeshes = [];
     Object.values(mirrors).forEach(m => m.userData.frame.material.emissive.setHex(0));
+    Object.values(holeRings || {}).forEach(r => r.emissive.setHex(0));
     Object.values(edgeStrips).forEach(g => { g.userData.glass.material.opacity = .18; g.userData.glass.material.color.setHex(0xffffff); g.userData.glass.material.emissive.setHex(0); g.userData.back.material.opacity = .16; });
     Object.values(targetSprites).forEach(sp => { sp.material.map = spriteTex('target', sp.userData.col, 'idle'); sp.scale.set(.74, .74, 1); });
     lanternSprites.forEach(sp => sp.material.map = spriteTex('lantern', sp.userData.col, lightOn ? 'on' : 'off'));
@@ -704,7 +761,7 @@
         if (strip) { const c = hex(p.c); pendingHits.push({ at: acc, fn: () => { strip.userData.glass.material.opacity = .65; strip.userData.glass.material.color.set(c); strip.userData.glass.material.emissive.set(c).multiplyScalar(.45); } }); }
       }
     });
-    tr.hits.forEach(h => pendingHits.push({ at: h.d, fn: () => { const m = mirrors[h.k]; if (m) m.userData.frame.material.emissive.set(hex(h.c)).multiplyScalar(.45); } }));
+    tr.hits.forEach(h => pendingHits.push({ at: h.d, fn: () => { const m = mirrors[h.k]; if (m) m.userData.frame.material.emissive.set(hex(h.c)).multiplyScalar(.45); const r = holeRings[h.k]; if (r) r.emissive.set(hex(h.c)).multiplyScalar(.8); } }));
     tr.sparks.forEach(s => {
       const m = new THREE.Mesh(new THREE.SphereGeometry(.13, 12, 8), new THREE.MeshBasicMaterial({ color: hex(s.c), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
       m.position.copy(V(s.p)); beamGroup.add(m); sparkMeshes.push(m);
@@ -779,8 +836,8 @@
     if (solved) return;
     const c = cells[k], m = mirrors[k];
     if (c.t === 'a' || c.t === 'b' || c.t === 'c' || c.t === 'e') { sfx.locked(); m.userData.shake = performance.now(); return; }
-    c.t = FLIP[c.t];
-    m.userData.fromQ = m.quaternion.clone(); m.userData.targetQ = mirrorQuat(k, c.t); m.userData.t0 = performance.now();
+    if (c.t === 'U') { c.fi = (c.fi + 1) % 4; m.userData.fromQ = m.quaternion.clone(); m.userData.targetQ = tiltQuat(k, c.fi); m.userData.t0 = performance.now(); }
+    else { c.t = FLIP[c.t]; m.userData.fromQ = m.quaternion.clone(); m.userData.targetQ = mirrorQuat(k, c.t); m.userData.t0 = performance.now(); }
     moves++; updateMoves(); sfx.rotate();
     if (lightOn) drawBeams(false);
   }
@@ -802,11 +859,15 @@
 
   /* ---------- level flow ---------- */
   function computeOptimal() {
-    const rot = Object.keys(cells).filter(k => cells[k].t in FLIP), st = rot.map(k => cells[k].t);
+    const rot = Object.keys(cells).filter(k => cells[k].t in FLIP || cells[k].t === 'U');
     const tmp = {}; Object.entries(cells).forEach(([k, c]) => tmp[k] = { ...c });
+    const radix = rot.map(k => cells[k].t === 'U' ? 4 : 2);
+    const st = rot.map(k => cells[k].t === 'U' ? cells[k].fi : (cells[k].t === '/' ? 0 : 1));
+    const total = radix.reduce((x, y) => x * y, 1);
     let best = Infinity;
-    for (let m = 0; m < 1 << rot.length; m++) {
-      let cost = 0; rot.forEach((k, j) => { const f = m >> j & 1; cost += f; tmp[k].t = f ? FLIP[st[j]] : st[j]; });
+    for (let m = 0; m < total; m++) {
+      let mm = m, cost = 0;
+      rot.forEach((k, j) => { const v = mm % radix[j]; mm = Math.floor(mm / radix[j]); cost += (v - st[j] + radix[j]) % radix[j]; if (tmp[k].t === 'U') tmp[k].fi = v; else tmp[k].t = v ? '\\' : '/'; });
       if (cost < best && isWinS(tmp, L)) best = cost;
     }
     return best;
@@ -843,7 +904,7 @@
   $('prevBtn').onclick = () => lvl > 0 && load(lvl - 1);
   $('nextBtn').onclick = () => lvl < LEVELS.length - 1 && unlocked(lvl + 1) && load(lvl + 1);
   const TUT_KEY = 'fenerkup-tut-seen';
-  const LEVEL_TUT = { 0: ['wrap', 'basics'], 1: ['bump'], 2: ['pipe'], 3: ['locked'], 4: ['two'], 8: ['sensor'], 10: ['flower'] };
+  const LEVEL_TUT = { 0: ['wrap', 'basics'], 1: ['bump'], 2: ['pipe'], 3: ['locked'], 4: ['two'], 8: ['sensor'], 10: ['flower'], 12: ['hole'] };
   /* ---------- animated tutorials: shown the first time a new piece appears ---------- */
   const TUT = (() => {
     const BL = '#4c9dff', RD = '#ff5d73', PU = '#d27bff', YE = '#ffc93d';
@@ -906,6 +967,11 @@
       svg: svg(tiles([80, 120], 40) + tiles([80, 160], 108) + tile(120, 108) + lantern(36, 40, YE) + beam('M50 40 H150', YE, 't-s1') + sensorI(162, 40) + lantern(36, 108, BL) + doorI(120, 108, 't-sink') + beam('M50 108 H103', BL, 't-s1') + beam('M103 108 H212', BL, 't-s2') + target(224, 108, BL, 't-show2')) };
     CARDS.flower = { title: 'Yeni: Güneş çiçeği', text: 'Işık güneş çiçeğine ulaşınca çiçek açar ve sarı çerçeveli motorlu aynayı 90° çevirir. Motorlu aynayı sen çeviremezsin.',
       svg: svg(tiles([80, 120], 40) + tiles([80, 120, 160], 108) + lantern(36, 40, YE) + beam('M50 40 H146', YE, 't-s1') + flowerI(160, 40) + tile(200, 108) + `<g transform="translate(200 108)"><g class="t-rot2" style="transform: rotate(45deg)">${motorBar}</g><circle cx="13" cy="-13" r="4" fill="#ffb22e"/></g>` + lantern(36, 108, '#4ee89a') + beam('M50 108 H200', '#4ee89a', 't-s2') + beam('M200 108 V60', '#4ee89a', 't-s3') + target(200, 52, '#4ee89a', 't-show3')) };
+    CARDS.hole = { title: 'Yeni: Delik ve eğik ayna', text: 'Delik küpün içinden karşı yüze uzanır. Ağzındaki 45° eğik ayna ışığı aşağı, deliğin içine yollar; karşı uçtaki eğik ayna dışarı çıkarır. Periskop gibi. Eğik aynaya dokununca 4 yönden birine döner.',
+      svg: svg(`<rect x="60" y="34" width="150" height="82" rx="8" fill="#26306b"/><rect x="60" y="30" width="150" height="6" rx="3" fill="#34418b"/><rect x="60" y="114" width="150" height="6" rx="3" fill="#34418b"/><rect x="121" y="30" width="18" height="90" fill="#05081a"/>`
+        + `<g transform="translate(130 22) rotate(45)"><rect x="-15" y="-2.5" width="30" height="5" rx="2.5" fill="#e9f7ff" stroke="#5ee0d0" stroke-width="1.5"/></g>`
+        + `<g transform="translate(130 128) rotate(45)"><rect x="-15" y="-2.5" width="30" height="5" rx="2.5" fill="#e9f7ff" stroke="#5ee0d0" stroke-width="1.5"/></g>`
+        + lantern(30, 22, BL) + beam('M44 22 H130', BL, 't-s1') + beam('M130 22 V128', BL, 't-s2') + beam('M130 128 H210', BL, 't-s3') + target(222, 128, BL, 't-show3')) };
     return { CARDS };
   })();
   function tutSeen() { try { return JSON.parse(localStorage.getItem(TUT_KEY) || '{}'); } catch (e) { return {}; } }
