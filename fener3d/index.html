@@ -311,7 +311,8 @@
   let progress = {}, soundOn = true;
   try { progress = JSON.parse(localStorage.getItem('fenerkup-progress') || '{}'); soundOn = localStorage.getItem('fener-sound') !== '0'; } catch (e) {}
   const save = () => { try { localStorage.setItem('fenerkup-progress', JSON.stringify(progress)); localStorage.setItem('fener-sound', soundOn ? '1' : '0'); } catch (e) {} };
-  const unlocked = i => i === 0 || !!progress[i - 1] || !!progress[i];
+  const START_LEVEL = 8;  // the game opens at level 9; levels 1-9 are always open
+  const unlocked = i => i <= START_LEVEL || !!progress[i - 1] || !!progress[i];
 
   /* ---------- sound ---------- */
   let ac = null;
@@ -958,7 +959,7 @@
     requestAnimationFrame(frameLoop);
   }
   resize();
-  let start = 0; while (progress[start] && start < LEVELS.length - 1) start++;
+  let start = START_LEVEL; while (progress[start] && start < LEVELS.length - 1) start++;
   load(start);
   requestAnimationFrame(frameLoop);
 })();
