@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Fener Küpü</title>
-<meta name="description" content="Fener ve Aynalar'ın üç boyutlu hali: 4x4x4 küpte aynaları çevir, ışığı hedefe ulaştır.">
+<meta name="description" content="Fener ve Aynalar'ın küp hali: altı yüzlü bir küpte ışık kenarlardan yandaki yüze geçer.">
 <meta name="theme-color" content="#0b1230">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -55,16 +55,11 @@
   #stars { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; }
 
   .dock {
-    position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: flex-end; justify-content: space-between; gap: 10px;
+    position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: flex-end; justify-content: flex-end; gap: 10px;
     padding: 0 max(14px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
     pointer-events: none;
   }
   .dock > * { pointer-events: auto; }
-  .layers { display: flex; flex-direction: column; gap: 6px; }
-  .layers span { font-size: 12px; font-weight: 800; color: var(--muted); letter-spacing: .5px; }
-  .layers .row { display: flex; gap: 6px; }
-  .layers button { height: 34px; min-width: 34px; padding: 0 10px; border-radius: 12px; border: none; background: rgba(255,255,255,.1); color: var(--ink); font-family: var(--display); font-weight: 800; font-size: 15px; cursor: pointer; }
-  .layers button.cur { background: var(--sun); color: #3a2500; }
   #power {
     width: 66px; height: 66px; border-radius: 50%; border: none; cursor: pointer; padding: 0; flex: none;
     background: #ff5d73; color: #fff; display: grid; place-items: center;
@@ -75,6 +70,7 @@
   #power.on { background: #39d98a; box-shadow: 0 5px 0 #1f9e5f; }
   #power.nudge { animation: nudge 1.2s ease-in-out infinite; }
   @keyframes nudge { 50% { transform: scale(1.1); } }
+  .findbtn { position: absolute; left: max(14px, env(safe-area-inset-left, 0px)); bottom: calc(26px + env(safe-area-inset-bottom, 0px)); height: 40px; padding: 0 14px; border-radius: 14px; border: none; background: rgba(255,255,255,.1); color: var(--ink); font-family: var(--display); font-weight: 800; font-size: 15px; cursor: pointer; z-index: 2; }
   #dragHint { position: absolute; left: 50%; top: 10px; translate: -50% 0; font-size: 13px; font-weight: 800; color: var(--muted); background: rgba(10,15,40,.6); padding: 6px 12px; border-radius: 99px; pointer-events: none; transition: opacity .5s; white-space: nowrap; }
 
   .overlay { position: fixed; inset: 0; display: none; place-items: center; z-index: 10; background: rgba(6, 9, 26, .6); padding: 16px; }
@@ -123,12 +119,9 @@
 
 <div id="stage">
   <div id="dragHint">Küpü sürükleyerek çevir</div>
+  <button id="findBtn" class="findbtn">Feneri göster</button>
   <div id="err">3B görüntü bu cihazda açılamadı.</div>
   <div class="dock">
-    <div class="layers">
-      <span>KAT</span>
-      <div class="row" id="layerRow"></div>
-    </div>
     <button id="power" aria-label="Fenerleri aç/kapat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.6a8 8 0 1 0 11.4 0"/></svg></button>
   </div>
 </div>
@@ -152,63 +145,73 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (() => {
-  // ---- 3D light engine: 4x4x4 cube, beams along x / y / z ----
-  // mirror orientation o (0-5) = mirror normal (unnormalised); reflection d' = d - (d.n) n ; d.n = 0 -> beam passes edge-on
-  var NORMALS = [[1,1,0],[1,-1,0],[1,0,1],[1,0,-1],[0,1,1],[0,1,-1]];
-  var FACES = { 'x-': [0,-1], 'x+': [0,1], 'y-': [1,-1], 'y+': [1,1], 'z-': [2,-1], 'z+': [2,1] };
-  // lantern / target: { f: face, u, v } -> outside position; u,v are the other two axes in order
-  function outsidePos(N, p) {
-    const [ax, sg] = FACES[p.f], pos = [0,0,0], others = [0,1,2].filter(a => a !== ax);
-    pos[ax] = sg < 0 ? -1 : N; pos[others[0]] = p.u; pos[others[1]] = p.v; return pos;
+  // ---- surface-cube light engine: six 4x4 faces, light wraps over the cube's edges ----
+  // cell key "x+:u,v"  (face = axis letter + sign; u,v = the other two axes in x,y,z order)
+  // cells: key -> { t: '/' | '\\' (rotatable mirror), 'a' | 'b' (locked), '#' brick, 'L' lantern, 'T' target }
+  var SN = 4, BEAM_H = .13;
+  var AX = { x: 0, y: 1, z: 2 };
+  function faceInfo(f) { const a = AX[f[0]], s = f[1] === '+' ? 1 : -1, o = [0,1,2].filter(b => b !== a); return { a, s, u: o[0], v: o[1] }; }
+  function cellP(key) { const [f, uv] = key.split(':'), [u, v] = uv.split(',').map(Number), F = faceInfo(f), p = [0,0,0]; p[F.a] = F.s < 0 ? -1 : SN; p[F.u] = u; p[F.v] = v; return { f, F, p }; }
+  function keyFromP(f, p) { const F = faceInfo(f); return f + ':' + p[F.u] + ',' + p[F.v]; }
+  function normalOf(f) { const F = faceInfo(f), n = [0,0,0]; n[F.a] = F.s; return n; }
+  // world position of a cell centre lifted h above the surface
+  function worldOf(f, p, h) {
+    const F = faceInfo(f), w = [0,0,0];
+    for (let i = 0; i < 3; i++) w[i] = i === F.a ? F.s * SN / 2 + F.s * h : p[i] - (SN - 1) / 2;
+    return w;
   }
-  function inwardDir(p) { const [ax, sg] = FACES[p.f], d = [0,0,0]; d[ax] = -sg; return d; }
-  function faceKey(N, pos) {
-    for (let a = 0; a < 3; a++) if (pos[a] < 0 || pos[a] >= N) {
-      const others = [0,1,2].filter(b => b !== a);
-      return 'xyz'[a] + (pos[a] < 0 ? '-' : '+') + ':' + pos[others[0]] + ',' + pos[others[1]];
-    }
-    return null;
+  function reflect(f, t, d) {
+    const F = faceInfo(f), du = d[F.u], dv = d[F.v], n = [0,0,0];
+    if (t === '/' || t === 'a') { n[F.u] = dv; n[F.v] = du; } else { n[F.u] = -dv; n[F.v] = -du; }
+    return n;
   }
-  var keyOfP = (N, p) => faceKey(N, outsidePos(N, p));
-  // cells: object "x,y,z" -> { t: 'm' mirror | 'k' locked mirror | '#' block, o }
-  function trace3(N, cells, lanterns) {
-    const paths = [], ends = {}, endD = {}, hits = [];
+  // one step from (f,p) along d, wrapping over an edge when needed
+  function stepS(f, p, d) {
+    const q = [p[0] + d[0], p[1] + d[1], p[2] + d[2]], ad = d[0] ? 0 : d[1] ? 1 : 2;
+    if (q[ad] >= 0 && q[ad] < SN) return { f, p: q, d, wrapped: false };
+    const F = faceInfo(f), nf = 'xyz'[ad] + (d[ad] > 0 ? '+' : '-');
+    q[F.a] = F.s < 0 ? 0 : SN - 1;
+    const nd = [0,0,0]; nd[F.a] = -F.s;
+    return { f: nf, p: q, d: nd, wrapped: true };
+  }
+  // lanterns: [{ k: key, d: [dx,dy,dz], c }]
+  function traceS(cells, lanterns) {
+    const paths = [], ends = {}, endD = {}, hits = [], sparks = [];
     lanterns.forEach(l => {
-      let p = outsidePos(N, l), d = inwardDir(l), dist = 0;
-      const pts = [p.slice()];
-      for (let k = 0; k < 64; k++) {
-        p = [p[0] + d[0], p[1] + d[1], p[2] + d[2]]; dist++;
-        const key = faceKey(N, p);
-        if (key) { pts.push(p.slice()); ends[key] = (ends[key] || 0) | l.c; endD[key] = Math.max(endD[key] || 0, dist); break; }
-        const cell = cells[p.join(',')];
+      let { f, p } = cellP(l.k), d = l.d.slice(), dist = 0;
+      const pts = [worldOf(f, p, BEAM_H)], seen = new Set();
+      const add = (pt) => { const q = pts[pts.length - 1]; dist += Math.hypot(pt[0] - q[0], pt[1] - q[1], pt[2] - q[2]); pts.push(pt); };
+      for (let k = 0; k < 400; k++) {
+        const c0 = worldOf(f, p, BEAM_H);
+        const s = stepS(f, p, d);
+        if (s.wrapped) add([c0[0] + d[0] * (.5 + BEAM_H), c0[1] + d[1] * (.5 + BEAM_H), c0[2] + d[2] * (.5 + BEAM_H)]);
+        ({ f, p, d } = s);
+        const key = keyFromP(f, p), cell = cells[key], c = worldOf(f, p, BEAM_H);
+        const sk = key + '|' + d.join(',');
+        if (seen.has(sk)) { add(c); break; } seen.add(sk);
         if (!cell) continue;
-        if (cell.t === '#') { pts.push([p[0] - d[0] * .45, p[1] - d[1] * .45, p[2] - d[2] * .45]); hits.push({ k: p.join(','), c: l.c, d: dist }); break; }
-        const n = NORMALS[cell.o], dn = d[0] * n[0] + d[1] * n[1] + d[2] * n[2];
-        if (dn === 0) continue;
-        d = [d[0] - dn * n[0], d[1] - dn * n[1], d[2] - dn * n[2]];
-        pts.push(p.slice()); hits.push({ k: p.join(','), c: l.c, d: dist });
+        if (cell.t === 'T') { add(c); ends[key] = (ends[key] || 0) | l.c; endD[key] = Math.max(endD[key] || 0, dist); break; }
+        if (cell.t === '#' || cell.t === 'L') { add([c[0] - d[0] * .42, c[1] - d[1] * .42, c[2] - d[2] * .42]); if (cell.t === '#') { hits.push({ k: key, c: l.c, d: dist }); sparks.push({ p: pts[pts.length - 1], c: l.c, d: dist }); } break; }
+        add(c); hits.push({ k: key, c: l.c, d: dist });
+        d = reflect(f, cell.t, d);
       }
       paths.push({ pts, c: l.c });
     });
-    return { paths, ends, endD, hits };
+    return { paths, ends, endD, hits, sparks };
   }
-  function isWin3(N, cells, L) {
-    const e = trace3(N, cells, L.lanterns).ends;
-    return L.targets.every(t => e[t.k] === t.c);
-  }
-  const N = 4;
+  function isWinS(cells, L) { const e = traceS(cells, L.lanterns).ends; return L.targets.every(t => e[t.k] === t.c); }
+  const N = SN;
   const COLORS = {
     1: { name: 'kırmızı', hex: '#ff5d73' }, 2: { name: 'yeşil', hex: '#4ee89a' }, 3: { name: 'sarı', hex: '#ffc93d' },
     4: { name: 'mavi', hex: '#4c9dff' }, 5: { name: 'mor', hex: '#d27bff' }, 6: { name: 'turkuaz', hex: '#3ef0d8' }, 7: { name: 'beyaz', hex: '#ffffff' },
   };
   const hex = c => COLORS[c].hex;
-  const LEVELS = [{"lanterns": [{"f": "y-", "u": 0, "v": 1, "c": 4}], "targets": [{"k": "x+:0,2", "c": 4}], "cells": [["0,0,1", "m", 2], ["0,0,2", "m", 5]]}, {"lanterns": [{"f": "x+", "u": 2, "v": 3, "c": 3}], "targets": [{"k": "x-:0,1", "c": 3}], "cells": [["0,2,3", "m", 0], ["0,0,3", "m", 0], ["0,0,1", "m", 0]]}, {"lanterns": [{"f": "x+", "u": 3, "v": 0, "c": 2}], "targets": [{"k": "x+:2,1", "c": 2}], "cells": [["3,3,0", "m", 5], ["3,3,1", "m", 1], ["2,3,1", "m", 0], ["2,2,1", "k", 0], ["3,0,0", "#", 0], ["1,2,3", "#", 0], ["0,0,0", "#", 0]]}, {"lanterns": [{"f": "z-", "u": 2, "v": 2, "c": 1}, {"f": "y-", "u": 2, "v": 2, "c": 4}], "targets": [{"k": "y+:2,0", "c": 1}, {"k": "z+:3,0", "c": 4}], "cells": [["2,2,0", "m", 1], ["2,0,2", "m", 4], ["2,0,3", "m", 4], ["3,0,3", "m", 4], ["1,3,1", "#", 0], ["2,3,2", "#", 0]]}, {"lanterns": [{"f": "y+", "u": 0, "v": 1, "c": 5}], "targets": [{"k": "y+:2,1", "c": 5}], "cells": [["0,2,1", "m", 3], ["0,2,0", "m", 5], ["3,2,0", "m", 5], ["3,1,0", "m", 3], ["3,1,1", "k", 2], ["2,1,1", "k", 0], ["2,0,1", "#", 0], ["0,3,0", "#", 0], ["1,0,1", "#", 0], ["0,2,3", "#", 0]]}, {"lanterns": [{"f": "z-", "u": 0, "v": 0, "c": 4}, {"f": "x+", "u": 2, "v": 1, "c": 3}], "targets": [{"k": "x-:2,1", "c": 4}, {"k": "x+:2,2", "c": 3}], "cells": [["0,0,0", "m", 3], ["0,1,0", "m", 3], ["0,1,1", "m", 0], ["0,2,1", "m", 4], ["3,2,1", "m", 4], ["3,2,2", "k", 3], ["1,1,3", "#", 0], ["1,2,3", "#", 0], ["2,1,2", "#", 0]]}, {"lanterns": [{"f": "z-", "u": 2, "v": 1, "c": 1}, {"f": "y+", "u": 2, "v": 3, "c": 2}, {"f": "y+", "u": 1, "v": 2, "c": 4}], "targets": [{"k": "z-:1,3", "c": 1}, {"k": "x-:2,2", "c": 2}, {"k": "y-:3,2", "c": 4}], "cells": [["2,1,0", "m", 1], ["1,1,0", "m", 1], ["1,3,0", "m", 0], ["2,2,3", "m", 1], ["2,2,2", "m", 1], ["1,3,2", "k", 0], ["3,3,2", "k", 0], ["0,1,0", "#", 0], ["2,0,0", "#", 0], ["2,0,3", "#", 0], ["0,2,3", "#", 0]]}, {"lanterns": [{"f": "z-", "u": 0, "v": 3, "c": 6}, {"f": "x+", "u": 2, "v": 3, "c": 5}, {"f": "x+", "u": 0, "v": 0, "c": 3}], "targets": [{"k": "y+:0,0", "c": 6}, {"k": "y+:2,2", "c": 5}, {"k": "z+:1,0", "c": 3}], "cells": [["0,3,0", "m", 3], ["2,2,3", "m", 1], ["2,2,2", "m", 3], ["0,0,0", "m", 3], ["0,2,0", "m", 3], ["1,2,0", "m", 0], ["1,2,1", "k", 4], ["1,0,1", "k", 4], ["1,1,2", "#", 0], ["1,2,2", "#", 0], ["3,3,0", "#", 0], ["0,2,1", "#", 0], ["3,3,1", "#", 0]]}];
+  const LEVELS = [{"lanterns": [{"k": "z-:0,2", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z+:0,0", "c": 4}], "cells": [["z-:0,1", "/"], ["z+:0,1", "/"]]}, {"lanterns": [{"k": "z-:1,0", "d": [-1, 0, 0], "c": 3}], "targets": [{"k": "z+:2,0", "c": 3}], "cells": [["x-:0,2", "/"], ["y-:1,2", "/"], ["z+:1,0", "\\"]]}, {"lanterns": [{"k": "x+:1,3", "d": [0, 0, 1], "c": 2}], "targets": [{"k": "x-:0,0", "c": 2}], "cells": [["z+:1,1", "\\"], ["z+:1,2", "b"], ["z+:0,2", "\\"], ["z+:0,0", "\\"], ["z-:0,3", "#"], ["x-:2,1", "#"], ["z+:2,0", "#"]]}, {"lanterns": [{"k": "x-:2,0", "d": [0, 0, 1], "c": 1}, {"k": "x+:2,3", "d": [0, 0, 1], "c": 4}], "targets": [{"k": "z-:1,1", "c": 1}, {"k": "y-:1,3", "c": 4}], "cells": [["x-:2,3", "/"], ["x-:1,3", "\\"], ["z+:1,2", "/"], ["z+:1,1", "\\"], ["x-:3,2", "#"], ["z-:3,0", "#"]]}, {"lanterns": [{"k": "y-:2,1", "d": [-1, 0, 0], "c": 5}], "targets": [{"k": "x-:1,1", "c": 5}], "cells": [["y-:1,1", "\\"], ["z-:1,0", "/"], ["x-:0,0", "\\"], ["x-:2,0", "b"], ["z-:0,2", "/"], ["y+:0,1", "\\"], ["x+:0,3", "#"], ["z+:0,2", "#"], ["z-:1,3", "#"], ["z+:2,0", "#"]]}, {"lanterns": [{"k": "y-:3,2", "d": [1, 0, 0], "c": 6}, {"k": "z-:3,0", "d": [0, -1, 0], "c": 3}], "targets": [{"k": "x-:1,2", "c": 6}, {"k": "y+:3,1", "c": 3}], "cells": [["x+:0,2", "\\"], ["x+:0,3", "\\"], ["y-:2,3", "a"], ["y-:2,2", "\\"], ["y-:3,1", "\\"], ["x+:0,1", "\\"], ["y+:3,2", "/"], ["z-:2,3", "#"], ["z-:0,3", "#"], ["y+:0,1", "#"], ["z-:1,1", "#"]]}, {"lanterns": [{"k": "y-:2,0", "d": [1, 0, 0], "c": 1}, {"k": "x+:2,2", "d": [0, 0, 1], "c": 2}, {"k": "z+:2,0", "d": [1, 0, 0], "c": 4}], "targets": [{"k": "y+:1,0", "c": 1}, {"k": "x-:2,3", "c": 2}, {"k": "y-:2,2", "c": 4}], "cells": [["x+:3,0", "b"], ["z-:0,3", "b"], ["y+:0,0", "/"], ["z+:1,2", "/"], ["z+:1,3", "/"], ["x-:3,3", "\\"], ["x+:0,3", "/"], ["y-:0,3", "\\"], ["y-:0,2", "/"], ["x-:3,2", "#"], ["z-:3,1", "#"], ["z+:0,2", "#"], ["y+:0,2", "#"], ["y+:1,1", "#"]]}, {"lanterns": [{"k": "y+:0,0", "d": [0, 0, 1], "c": 5}, {"k": "y-:0,3", "d": [1, 0, 0], "c": 6}, {"k": "z-:2,3", "d": [1, 0, 0], "c": 3}], "targets": [{"k": "y-:3,1", "c": 5}, {"k": "z-:2,0", "c": 6}, {"k": "z+:1,1", "c": 3}], "cells": [["z+:0,2", "\\"], ["x-:2,3", "a"], ["x-:1,3", "/"], ["x-:1,1", "a"], ["y-:1,3", "/"], ["y-:1,2", "/"], ["y-:3,2", "/"], ["z+:3,0", "\\"], ["x+:3,0", "/"], ["x+:1,0", "\\"], ["x+:3,1", "#"], ["x+:2,2", "#"], ["z-:3,1", "#"], ["x-:0,2", "#"], ["x+:3,2", "#"], ["x-:3,2", "#"]]}];
   const HINTS = {
-    0: 'Aynaya dokun: her dokunuşta <b>6 farklı duruştan</b> birine döner. Sonra düğmeye bas.',
-    1: 'Işık artık <b>yukarı ve aşağı</b> da gidebilir.',
-    2: 'Kilitli (mor) aynalar dönmez, tuğla küpler ışığı keser.',
+    0: 'Aynalara dokunup çevir, sonra düğmeye bas. Işık kenara gelince <b>yandaki yüze geçer</b>: küpü çevirip takip et.',
+    1: 'Işık küpün etrafında birkaç yüz dolaşabilir.',
+    2: 'Kilitli (mor) aynalar dönmez, tuğlalar ışığı keser.',
     3: 'İki fener! Her ışık kendi rengindeki hedefe gitmeli.',
-    4: 'İçerisi kalabalıksa aşağıdaki <b>KAT</b> düğmeleriyle tek bir katı göster.',
   };
   const $ = id => document.getElementById(id);
   const stage = $('stage');
@@ -216,8 +219,8 @@
   /* ---------- state ---------- */
   let lvl = 0, L, cells, moves = 0, lightOn = false, solved = false, optimal = 0, layer = -1;
   let progress = {}, soundOn = true;
-  try { progress = JSON.parse(localStorage.getItem('fener3d-progress') || '{}'); soundOn = localStorage.getItem('fener-sound') !== '0'; } catch (e) {}
-  const save = () => { try { localStorage.setItem('fener3d-progress', JSON.stringify(progress)); localStorage.setItem('fener-sound', soundOn ? '1' : '0'); } catch (e) {} };
+  try { progress = JSON.parse(localStorage.getItem('fenerkup-progress') || '{}'); soundOn = localStorage.getItem('fener-sound') !== '0'; } catch (e) {}
+  const save = () => { try { localStorage.setItem('fenerkup-progress', JSON.stringify(progress)); localStorage.setItem('fener-sound', soundOn ? '1' : '0'); } catch (e) {} };
   const unlocked = i => i === 0 || !!progress[i - 1] || !!progress[i];
 
   /* ---------- sound ---------- */
@@ -251,24 +254,27 @@
   const camera = new THREE.PerspectiveCamera(40, 1, .1, 100);
   scene.add(new THREE.AmbientLight(0xffffff, .75));
   const sun = new THREE.DirectionalLight(0xffffff, .7); sun.position.set(5, 9, 7); scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xffffff, .4); fill.position.set(-6, -8, -5); scene.add(fill);
   const world = new THREE.Group(); scene.add(world);
 
-  const S = 1;                       // cell size
-  const W = v => (v - (N - 1) / 2) * S;
-  const OUT = (N / 2 + .55) * S;     // distance of lanterns / targets from the centre
-  const toWorld = p => new THREE.Vector3(...p.map(v => v < 0 ? -OUT : v >= N ? OUT : W(v)));
-
-  // cube frame + cell dots
-  const frame = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(N * S, N * S, N * S)), new THREE.LineBasicMaterial({ color: 0xa9b3e0, transparent: true, opacity: .45 }));
-  world.add(frame);
-  const dotGeo = new THREE.SphereGeometry(.045, 8, 6);
-  const dots = [];
-  for (let x = 0; x < N; x++) for (let y = 0; y < N; y++) for (let z = 0; z < N; z++) {
-    const m = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({ color: 0xa9b3e0, transparent: true, opacity: .35 }));
-    m.position.set(W(x), W(y), W(z)); m.userData.y = y; world.add(m); dots.push(m);
-  }
-  const layerPlane = new THREE.Mesh(new THREE.PlaneGeometry(N * S, N * S), new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: .08, side: THREE.DoubleSide, depthWrite: false }));
-  layerPlane.rotation.x = -Math.PI / 2; layerPlane.visible = false; world.add(layerPlane);
+  /* ---------- the cube ---------- */
+  const V = a => new THREE.Vector3(a[0], a[1], a[2]);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(N, N, N), new THREE.MeshStandardMaterial({ color: 0x141c45, roughness: .9 }));
+  world.add(body);
+  const roundRect = (w, r) => { const s = new THREE.Shape(), h = w / 2; s.moveTo(-h + r, -h); s.lineTo(h - r, -h); s.quadraticCurveTo(h, -h, h, -h + r); s.lineTo(h, h - r); s.quadraticCurveTo(h, h, h - r, h); s.lineTo(-h + r, h); s.quadraticCurveTo(-h, h, -h, h - r); s.lineTo(-h, -h + r); s.quadraticCurveTo(-h, -h, -h + r, -h); return new THREE.ShapeGeometry(s, 4); };
+  const tileGeo = roundRect(.88, .16);
+  const FACE_LIST = ['x-', 'x+', 'y-', 'y+', 'z-', 'z+'];
+  const tiles = {};
+  const zUp = new THREE.Vector3(0, 0, 1);
+  FACE_LIST.forEach(f => {
+    const n = V(normalOf(f));
+    for (let u = 0; u < N; u++) for (let v = 0; v < N; v++) {
+      const key = f + ':' + u + ',' + v, { p } = cellP(key);
+      const m = new THREE.Mesh(tileGeo, new THREE.MeshStandardMaterial({ color: 0x2b3778, roughness: .8 }));
+      m.position.copy(V(worldOf(f, p, .004))); m.quaternion.setFromUnitVectors(zUp, n);
+      m.userData.key = key; world.add(m); tiles[key] = m;
+    }
+  });
 
   /* ---------- cute sprites (drawn on canvas) ---------- */
   const texCache = {};
@@ -307,112 +313,109 @@
   }
 
   /* ---------- level objects ---------- */
-  let objs = [], mirrors = {}, lanternSprites = [], targetSprites = {}, beamGroup = new THREE.Group(), beams = [], beamT0 = 0, pendingHits = [];
+  let objs = [], mirrors = {}, lanternSprites = [], targetSprites = {}, beamGroup = new THREE.Group(), beams = [], beamT0 = 0, pendingHits = [], sparkMeshes = [];
   world.add(beamGroup);
-  const plateGeo = new THREE.BoxGeometry(.84, .84 * Math.SQRT2, .06);
-  const blockGeo = new THREE.BoxGeometry(.78, .78, .78);
-  function orientQuat(o) {
-    const n = new THREE.Vector3(...NORMALS[o]).normalize();
-    const zeroAx = NORMALS[o].findIndex(v => v === 0);
-    const u = new THREE.Vector3(zeroAx === 0 ? 1 : 0, zeroAx === 1 ? 1 : 0, zeroAx === 2 ? 1 : 0);
-    const v = new THREE.Vector3().crossVectors(n, u);
-    return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, v, n));
+  const barGeo = new THREE.BoxGeometry(1.06, .09, .15);
+  const brickGeo = new THREE.BoxGeometry(.8, .3, .8);
+  function mirrorQuat(key, t) {
+    const { f } = cellP(key), F = faceInfo(f), n = V(normalOf(f));
+    const a = [0,0,0]; a[F.u] = 1; a[F.v] = (t === '/' || t === 'a') ? 1 : -1;
+    const along = V(a).normalize(), side = new THREE.Vector3().crossVectors(along, n);
+    return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(along, n, side));
   }
-  function clearLevel() {
-    objs.forEach(o => { world.remove(o); }); objs = []; mirrors = {}; lanternSprites = []; targetSprites = {};
-    clearBeams();
-  }
+  function upQuat(f) { return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), V(normalOf(f))); }
   function build() {
-    clearLevel();
+    objs.forEach(o => world.remove(o)); objs = []; mirrors = {}; lanternSprites = []; targetSprites = {};
+    Object.values(tiles).forEach(t => t.material.color.setHex(0x2b3778));
+    clearBeams();
     cells = {};
-    L.cells.forEach(([k, t, o]) => { cells[k] = { t, o }; });
+    L.cells.forEach(([k, t]) => cells[k] = { t });
+    L.lanterns.forEach(l => cells[l.k] = { t: 'L' });
+    L.targets.forEach(t => cells[t.k] = { t: 'T' });
     Object.entries(cells).forEach(([k, c]) => {
-      const p = k.split(',').map(Number);
-      let m;
+      const { f, p } = cellP(k);
       if (c.t === '#') {
-        m = new THREE.Mesh(blockGeo, new THREE.MeshStandardMaterial({ color: 0xa8775a, roughness: .9, transparent: true }));
-      } else {
-        m = new THREE.Mesh(plateGeo, new THREE.MeshStandardMaterial({ color: c.t === 'k' ? 0xb9b2ff : 0xe9f7ff, roughness: .25, metalness: .2, emissive: 0x000000, transparent: true }));
-        const edge = new THREE.LineSegments(new THREE.EdgesGeometry(plateGeo), new THREE.LineBasicMaterial({ color: c.t === 'k' ? 0x6d63c9 : 0x7fb2d6, transparent: true }));
-        m.add(edge);
-        m.quaternion.copy(orientQuat(c.o)); m.userData.targetQ = m.quaternion.clone();
-        mirrors[k] = m;
+        const m = new THREE.Mesh(brickGeo, new THREE.MeshStandardMaterial({ color: 0xa8775a, roughness: .9 }));
+        m.position.copy(V(worldOf(f, p, .15))); m.quaternion.copy(upQuat(f)); world.add(m); objs.push(m);
+        tiles[k].material.color.setHex(0x8a5f45);
+      } else if ('/\\ab'.includes(c.t)) {
+        const locked = c.t === 'a' || c.t === 'b';
+        const m = new THREE.Mesh(barGeo, new THREE.MeshStandardMaterial({ color: locked ? 0xc9c3ff : 0xeaf7ff, roughness: .3, metalness: .1, emissive: 0 }));
+        m.position.copy(V(worldOf(f, p, .07))); m.quaternion.copy(mirrorQuat(k, c.t)); m.userData = { key: k, targetQ: m.quaternion.clone() };
+        world.add(m); objs.push(m); mirrors[k] = m;
+        if (locked) tiles[k].material.color.setHex(0x3d3b6e);
       }
-      m.position.copy(toWorld(p)); m.userData.key = k; m.userData.y = p[1];
-      world.add(m); objs.push(m);
     });
-    L.lanterns.forEach((l, i) => {
-      const pos = toWorld(outsidePos(N, l));
+    L.lanterns.forEach(l => {
+      const { f, p } = cellP(l.k), n = V(normalOf(f)), d = V(l.d);
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteTex('lantern', hex(l.c), 'off'), transparent: true }));
-      sp.scale.set(.85, .85, 1); sp.position.copy(pos); world.add(sp); objs.push(sp);
-      sp.userData = { col: hex(l.c) }; lanternSprites.push(sp);
-      const d = new THREE.Vector3(...inwardDir(l));
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(.16, .3, 16), new THREE.MeshBasicMaterial({ color: hex(l.c) }));
-      cone.position.copy(pos).addScaledVector(d, .42);
-      cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d); world.add(cone); objs.push(cone);
+      sp.position.copy(V(worldOf(f, p, .42))); sp.scale.set(.8, .8, 1); sp.userData = { col: hex(l.c) };
+      world.add(sp); objs.push(sp); lanternSprites.push(sp);
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(.13, .26, 16), new THREE.MeshBasicMaterial({ color: hex(l.c) }));
+      cone.position.copy(V(worldOf(f, p, BEAM_H))).addScaledVector(d, .36); cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
+      world.add(cone); objs.push(cone);
     });
     L.targets.forEach(t => {
-      const [f, rest] = t.k.split(':'), [u, v] = rest.split(',').map(Number);
+      const { f, p } = cellP(t.k);
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteTex('target', hex(t.c), 'idle'), transparent: true }));
-      sp.scale.set(.75, .75, 1); sp.position.copy(toWorld(outsidePos(N, { f, u, v }))); world.add(sp); objs.push(sp);
-      sp.userData = { col: hex(t.c) }; targetSprites[t.k] = sp;
+      sp.position.copy(V(worldOf(f, p, .4))); sp.scale.set(.74, .74, 1); sp.userData = { col: hex(t.c) };
+      world.add(sp); objs.push(sp); targetSprites[t.k] = sp;
     });
-    applyLayer();
   }
 
   /* ---------- beams ---------- */
   function clearBeams() {
     beams.forEach(b => { beamGroup.remove(b.core); beamGroup.remove(b.glow); }); beams = []; pendingHits = [];
+    sparkMeshes.forEach(s => beamGroup.remove(s)); sparkMeshes = [];
     Object.values(mirrors).forEach(m => m.material.emissive.setHex(0));
-    Object.values(targetSprites).forEach(sp => { sp.material.map = spriteTex('target', sp.userData.col, 'idle'); sp.scale.set(.75, .75, 1); });
+    Object.values(targetSprites).forEach(sp => { sp.material.map = spriteTex('target', sp.userData.col, 'idle'); sp.scale.set(.74, .74, 1); });
     lanternSprites.forEach(sp => sp.material.map = spriteTex('lantern', sp.userData.col, lightOn ? 'on' : 'off'));
   }
   const cyl = new THREE.CylinderGeometry(1, 1, 1, 12, 1, true);
+  const BEAM_SPEED = 6;
   function drawBeams(animate) {
     clearBeams();
     $('power').classList.toggle('on', lightOn);
     if (!lightOn) return;
-    const tr = trace3(N, cells, L.lanterns);
+    const tr = traceS(cells, L.lanterns);
     tr.paths.forEach(p => {
       let acc = 0;
       for (let k = 1; k < p.pts.length; k++) {
-        const a = toWorld(p.pts[k - 1]), b = toWorld(p.pts[k]);
-        if (k === 1) a.lerp(b, .38 / a.distanceTo(b));                               // start at the nozzle
-        const isExit = k === p.pts.length - 1 && faceKey(N, p.pts[k]);
-        if (isExit) b.lerp(a, .3 / a.distanceTo(b));                                  // stop at the target's rim
-        const len = a.distanceTo(b), dir = b.clone().sub(a).normalize();
-        const col = new THREE.Color(hex(p.c));
+        const a = V(p.pts[k - 1]), b = V(p.pts[k]);
+        if (k === 1) a.lerp(b, Math.min(.5, .34 / a.distanceTo(b)));
+        const len = a.distanceTo(b); if (len < 1e-4) continue;
+        const dir = b.clone().sub(a).normalize(), col = new THREE.Color(hex(p.c));
         const core = new THREE.Mesh(cyl, new THREE.MeshBasicMaterial({ color: col.clone().lerp(new THREE.Color(0xffffff), .45) }));
         const glow = new THREE.Mesh(cyl, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: .45, blending: THREE.AdditiveBlending, depthWrite: false }));
-        [core, glow].forEach((m, j) => { m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); m.userData.r = j ? .14 : .05; beamGroup.add(m); });
-        beams.push({ core, glow, a, dir, len, start: acc });
-        acc += len;
+        [core, glow].forEach((m, j) => { m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); m.userData.r = j ? .11 : .04; beamGroup.add(m); });
+        beams.push({ core, glow, a, dir, len, start: acc }); acc += len;
       }
     });
-    tr.hits.forEach(h => pendingHits.push({ at: h.d * S, fn: () => { const m = mirrors[h.k]; if (m) m.material.emissive.set(hex(h.c)).multiplyScalar(.35); } }));
+    tr.hits.forEach(h => pendingHits.push({ at: h.d, fn: () => { const m = mirrors[h.k]; if (m) m.material.emissive.set(hex(h.c)).multiplyScalar(.35); } }));
+    tr.sparks.forEach(s => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(.13, 12, 8), new THREE.MeshBasicMaterial({ color: hex(s.c), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+      m.position.copy(V(s.p)); beamGroup.add(m); sparkMeshes.push(m);
+      pendingHits.push({ at: s.d, fn: () => m.userData.on = true });
+    });
     let allHit = true;
     L.targets.forEach((t, i) => {
       const got = tr.ends[t.k] || 0, ok = got === t.c; if (!ok) allHit = false;
-      if (got) pendingHits.push({ at: (tr.endD[t.k] || 0) * S, fn: () => { const sp = targetSprites[t.k]; sp.material.map = spriteTex('target', sp.userData.col, ok ? 'hit' : 'wrong'); if (ok) { sp.scale.set(.9, .9, 1); if (animate) sfx.hit(i); } } });
+      if (got) pendingHits.push({ at: tr.endD[t.k] || 0, fn: () => { const sp = targetSprites[t.k]; sp.material.map = spriteTex('target', sp.userData.col, ok ? 'hit' : 'wrong'); if (ok) { sp.scale.set(.9, .9, 1); if (animate) sfx.hit(i); } } });
     });
     beamT0 = animate ? performance.now() : -1e9;
     if (allHit) {
       solved = true;
-      const longest = Math.max(...Object.values(tr.endD)) * S;
+      const longest = Math.max(...L.targets.map(t => tr.endD[t.k] || 0));
       setTimeout(win, (animate ? longest / BEAM_SPEED * 1000 : 0) + 700);
     }
   }
-  const BEAM_SPEED = 7; // world units per second
   function updateBeams(now) {
     const done = (now - beamT0) / 1000 * BEAM_SPEED;
     beams.forEach(b => {
       const l = Math.max(0, Math.min(b.len, done - b.start));
-      [b.core, b.glow].forEach(m => {
-        m.visible = l > 0.001;
-        m.scale.set(m.userData.r, l || .001, m.userData.r);
-        m.position.copy(b.a).addScaledVector(b.dir, l / 2);
-      });
+      [b.core, b.glow].forEach(m => { m.visible = l > .001; m.scale.set(m.userData.r, l || .001, m.userData.r); m.position.copy(b.a).addScaledVector(b.dir, l / 2); });
     });
+    sparkMeshes.forEach(m => { if (m.userData.on) m.material.opacity = .5 + .35 * Math.sin(now / 160); });
     pendingHits = pendingHits.filter(h => { if (done >= h.at) { h.fn(); return false; } return true; });
   }
 
@@ -420,15 +423,13 @@
   let theta = .7, phi = 1.05, radius = 12.5, spin = 0;
   function placeCamera() {
     camera.position.set(radius * Math.sin(phi) * Math.sin(theta), radius * Math.cos(phi), radius * Math.sin(phi) * Math.cos(theta));
-    camera.lookAt(0, -.2, 0);
+    camera.lookAt(0, 0, 0);
   }
   function resize() {
     const w = stage.clientWidth, h = stage.clientHeight;
     renderer.setSize(w, h, false); camera.aspect = w / h;
     // keep the whole cube in view on narrow screens
-    // portrait screens: widen the vertical field of view so the cube fills the width
-    camera.fov = camera.aspect < 1 ? 2 * Math.atan(Math.tan(21 * Math.PI / 180) / camera.aspect) * 180 / Math.PI : 40;
-    radius = camera.aspect < 1 ? 11 : 11.5;
+    radius = Math.max(11.5, 11.5 * Math.min(1.6, .85 / Math.min(1, camera.aspect)));
     camera.updateProjectionMatrix(); placeCamera();
   }
   new ResizeObserver(resize).observe(stage);
@@ -446,7 +447,7 @@
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size === 2) { const [a, b] = [...pointers.values()]; radius = Math.max(8, Math.min(20, r0 * pinch0 / Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)))); placeCamera(); moved = 99; return; }
     moved += Math.abs(dx) + Math.abs(dy);
-    if (moved > 6) { stage.classList.add('dragging'); theta -= dx * .008; phi = Math.max(.25, Math.min(2.6, phi - dy * .008)); placeCamera(); hideDragHint(); }
+    if (moved > 6) { camAnim = null; stage.classList.add('dragging'); theta -= dx * .008; phi = Math.max(.15, Math.min(2.99, phi - dy * .008)); placeCamera(); hideDragHint(); }
   });
   const up = e => {
     if (!pointers.has(e.pointerId)) return;
@@ -463,46 +464,43 @@
     const r = renderer.domElement.getBoundingClientRect();
     ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
-    const cand = Object.values(mirrors).filter(m => layer < 0 || m.userData.y === layer);
-    const hit = ray.intersectObjects(cand, false)[0];
-    if (hit) rotateMirror(hit.object.userData.key);
+    const hit = ray.intersectObjects([body, ...Object.values(tiles), ...Object.values(mirrors)], false)[0];
+    if (hit && hit.object.userData.key && mirrors[hit.object.userData.key]) rotateMirror(hit.object.userData.key);
   }
+  const FLIP = { '/': '\\', '\\': '/' };
   function rotateMirror(k) {
     if (solved) return;
     const c = cells[k], m = mirrors[k];
-    if (c.t === 'k') { sfx.locked(); m.userData.shake = performance.now(); return; }
-    c.o = (c.o + 1) % 6;
-    m.userData.fromQ = m.quaternion.clone(); m.userData.targetQ = orientQuat(c.o); m.userData.t0 = performance.now();
+    if (c.t === 'a' || c.t === 'b') { sfx.locked(); m.userData.shake = performance.now(); return; }
+    c.t = FLIP[c.t];
+    m.userData.fromQ = m.quaternion.clone(); m.userData.targetQ = mirrorQuat(k, c.t); m.userData.t0 = performance.now();
     moves++; updateMoves(); sfx.rotate();
     if (lightOn) drawBeams(false);
   }
-
-  /* ---------- layers ---------- */
-  function renderLayers() {
-    const row = $('layerRow'); row.innerHTML = '';
-    [['Tümü', -1], ...[...Array(N).keys()].map(i => [String(i + 1), i])].forEach(([t, v]) => {
-      const b = document.createElement('button'); b.textContent = t; b.classList.toggle('cur', v === layer);
-      b.setAttribute('aria-label', v < 0 ? 'Tüm katları göster' : `${v + 1}. katı göster`);
-      b.onclick = () => { layer = v; renderLayers(); applyLayer(); };
-      row.appendChild(b);
-    });
+  // turn the cube so a given face looks at the viewer
+  let camAnim = null;
+  function lookAtFace(f) {
+    const n = V(normalOf(f)), dir = n.clone().multiplyScalar(1).add(new THREE.Vector3(.45, .55, .5).multiplyScalar(n.y ? .6 : 1)).normalize();
+    const toPhi = Math.acos(Math.max(-.99, Math.min(.99, dir.y))), toTheta = Math.atan2(dir.x, dir.z);
+    let dT = toTheta - theta; dT = Math.atan2(Math.sin(dT), Math.cos(dT));
+    camAnim = { t0: performance.now(), th0: theta, ph0: phi, dT, dP: toPhi - phi };
   }
-  function applyLayer() {
-    const show = y => layer < 0 || y === layer;
-    objs.forEach(o => { if (o.userData.y === undefined) return; const on = show(o.userData.y); o.material.opacity = on ? 1 : .1; o.children.forEach(ch => ch.material.opacity = on ? 1 : .1); });
-    dots.forEach(d => d.material.opacity = show(d.userData.y) ? .35 : .06);
-    layerPlane.visible = layer >= 0; if (layer >= 0) layerPlane.position.y = W(layer) - .45 * S;
+  function animateCamera(now) {
+    if (!camAnim) return;
+    const k = Math.min(1, (now - camAnim.t0) / 600), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    theta = camAnim.th0 + camAnim.dT * e; phi = camAnim.ph0 + camAnim.dP * e; placeCamera();
+    if (k >= 1) camAnim = null;
   }
+  $('findBtn').onclick = () => lookAtFace(L.lanterns[0].k.split(':')[0]);
 
   /* ---------- level flow ---------- */
   function computeOptimal() {
-    const rot = Object.keys(cells).filter(k => cells[k].t === 'm'), st = rot.map(k => cells[k].o);
-    const tmp = {}; Object.entries(cells).forEach(([k, c]) => tmp[k] = { t: c.t, o: c.o });
+    const rot = Object.keys(cells).filter(k => cells[k].t in FLIP), st = rot.map(k => cells[k].t);
+    const tmp = {}; Object.entries(cells).forEach(([k, c]) => tmp[k] = { t: c.t });
     let best = Infinity;
-    for (let m = 0; m < 6 ** rot.length; m++) {
-      let mm = m, cost = 0;
-      rot.forEach((k, j) => { const o = mm % 6; mm = mm / 6 | 0; tmp[k].o = o; cost += (o - st[j] + 6) % 6; });
-      if (cost < best && isWin3(N, tmp, L)) best = cost;
+    for (let m = 0; m < 1 << rot.length; m++) {
+      let cost = 0; rot.forEach((k, j) => { const f = m >> j & 1; cost += f; tmp[k].t = f ? FLIP[st[j]] : st[j]; });
+      if (cost < best && isWinS(tmp, L)) best = cost;
     }
     return best;
   }
@@ -516,10 +514,11 @@
     $('nextBtn').disabled = i === LEVELS.length - 1 || !unlocked(i + 1);
     $('power').classList.toggle('nudge', i === 0 && !progress[0]);
     updateMoves(); drawBeams(false);
+    lookAtFace(L.lanterns[0].k.split(':')[0]);
   }
   function updateMoves() { $('moves').textContent = 'Hamle ' + moves; }
   function win() {
-    const stars = moves <= optimal ? 3 : moves <= optimal + 4 ? 2 : 1;
+    const stars = moves <= optimal ? 3 : moves <= optimal + 2 ? 2 : 1;
     progress[lvl] = Math.max(progress[lvl] || 0, stars); save();
     $('starsOut').innerHTML = [1, 2, 3].map(s => `<span class="${s <= stars ? 'on' : 'off'}">★</span>`).join('');
     const last = lvl === LEVELS.length - 1;
@@ -547,7 +546,7 @@
   };
   $('levelsClose').onclick = () => $('levelsDlg').classList.remove('show');
   $('levelsDlg').onclick = e => { if (e.target === $('levelsDlg')) $('levelsDlg').classList.remove('show'); };
-  soundIcon(); renderLayers();
+  soundIcon();
 
   /* ---------- background stars ---------- */
   const sc = $('stars'), sg = sc.getContext('2d');
@@ -567,10 +566,10 @@
     Object.values(mirrors).forEach(m => {
       const u = m.userData;
       if (u.t0) { const k = Math.min(1, (now - u.t0) / 260), e = 1 - Math.pow(1 - k, 3); m.quaternion.slerpQuaternions(u.fromQ, u.targetQ, e); if (k >= 1) u.t0 = 0; }
-      if (u.shake) { const k = (now - u.shake) / 300; m.rotation.z += k < 1 ? Math.sin(k * 20) * .03 : 0; if (k >= 1) { u.shake = 0; m.quaternion.copy(u.targetQ); } }
+      if (u.shake) { const k = (now - u.shake) / 300; m.rotateY(k < 1 ? Math.sin(k * 20) * .03 : 0); if (k >= 1) { u.shake = 0; m.quaternion.copy(u.targetQ); } }
     });
-    lanternSprites.forEach((sp, i) => { const b = lightOn && !reduce ? Math.sin(now / 300 + i) * .03 : 0; sp.scale.set(.85 + b, .85 + b, 1); });
-    updateBeams(now);
+    lanternSprites.forEach((sp, i) => { const b = lightOn && !reduce ? Math.sin(now / 300 + i) * .03 : 0; sp.scale.set(.8 + b, .8 + b, 1); });
+    animateCamera(now); updateBeams(now);
     renderer.render(scene, camera);
     requestAnimationFrame(frameLoop);
   }
