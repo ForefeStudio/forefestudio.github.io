@@ -95,6 +95,31 @@
   #levelGrid button:disabled { opacity: .3; cursor: default; }
   .ghost { background: none; border: none; color: var(--muted); font-weight: 800; font-size: 15px; cursor: pointer; padding: 6px 10px; }
   #err { display: none; position: absolute; inset: 0; place-items: center; text-align: center; padding: 20px; color: var(--muted); font-weight: 700; }
+  /* tutorial cards */
+  .eyebrow { font-size: 12px; font-weight: 800; letter-spacing: 1.2px; color: var(--muted); text-transform: uppercase; margin-bottom: 2px; }
+  .tutart { background: #141c45; border-radius: 18px; padding: 8px; margin: 12px 0 12px; }
+  .tutart svg { width: 100%; height: auto; display: block; }
+  #tutText { text-wrap: pretty; }
+  .t-s1, .t-s2, .t-s3 { stroke-dasharray: 1 1; }
+  .t-s1 { animation: tS1 5s infinite; } .t-s2 { animation: tS2 5s infinite; } .t-s3 { animation: tS3 5s infinite; }
+  @keyframes tS1 { 0%, 15% { stroke-dashoffset: 1; opacity: 1; } 40%, 88% { stroke-dashoffset: 0; opacity: 1; } 96%, 100% { stroke-dashoffset: 0; opacity: 0; } }
+  @keyframes tS2 { 0%, 40% { stroke-dashoffset: 1; opacity: 1; } 65%, 88% { stroke-dashoffset: 0; opacity: 1; } 96%, 100% { stroke-dashoffset: 0; opacity: 0; } }
+  @keyframes tS3 { 0%, 65% { stroke-dashoffset: 1; opacity: 1; } 82%, 88% { stroke-dashoffset: 0; opacity: 1; } 96%, 100% { stroke-dashoffset: 0; opacity: 0; } }
+  .t-show1 { animation: tShow1 5s infinite; } .t-show2 { animation: tShow2 5s infinite; } .t-show3 { animation: tShow3 5s infinite; }
+  @keyframes tShow1 { 0%, 40% { opacity: 0; } 45%, 88% { opacity: 1; } 96%, 100% { opacity: 0; } }
+  @keyframes tShow2 { 0%, 65% { opacity: 0; } 70%, 88% { opacity: 1; } 96%, 100% { opacity: 0; } }
+  @keyframes tShow3 { 0%, 82% { opacity: 0; } 86%, 90% { opacity: 1; } 96%, 100% { opacity: 0; } }
+  .t-rot { animation: tRot 5s infinite; }
+  @keyframes tRot { 0%, 6% { transform: rotate(-45deg); } 14%, 100% { transform: rotate(45deg); } }
+  .t-tap { transform-box: fill-box; transform-origin: center; animation: tTap 5s infinite; }
+  @keyframes tTap { 0% { transform: scale(.4); opacity: 0; } 3% { opacity: 1; } 11% { transform: scale(1.4); opacity: 0; } 100% { opacity: 0; } }
+  .t-shake { animation: tShake 5s infinite; }
+  @keyframes tShake { 0%, 9% { transform: rotate(-45deg); } 12% { transform: rotate(-33deg); } 15% { transform: rotate(-57deg); } 18% { transform: rotate(-38deg); } 22%, 100% { transform: rotate(-45deg); } }
+  .t-blink1 { animation: tBlink1 5s infinite; }
+  @keyframes tBlink1 { 0%, 40% { opacity: 0; } 44% { opacity: 1; } 52% { opacity: .3; } 60% { opacity: 1; } 68% { opacity: .3; } 76%, 88% { opacity: 1; } 96%, 100% { opacity: 0; } }
+  .t-drag { animation: tDrag 5s infinite; }
+  @keyframes tDrag { 0%, 8% { transform: translateX(0); opacity: 0; } 14% { opacity: 1; } 40% { transform: translateX(-34px); opacity: 1; } 48%, 100% { transform: translateX(-34px); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .tutart * { animation: none !important; } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
 </style>
 </head>
@@ -103,6 +128,7 @@
 <div class="top">
   <header>
     <h1>Fener Küpü <small>3B</small></h1>
+    <button class="iconbtn" id="helpBtn" title="Nasıl oynanır" aria-label="Nasıl oynanır"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.2-2.5 3.8"/><circle cx="12" cy="17.3" r=".6" fill="currentColor"/></svg></button>
     <button class="iconbtn" id="levelsBtn" title="Bölümler" aria-label="Bölümler"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7.5" height="7.5" rx="2.2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2.2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2.2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2.2"/></svg></button>
     <button class="iconbtn" id="soundBtn" title="Ses" aria-label="Sesi aç/kapat"></button>
     <button class="iconbtn" id="resetBtn" title="Bölümü sıfırla" aria-label="Bölümü sıfırla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
@@ -132,6 +158,15 @@
     <p id="winText"></p>
     <div class="stars" id="starsOut"></div>
     <button class="btn" id="winNext">Sonraki bölüm</button>
+  </div>
+</div>
+<div class="overlay" id="tutDlg" role="dialog" aria-modal="true" aria-labelledby="tutTitle">
+  <div class="card">
+    <div class="eyebrow">Nasıl çalışır?</div>
+    <h2 id="tutTitle"></h2>
+    <div class="tutart" id="tutArt"></div>
+    <p id="tutText"></p>
+    <button class="btn" id="tutOk">Anladım</button>
   </div>
 </div>
 <div class="overlay" id="levelsDlg" role="dialog" aria-modal="true" aria-labelledby="levelsTitle">
@@ -603,6 +638,7 @@
     $('power').classList.toggle('nudge', i === 0 && !progress[0]);
     updateMoves(); drawBeams(false);
     lookAtFace(L.lanterns[0].k.split(':')[0]);
+    if (LEVEL_TUT[i]) showTutorials(LEVEL_TUT[i]);
   }
   function updateMoves() { $('moves').textContent = 'Hamle ' + moves; }
   function win() {
@@ -622,6 +658,82 @@
   $('resetBtn').onclick = () => load(lvl);
   $('prevBtn').onclick = () => lvl > 0 && load(lvl - 1);
   $('nextBtn').onclick = () => lvl < LEVELS.length - 1 && unlocked(lvl + 1) && load(lvl + 1);
+  const TUT_KEY = 'fenerkup-tut-seen';
+  const LEVEL_TUT = { 0: ['wrap', 'basics'], 1: ['bump'], 2: ['pipe'], 3: ['locked'], 4: ['two'] };
+  /* ---------- animated tutorials: shown the first time a new piece appears ---------- */
+  const TUT = (() => {
+    const BL = '#4c9dff', RD = '#ff5d73', PU = '#d27bff', YE = '#ffc93d';
+    const tile = (x, y, fill = '#2b3778') => `<rect x="${x - 17}" y="${y - 17}" width="34" height="34" rx="8" fill="${fill}"/>`;
+    const tiles = (xs, y) => xs.map(x => tile(x, y)).join('');
+    const bar = (fill = '#e9f7ff') => `<rect x="-22" y="-3.5" width="44" height="7" rx="3.5" fill="${fill}"/>`;
+    const mirror = (x, y, deg, cls = '') => `<g transform="translate(${x} ${y})"><g class="${cls}" style="transform: rotate(${deg}deg)">${bar()}</g></g>`;
+    const half = (x, y, deg) => `<g transform="translate(${x} ${y}) rotate(${deg})"><rect x="-22" y="-4" width="44" height="8" rx="4" fill="rgba(200,240,255,.35)" stroke="#e9f7ff" stroke-width="2" stroke-dasharray="4 3"/></g>`;
+    const lockI = (x, y) => `<g transform="translate(${x} ${y})"><path d="M-3 0v-3a3 3 0 0 1 6 0v3" fill="none" stroke="#fff" stroke-width="1.6"/><rect x="-4.5" y="0" width="9" height="7" rx="2" fill="#fff"/></g>`;
+    const eyes = (o = 0) => `<path d="M${-6 + o} -1 q2.5 2 5 0 M${1 + o} -1 q2.5 2 5 0" stroke="#1b1f3b" stroke-width="1.8" fill="none" stroke-linecap="round"/>`;
+    const lantern = (x, y, col, dir = 0) => `<g transform="translate(${x} ${y})"><g transform="rotate(${dir})"><path d="M9 -7 L19 -11 Q21 0 19 11 L9 7 Z" fill="${col}"/></g><rect x="-13" y="-13" width="26" height="26" rx="9" fill="${col}"/><circle cx="-4" cy="-2" r="2" fill="#1b1f3b"/><circle cx="4" cy="-2" r="2" fill="#1b1f3b"/><path d="M-3 4 q3 3 6 0" stroke="#1b1f3b" stroke-width="1.6" fill="none" stroke-linecap="round"/></g>`;
+    const target = (x, y, col, cls) => `<g transform="translate(${x} ${y})"><circle r="15" fill="none" stroke="${col}" stroke-width="2.5" stroke-dasharray="5 4"/><circle r="10.5" fill="#2b3778"/><path d="M-6 -1 h4 M2 -1 h4" stroke="#a9b3e0" stroke-width="1.8" stroke-linecap="round"/><g class="${cls}" style="opacity:0"><circle r="10.5" fill="${col}"/><path d="M-6 0 q2.5 -3.5 5 0 M1 0 q2.5 -3.5 5 0" stroke="#1b1f3b" stroke-width="1.8" fill="none" stroke-linecap="round"/><path d="M-3.5 3.5 q3.5 4 7 0" fill="#1b1f3b"/></g></g>`;
+    const beam = (d, col, cls) => `<path class="${cls}" pathLength="1" d="${d}" stroke="${col}" stroke-width="10" opacity=".35" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path class="${cls}" pathLength="1" d="${d}" stroke="${col}" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path class="${cls}" pathLength="1" d="${d}" stroke="#fff" stroke-width="1.6" opacity=".85" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+    const tap = (x, y, cls = 't-tap') => `<g transform="translate(${x} ${y})"><circle class="${cls}" r="14" fill="none" stroke="#fff" stroke-width="2.5"/></g>`;
+    const spark = (x, y, col, cls) => `<circle class="${cls}" cx="${x}" cy="${y}" r="6" fill="${col}" style="opacity:0"/><circle class="${cls}" cx="${x}" cy="${y}" r="11" fill="${col}" style="opacity:0" opacity=".35"/>`;
+    const svg = inner => `<svg viewBox="0 0 260 150" role="img" aria-hidden="true">${inner}</svg>`;
+    // isometric helper for the cube cards
+    const iso = (x, y, z, s = 15) => [130 + (x - z) * .866 * s, 92 + (x + z) * .5 * s - y * s];
+    const P = pts => pts.map((p, i) => (i ? 'L' : 'M') + iso(...p).map(v => v.toFixed(1)).join(' ')).join(' ');
+    const cubeSVG = () => {
+      const face = (pts, fill) => `<path d="${P(pts)} Z" fill="${fill}" stroke="#0b1230" stroke-width="1.5"/>`;
+      let g = face([[0,4,0],[4,4,0],[4,4,4],[0,4,4]], '#34418b') + face([[4,4,0],[4,0,0],[4,0,4],[4,4,4]], '#26306b') + face([[0,4,4],[4,4,4],[4,0,4],[0,0,4]], '#2b3778');
+      for (let i = 1; i < 4; i++) g += `<path d="${P([[i,4,0],[i,4,4]])} ${P([[0,4,i],[4,4,i]])} ${P([[4,i,0],[4,i,4]])} ${P([[4,4,i],[4,0,i]])} ${P([[i,4,4],[i,0,4]])} ${P([[0,i,4],[4,i,4]])}" stroke="#0b1230" stroke-width="1" fill="none" opacity=".7"/>`;
+      return g;
+    };
+    const ground = `<path d="M10 112 H250" stroke="#2b3778" stroke-width="10" stroke-linecap="round"/>`;
+    const hump = x => `<path d="M${x - 26} 108 Q${x - 26} 70 ${x} 70 Q${x + 26} 70 ${x + 26} 108 Z" fill="#7fd6a8"/><circle cx="${x - 9}" cy="82" r="3.5" fill="#fff" opacity=".8"/>`;
+    const [lx, ly] = iso(.5, 4, 2), [ex, ey] = iso(4, 4, 2), [tx, ty] = iso(4, 1.2, 2);
+
+    const CARDS = {
+      basics: { title: 'Aynalar', text: 'Aynaya dokununca 90° döner. Köşedeki düğmeye basınca ışık aynadan yansır ve hedefe gider.',
+        svg: svg(tiles([80, 120, 160], 60) + tile(120, 110) + lantern(36, 60, BL) + mirror(120, 60, -45, 't-rot') + tap(120, 60) + beam('M50 60 H120', BL, 't-s1') + beam('M120 60 V100', BL, 't-s2') + target(120, 112, BL, 't-show2')) },
+      brick: { title: 'Tuğla', text: 'Tuğla ışığı keser. Işığı tuğlanın çevresinden dolaştırmak gerekir.',
+        svg: svg(tiles([80, 120], 75) + `<g transform="translate(160 75)"><rect x="-17" y="-17" width="34" height="34" rx="8" fill="#8a5f45"/><rect x="-13" y="-12" width="12" height="7" rx="2" fill="#a8775a"/><rect x="2" y="-12" width="12" height="7" rx="2" fill="#a8775a"/><rect x="-6" y="-3" width="12" height="7" rx="2" fill="#a8775a"/><rect x="-13" y="6" width="12" height="7" rx="2" fill="#a8775a"/><rect x="2" y="6" width="12" height="7" rx="2" fill="#a8775a"/></g>` + target(220, 75, YE, 'never') + lantern(36, 75, YE) + beam('M50 75 H142', YE, 't-s1') + spark(142, 75, YE, 't-blink1')) },
+      locked: { title: 'Kilitli ayna', text: 'Kilitli aynalar yerlerinde sabittir, dokununca dönmezler. Diğer aynaları onlara göre ayarla.',
+        svg: svg(tiles([80], 75) + tile(130, 75, '#3d3b6e') + lockI(142, 63) + `<g transform="translate(130 75)"><g class="t-shake">${bar('#d9d6f2')}</g></g>` + tap(130, 75)) },
+      two: { title: 'Birden fazla fener', text: 'Her ışık kendi rengindeki hedefe gitmeli. Bütün hedefler aynı anda yanınca bölüm biter.',
+        svg: svg(tiles([80, 120, 160], 45) + tiles([80, 120, 160], 105) + lantern(36, 45, BL) + lantern(36, 105, RD) + beam('M50 45 H212', BL, 't-s1') + beam('M50 105 H212', RD, 't-s1') + target(224, 45, BL, 't-show1') + target(224, 105, RD, 't-show1')) },
+      cross: { title: 'Kesişen ışınlar', text: 'Işınlar birbirinin içinden geçer, birbirini etkilemez.',
+        svg: svg(tiles([90, 130, 170], 75) + tiles([130], 35) + tiles([130], 115) + lantern(46, 75, YE) + lantern(130, 16, '#4ee89a', 90) + beam('M60 75 H210', YE, 't-s1') + beam('M130 30 V128', '#4ee89a', 't-s1') + target(222, 75, YE, 't-show1') + target(130, 140, '#4ee89a', 't-show1')) },
+      split: { title: 'Yeni: Yarı saydam ayna', text: 'Kesik çizgili ayna ışığın yarısını geçirir, yarısını yansıtır. Tek fenerle iki hedef yakılabilir. Dokununca o da döner.',
+        svg: svg(tiles([80, 120, 160], 55) + tile(120, 105) + lantern(36, 55, YE) + half(120, 55, 45) + beam('M50 55 H120', YE, 't-s1') + beam('M120 55 H212', YE, 't-s2') + beam('M120 55 V95', YE, 't-s2') + target(224, 55, YE, 't-show2') + target(120, 112, YE, 't-show2')) },
+      glass: { title: 'Yeni: Renkli cam', text: 'Cam yalnızca kendi rengini geçirir. Beyaz ışık kırmızı camdan kırmızı çıkar. Mavi ışık kırmızı camdan hiç geçemez.',
+        svg: svg(tiles([80, 160], 45) + tiles([80, 160], 105) + [45, 105].map(y => `<g transform="translate(120 ${y})"><rect x="-17" y="-17" width="34" height="34" rx="8" fill="${RD}" opacity=".6" stroke="#ff9aa8" stroke-width="2.5"/><path d="M-9 8 L5 -10 M-2 12 L10 -4" stroke="#fff" stroke-width="2.5" opacity=".6" stroke-linecap="round"/></g>`).join('') + lantern(36, 45, '#ffffff') + lantern(36, 105, BL) + beam('M50 45 H103', '#ffffff', 't-s1') + beam('M103 45 H212', RD, 't-s2') + beam('M50 105 H110', BL, 't-s1') + spark(110, 105, BL, 't-blink1') + target(224, 45, RD, 't-show2')) },
+      mix: { title: 'Yeni: Renk karışımı', text: 'İki ışık yarı saydam aynada birleşebilir. Işıklar toplanarak karışır: kırmızı + mavi = mor, kırmızı + yeşil = sarı.',
+        svg: svg(tiles([80, 120, 160], 85) + tile(120, 45) + lantern(36, 85, RD) + lantern(120, 14, BL, 90) + half(120, 85, 45) + beam('M50 85 H120', RD, 't-s1') + beam('M120 28 V85', BL, 't-s1') + beam('M120 85 H212', PU, 't-s2') + target(224, 85, PU, 't-show2')) },
+      wrap: { title: 'Küp', text: 'Işık bir yüzün kenarına gelince küpün köşesinden dönüp yandaki yüzde devam eder. Küpü parmağınla sürükleyerek çevir.',
+        svg: svg(cubeSVG() + `<circle cx="${lx}" cy="${ly - 4}" r="9" fill="${BL}"/>` + beam(`M${lx} ${ly} L${ex} ${ey}`, BL, 't-s1') + beam(`M${ex} ${ey} L${tx} ${ty}`, BL, 't-s2') + target(tx, ty, BL, 't-show2') + `<g class="t-drag"><circle cx="215" cy="120" r="9" fill="#fff" opacity=".85"/><path d="M200 120 h-14 m5 -5 l-5 5 l5 5" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/></g>`) },
+      bump: { title: 'Yeni: Çıkıntı', text: 'Işık hep düz gider, tümseğin üzerinden kendiliğinden geçemez. Çıkıntıya çarpan ışık orada durur.',
+        svg: svg(ground + hump(160) + lantern(36, 98, YE) + beam('M50 98 H133', YE, 't-s1') + spark(133, 98, YE, 't-blink1')) },
+      pipe: { title: 'Yeni: İçi aynalı boru', text: 'Boru ışığı bir ağzından alır, iç duvarlarından yansıta yansıta öbür ağzından çıkarır. Işık ağzın baktığı yönden gelmeli.',
+        svg: svg(ground + hump(130) + `<path d="M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98" stroke="#bfe3ff" stroke-width="20" opacity=".35" fill="none"/><path d="M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98" stroke="#e9f7ff" stroke-width="20" opacity=".5" fill="none" stroke-dasharray="2 14"/><circle cx="64" cy="98" r="9" fill="none" stroke="#ffc6dd" stroke-width="4"/><circle cx="196" cy="98" r="9" fill="none" stroke="#ffc6dd" stroke-width="4"/>` + lantern(26, 98, '#4ee89a') + beam('M40 98 H64', '#4ee89a', 't-s1') + beam('M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98', '#4ee89a', 't-s2') + beam('M196 98 H222', '#4ee89a', 't-s3') + target(236, 98, '#4ee89a', 't-show3')) },
+    };
+    return { CARDS };
+  })();
+  function tutSeen() { try { return JSON.parse(localStorage.getItem(TUT_KEY) || '{}'); } catch (e) { return {}; } }
+  let tutQueue = [];
+  function openCard(id) {
+    const card = TUT.CARDS[id];
+    $('tutTitle').textContent = card.title; $('tutText').textContent = card.text; $('tutArt').innerHTML = card.svg;
+    $('tutOk').textContent = tutQueue.length ? 'Devam' : 'Anladım';
+    $('tutDlg').classList.add('show'); $('tutOk').focus();
+  }
+  // ids: list of card ids; unseen ones are shown one after another (all of them when force)
+  function showTutorials(ids, force) {
+    const seen = tutSeen();
+    tutQueue = ids.filter(id => TUT.CARDS[id] && (force || !seen[id]));
+    tutQueue.forEach(id => seen[id] = 1);
+    try { localStorage.setItem(TUT_KEY, JSON.stringify(seen)); } catch (e) {}
+    if (tutQueue.length) openCard(tutQueue.shift());
+  }
+  function tutorialFor(i) { let k = i; while (k >= 0 && !(k in LEVEL_TUT)) k--; return k >= 0 ? LEVEL_TUT[k] : null; }
+  $('tutOk').onclick = () => { if (tutQueue.length) openCard(tutQueue.shift()); else $('tutDlg').classList.remove('show'); };
+  $('helpBtn').onclick = () => { const ids = tutorialFor(lvl); if (ids) showTutorials(ids, true); };
   $('soundBtn').onclick = () => { soundOn = !soundOn; save(); soundIcon(); };
   $('levelsBtn').onclick = () => {
     const wrap = $('levelGrid'); wrap.innerHTML = '';
