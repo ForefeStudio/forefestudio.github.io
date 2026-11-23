@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Fener Küpü</title>
-<meta name="description" content="Fener ve Aynalar'ın küp hali: altı yüzlü bir küpte ışık kenarlardan yandaki yüze geçer.">
+<meta name="description" content="Fener ve Aynalar'ın küp hali: altı yüzlü küpte aynalar, çıkıntılar ve içi aynalı borularla ışığı hedefe ulaştır.">
 <meta name="theme-color" content="#0b1230">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -147,7 +147,8 @@
 (() => {
   // ---- surface-cube light engine: six 4x4 faces, light wraps over the cube's edges ----
   // cell key "x+:u,v"  (face = axis letter + sign; u,v = the other two axes in x,y,z order)
-  // cells: key -> { t: '/' | '\\' (rotatable mirror), 'a' | 'b' (locked), '#' brick, 'L' lantern, 'T' target }
+  // cells: key -> { t: '/' | '\\' (rotatable mirror), 'a' | 'b' (locked), 'H' bump, 'L' lantern, 'T' target,
+  //                 'P' pipe mouth { o: direction the mouth faces, to: other mouth key } }
   var SN = 4, BEAM_H = .13;
   var AX = { x: 0, y: 1, z: 2 };
   function faceInfo(f) { const a = AX[f[0]], s = f[1] === '+' ? 1 : -1, o = [0,1,2].filter(b => b !== a); return { a, s, u: o[0], v: o[1] }; }
@@ -159,6 +160,23 @@
     const F = faceInfo(f), w = [0,0,0];
     for (let i = 0; i < 3; i++) w[i] = i === F.a ? F.s * SN / 2 + F.s * h : p[i] - (SN - 1) / 2;
     return w;
+  }
+  var add3 = (a, b, k) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
+  // points along a mirrored pipe from mouth A (light enters) to mouth B (light leaves)
+  function pipeCurve(ka, oa, kb, ob) {
+    const A = cellP(ka), B = cellP(kb), na = normalOf(A.f), nb = normalOf(B.f);
+    const ca = worldOf(A.f, A.p, BEAM_H), cb = worldOf(B.f, B.p, BEAM_H);
+    const ea = add3(ca, oa, .5), eb = add3(cb, ob, .5);
+    const ua = add3(ca, na, .5), ub = add3(cb, nb, .5);
+    const span = Math.hypot(ca[0] - cb[0], ca[1] - cb[1], ca[2] - cb[2]), H = .55 + span * .35;
+    const pts = [];
+    const quad = (p0, p1, p2, n) => { for (let i = 1; i <= n; i++) { const t = i / n, a = (1 - t) * (1 - t), b = 2 * (1 - t) * t, c = t * t; pts.push([0,1,2].map(j => a * p0[j] + b * p1[j] + c * p2[j])); } };
+    const cub = (p0, p1, p2, p3, n) => { for (let i = 1; i <= n; i++) { const t = i / n, a = (1 - t) ** 3, b = 3 * (1 - t) ** 2 * t, c = 3 * (1 - t) * t * t, d = t ** 3; pts.push([0,1,2].map(j => a * p0[j] + b * p1[j] + c * p2[j] + d * p3[j])); } };
+    pts.push(ea);
+    quad(ea, ca, ua, 6);
+    cub(ua, add3(ua, na, H), add3(ub, nb, H), ub, 18);
+    quad(ub, cb, eb, 6);
+    return pts;
   }
   function reflect(f, t, d) {
     const F = faceInfo(f), du = d[F.u], dv = d[F.v], n = [0,0,0];
@@ -191,7 +209,15 @@
         if (seen.has(sk)) { add(c); break; } seen.add(sk);
         if (!cell) continue;
         if (cell.t === 'T') { add(c); ends[key] = (ends[key] || 0) | l.c; endD[key] = Math.max(endD[key] || 0, dist); break; }
-        if (cell.t === '#' || cell.t === 'L') { add([c[0] - d[0] * .42, c[1] - d[1] * .42, c[2] - d[2] * .42]); if (cell.t === '#') { hits.push({ k: key, c: l.c, d: dist }); sparks.push({ p: pts[pts.length - 1], c: l.c, d: dist }); } break; }
+        if (cell.t === 'P' && d[0] === -cell.o[0] && d[1] === -cell.o[1] && d[2] === -cell.o[2]) {
+          const peer = cells[cell.to];
+          pipeCurve(key, cell.o, cell.to, peer.o).forEach(add);
+          hits.push({ k: key, c: l.c, d: dist });
+          ({ f, p } = cellP(cell.to)); d = peer.o.slice();
+          seen.add(cell.to + '|' + d.join(','));
+          continue;
+        }
+        if (cell.t === 'H' || cell.t === 'L' || cell.t === 'P') { add([c[0] - d[0] * .42, c[1] - d[1] * .42, c[2] - d[2] * .42]); if (cell.t !== 'L') { hits.push({ k: key, c: l.c, d: dist }); sparks.push({ p: pts[pts.length - 1], c: l.c, d: dist }); } break; }
         add(c); hits.push({ k: key, c: l.c, d: dist });
         d = reflect(f, cell.t, d);
       }
@@ -206,12 +232,13 @@
     4: { name: 'mavi', hex: '#4c9dff' }, 5: { name: 'mor', hex: '#d27bff' }, 6: { name: 'turkuaz', hex: '#3ef0d8' }, 7: { name: 'beyaz', hex: '#ffffff' },
   };
   const hex = c => COLORS[c].hex;
-  const LEVELS = [{"lanterns": [{"k": "z-:0,2", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z+:0,0", "c": 4}], "cells": [["z-:0,1", "/"], ["z+:0,1", "/"]]}, {"lanterns": [{"k": "z-:1,0", "d": [-1, 0, 0], "c": 3}], "targets": [{"k": "z+:2,0", "c": 3}], "cells": [["x-:0,2", "/"], ["y-:1,2", "/"], ["z+:1,0", "\\"]]}, {"lanterns": [{"k": "x+:1,3", "d": [0, 0, 1], "c": 2}], "targets": [{"k": "x-:0,0", "c": 2}], "cells": [["z+:1,1", "\\"], ["z+:1,2", "b"], ["z+:0,2", "\\"], ["z+:0,0", "\\"], ["z-:0,3", "#"], ["x-:2,1", "#"], ["z+:2,0", "#"]]}, {"lanterns": [{"k": "x-:2,0", "d": [0, 0, 1], "c": 1}, {"k": "x+:2,3", "d": [0, 0, 1], "c": 4}], "targets": [{"k": "z-:1,1", "c": 1}, {"k": "y-:1,3", "c": 4}], "cells": [["x-:2,3", "/"], ["x-:1,3", "\\"], ["z+:1,2", "/"], ["z+:1,1", "\\"], ["x-:3,2", "#"], ["z-:3,0", "#"]]}, {"lanterns": [{"k": "y-:2,1", "d": [-1, 0, 0], "c": 5}], "targets": [{"k": "x-:1,1", "c": 5}], "cells": [["y-:1,1", "\\"], ["z-:1,0", "/"], ["x-:0,0", "\\"], ["x-:2,0", "b"], ["z-:0,2", "/"], ["y+:0,1", "\\"], ["x+:0,3", "#"], ["z+:0,2", "#"], ["z-:1,3", "#"], ["z+:2,0", "#"]]}, {"lanterns": [{"k": "y-:3,2", "d": [1, 0, 0], "c": 6}, {"k": "z-:3,0", "d": [0, -1, 0], "c": 3}], "targets": [{"k": "x-:1,2", "c": 6}, {"k": "y+:3,1", "c": 3}], "cells": [["x+:0,2", "\\"], ["x+:0,3", "\\"], ["y-:2,3", "a"], ["y-:2,2", "\\"], ["y-:3,1", "\\"], ["x+:0,1", "\\"], ["y+:3,2", "/"], ["z-:2,3", "#"], ["z-:0,3", "#"], ["y+:0,1", "#"], ["z-:1,1", "#"]]}, {"lanterns": [{"k": "y-:2,0", "d": [1, 0, 0], "c": 1}, {"k": "x+:2,2", "d": [0, 0, 1], "c": 2}, {"k": "z+:2,0", "d": [1, 0, 0], "c": 4}], "targets": [{"k": "y+:1,0", "c": 1}, {"k": "x-:2,3", "c": 2}, {"k": "y-:2,2", "c": 4}], "cells": [["x+:3,0", "b"], ["z-:0,3", "b"], ["y+:0,0", "/"], ["z+:1,2", "/"], ["z+:1,3", "/"], ["x-:3,3", "\\"], ["x+:0,3", "/"], ["y-:0,3", "\\"], ["y-:0,2", "/"], ["x-:3,2", "#"], ["z-:3,1", "#"], ["z+:0,2", "#"], ["y+:0,2", "#"], ["y+:1,1", "#"]]}, {"lanterns": [{"k": "y+:0,0", "d": [0, 0, 1], "c": 5}, {"k": "y-:0,3", "d": [1, 0, 0], "c": 6}, {"k": "z-:2,3", "d": [1, 0, 0], "c": 3}], "targets": [{"k": "y-:3,1", "c": 5}, {"k": "z-:2,0", "c": 6}, {"k": "z+:1,1", "c": 3}], "cells": [["z+:0,2", "\\"], ["x-:2,3", "a"], ["x-:1,3", "/"], ["x-:1,1", "a"], ["y-:1,3", "/"], ["y-:1,2", "/"], ["y-:3,2", "/"], ["z+:3,0", "\\"], ["x+:3,0", "/"], ["x+:1,0", "\\"], ["x+:3,1", "#"], ["x+:2,2", "#"], ["z-:3,1", "#"], ["x-:0,2", "#"], ["x+:3,2", "#"], ["x-:3,2", "#"]]}];
+  const LEVELS = [{"lanterns": [{"k": "x+:0,2", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z+:0,0", "c": 4}], "pipes": [], "cells": [["y-:3,2", "\\"], ["z+:3,0", "/"]]}, {"lanterns": [{"k": "y+:2,1", "d": [-1, 0, 0], "c": 3}], "targets": [{"k": "z+:3,2", "c": 3}], "pipes": [], "cells": [["y+:0,1", "\\"], ["y+:0,2", "/"], ["x-:2,2", "/"], ["z+:0,1", "H"], ["x-:1,2", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x-:2,2", "d": [0, 1, 0], "c": 2}], "targets": [{"k": "x+:3,2", "c": 2}], "pipes": [{"a": "y+:1,2", "oa": [-1, 0, 0], "b": "y+:3,2", "ob": [0, 0, 1]}], "cells": [["y+:2,2", "H"], ["y+:3,3", "\\"], ["x+:3,3", "\\"], ["x-:3,3", "H"]]}, {"lanterns": [{"k": "y+:3,1", "d": [0, 0, -1], "c": 1}], "targets": [{"k": "x-:0,0", "c": 1}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "y-:3,3", "ob": [0, 0, -1]}], "cells": [["y+:3,0", "\\"], ["y+:2,0", "/"], ["y-:3,2", "/"], ["x+:0,2", "b"], ["z+:2,2", "H"], ["z+:3,0", "H"], ["x+:2,0", "H"]]}, {"lanterns": [{"k": "z-:2,2", "d": [-1, 0, 0], "c": 4}, {"k": "x+:2,2", "d": [0, 0, -1], "c": 3}], "targets": [{"k": "y+:1,1", "c": 4}, {"k": "y-:2,0", "c": 3}], "pipes": [{"a": "x-:1,0", "oa": [0, 0, -1], "b": "x-:3,2", "ob": [0, 1, 0]}], "cells": [["z-:0,2", "/"], ["z-:0,1", "\\"], ["x-:2,1", "H"], ["y+:1,2", "/"], ["x+:2,0", "\\"], ["x+:1,1", "H"], ["z+:1,1", "H"], ["y+:0,0", "H"]]}, {"lanterns": [{"k": "y+:0,1", "d": [0, 0, -1], "c": 5}], "targets": [{"k": "y-:0,1", "c": 5}], "pipes": [{"a": "y+:1,0", "oa": [-1, 0, 0], "b": "x+:0,3", "ob": [0, 0, -1]}, {"a": "y-:3,1", "oa": [1, 0, 0], "b": "z+:2,2", "ob": [1, 0, 0]}], "cells": [["y+:0,0", "\\"], ["x+:0,1", "\\"], ["z+:3,2", "/"], ["z+:3,1", "\\"], ["z+:2,1", "a"], ["y-:2,1", "/"], ["x-:2,1", "H"], ["x+:0,0", "H"], ["z-:2,2", "H"], ["z+:1,3", "H"]]}, {"lanterns": [{"k": "x-:3,0", "d": [0, 1, 0], "c": 6}, {"k": "z+:0,1", "d": [0, 1, 0], "c": 1}], "targets": [{"k": "x+:1,1", "c": 6}, {"k": "x+:2,1", "c": 1}], "pipes": [{"a": "z+:3,2", "oa": [0, 1, 0], "b": "z+:3,0", "ob": [1, 0, 0]}, {"a": "y+:0,3", "oa": [0, 0, 1], "b": "x-:2,1", "ob": [0, -1, 0]}], "cells": [["y+:1,0", "a"], ["z+:1,3", "/"], ["z+:3,3", "\\"], ["z+:3,1", "H"], ["x+:0,1", "\\"], ["x-:1,1", "\\"], ["z-:1,1", "\\"], ["z-:1,2", "\\"], ["y-:2,3", "H"], ["y-:1,3", "H"], ["z-:2,0", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x+:0,3", "d": [0, 0, 1], "c": 1}, {"k": "y+:2,2", "d": [0, 0, -1], "c": 2}, {"k": "z-:2,1", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z-:1,0", "c": 1}, {"k": "z+:3,3", "c": 2}, {"k": "y+:0,1", "c": 4}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "z-:0,0", "ob": [0, 1, 0]}, {"a": "z-:0,1", "oa": [0, -1, 0], "b": "z-:3,3", "ob": [0, 1, 0]}, {"a": "y-:2,1", "oa": [0, 0, -1], "b": "y-:0,1", "ob": [-1, 0, 0]}], "cells": [["z+:1,0", "/"], ["z-:1,2", "H"], ["z-:2,2", "H"], ["y+:3,1", "\\"], ["x+:3,1", "b"], ["x+:3,3", "a"], ["y+:3,3", "/"], ["x-:0,1", "\\"], ["x-:0,2", "\\"], ["x-:2,2", "\\"], ["x-:2,1", "/"], ["x+:3,0", "H"], ["x+:1,1", "H"], ["x+:2,2", "H"], ["y+:2,3", "H"], ["x+:0,0", "H"]]}];
   const HINTS = {
     0: 'Aynalara dokunup çevir, sonra düğmeye bas. Işık kenara gelince <b>yandaki yüze geçer</b>: küpü çevirip takip et.',
-    1: 'Işık küpün etrafında birkaç yüz dolaşabilir.',
-    2: 'Kilitli (mor) aynalar dönmez, tuğlalar ışığı keser.',
-    3: 'İki fener! Her ışık kendi rengindeki hedefe gitmeli.',
+    1: '<b>Çıkıntılar</b> ışığı keser. Işık düz gider, tümseğin üzerinden kendiliğinden geçemez.',
+    2: '<b>İçi aynalı boru</b> ışığı ağzından alır, içinde yansıta yansıta öbür ağızdan çıkarır. Çıkıntıların üzerinden böyle geçilir.',
+    3: 'Kilitli (mor çerçeveli) aynalar dönmez. Boru ışığı yandaki yüze de taşıyabilir.',
+    4: 'İki fener! Her ışık kendi rengindeki hedefe gitmeli.',
   };
   const $ = id => document.getElementById(id);
   const stage = $('stage');
@@ -254,7 +281,6 @@
   const camera = new THREE.PerspectiveCamera(40, 1, .1, 100);
   scene.add(new THREE.AmbientLight(0xffffff, .75));
   const sun = new THREE.DirectionalLight(0xffffff, .7); sun.position.set(5, 9, 7); scene.add(sun);
-  const fill = new THREE.DirectionalLight(0xffffff, .4); fill.position.set(-6, -8, -5); scene.add(fill);
   const world = new THREE.Group(); scene.add(world);
 
   /* ---------- the cube ---------- */
@@ -312,11 +338,24 @@
     const t = new THREE.CanvasTexture(cv); t.anisotropy = 4; texCache[key] = t; return t;
   }
 
+  /* ---------- reflective environment for the mirrors ---------- */
+  const envTex = (() => {
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256; const g = cv.getContext('2d');
+    const gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, '#cfe8ff'); gr.addColorStop(.45, '#5b6fc4'); gr.addColorStop(.55, '#26306b'); gr.addColorStop(1, '#0b1230');
+    g.fillStyle = gr; g.fillRect(0, 0, 512, 256);
+    g.fillStyle = '#ffffff'; [[80, 40, 40], [300, 30, 60], [430, 60, 30]].forEach(([x, y, w]) => { g.globalAlpha = .9; g.fillRect(x, y, w, 14); });
+    g.globalAlpha = 1; g.fillStyle = '#ffe9a8'; g.beginPath(); g.arc(200, 50, 16, 0, 7); g.fill();
+    const t = new THREE.CanvasTexture(cv); t.mapping = THREE.EquirectangularReflectionMapping;
+    const pm = new THREE.PMREMGenerator(renderer); const rt = pm.fromEquirectangular(t); pm.dispose(); return rt.texture;
+  })();
+
   /* ---------- level objects ---------- */
-  let objs = [], mirrors = {}, lanternSprites = [], targetSprites = {}, beamGroup = new THREE.Group(), beams = [], beamT0 = 0, pendingHits = [], sparkMeshes = [];
+  let objs = [], mirrors = {}, lanternSprites = [], lanternLens = [], targetSprites = {}, pipeMeshes = [], beamGroup = new THREE.Group(), beams = [], beamT0 = 0, pendingHits = [], sparkMeshes = [];
   world.add(beamGroup);
-  const barGeo = new THREE.BoxGeometry(1.06, .09, .15);
-  const brickGeo = new THREE.BoxGeometry(.8, .3, .8);
+  const glassGeo = new THREE.BoxGeometry(1.0, .44, .04);
+  const frameGeo = new THREE.BoxGeometry(1.1, .54, .07);
+  const footGeo = new THREE.BoxGeometry(.34, .06, .22);
+  const mirrorMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 1, roughness: .04, envMap: envTex, envMapIntensity: 1.2 });
   function mirrorQuat(key, t) {
     const { f } = cellP(key), F = faceInfo(f), n = V(normalOf(f));
     const a = [0,0,0]; a[F.u] = 1; a[F.v] = (t === '/' || t === 'a') ? 1 : -1;
@@ -324,42 +363,87 @@
     return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(along, n, side));
   }
   function upQuat(f) { return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), V(normalOf(f))); }
+  function makeMirror(key, locked) {
+    const g = new THREE.Group();
+    const frame = new THREE.Mesh(frameGeo, new THREE.MeshStandardMaterial({ color: locked ? 0x9d8cff : 0xffc6dd, roughness: .5, emissive: 0 }));
+    const glass = new THREE.Mesh(glassGeo, mirrorMat);
+    const foot = new THREE.Mesh(footGeo, frame.material);
+    frame.position.y = glass.position.y = .3; foot.position.y = .03;
+    [frame, glass, foot].forEach(m => { m.userData.key = key; g.add(m); });
+    g.userData = { key, frame };
+    return g;
+  }
   function build() {
-    objs.forEach(o => world.remove(o)); objs = []; mirrors = {}; lanternSprites = []; targetSprites = {};
+    objs.forEach(o => world.remove(o)); objs = []; mirrors = {}; lanternSprites = []; lanternLens = []; targetSprites = {}; pipeMeshes = [];
     Object.values(tiles).forEach(t => t.material.color.setHex(0x2b3778));
     clearBeams();
     cells = {};
     L.cells.forEach(([k, t]) => cells[k] = { t });
     L.lanterns.forEach(l => cells[l.k] = { t: 'L' });
     L.targets.forEach(t => cells[t.k] = { t: 'T' });
+    L.pipes.forEach(p => { cells[p.a] = { t: 'P', o: p.oa, to: p.b }; cells[p.b] = { t: 'P', o: p.ob, to: p.a }; });
+    const add = m => { world.add(m); objs.push(m); return m; };
     Object.entries(cells).forEach(([k, c]) => {
       const { f, p } = cellP(k);
-      if (c.t === '#') {
-        const m = new THREE.Mesh(brickGeo, new THREE.MeshStandardMaterial({ color: 0xa8775a, roughness: .9 }));
-        m.position.copy(V(worldOf(f, p, .15))); m.quaternion.copy(upQuat(f)); world.add(m); objs.push(m);
-        tiles[k].material.color.setHex(0x8a5f45);
+      if (c.t === 'H') {                                   // bump: a soft rounded hill
+        const g = new THREE.Group();
+        const mat = new THREE.MeshStandardMaterial({ color: 0x7fd6a8, roughness: .8 });
+        const base = new THREE.Mesh(new THREE.CylinderGeometry(.33, .37, .26, 24), mat); base.position.y = .13;
+        const top = new THREE.Mesh(new THREE.SphereGeometry(.33, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), mat); top.position.y = .26;
+        const spot = new THREE.Mesh(new THREE.SphereGeometry(.07, 10, 8), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .6 })); spot.position.set(-.12, .5, .1);
+        g.add(base, top, spot);
+        g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(upQuat(f)); add(g);
+        tiles[k].material.color.setHex(0x3e8a68);
       } else if ('/\\ab'.includes(c.t)) {
         const locked = c.t === 'a' || c.t === 'b';
-        const m = new THREE.Mesh(barGeo, new THREE.MeshStandardMaterial({ color: locked ? 0xc9c3ff : 0xeaf7ff, roughness: .3, metalness: .1, emissive: 0 }));
-        m.position.copy(V(worldOf(f, p, .07))); m.quaternion.copy(mirrorQuat(k, c.t)); m.userData = { key: k, targetQ: m.quaternion.clone() };
-        world.add(m); objs.push(m); mirrors[k] = m;
+        const g = makeMirror(k, locked);
+        g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(mirrorQuat(k, c.t)); g.userData.targetQ = g.quaternion.clone();
+        add(g); mirrors[k] = g;
         if (locked) tiles[k].material.color.setHex(0x3d3b6e);
       }
     });
+    // mirrored pipes: shiny tube following the light's own curve
+    L.pipes.forEach(pp => {
+      const pts = pipeCurve(pp.a, pp.oa, pp.b, pp.ob).map(V);
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 80, .2, 20, false),
+        new THREE.MeshStandardMaterial({ color: 0xbfe3ff, metalness: .6, roughness: .15, envMap: envTex, transparent: true, opacity: .55, side: THREE.DoubleSide, depthWrite: false }));
+      add(tube); pipeMeshes.push(tube);
+      [[pp.a, pp.oa], [pp.b, pp.ob]].forEach(([k, o]) => {
+        const { f, p } = cellP(k);
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(.21, .055, 10, 24), new THREE.MeshStandardMaterial({ color: 0xffc6dd, roughness: .4 }));
+        ring.position.copy(V(worldOf(f, p, BEAM_H))).addScaledVector(V(o), .5);
+        ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), V(o)); add(ring);
+        tiles[k].material.color.setHex(0x4a5aa8);
+      });
+    });
+    // lanterns: a little torch lying on its tile, pointing where the light will go, plus an arrow on the tile
     L.lanterns.forEach(l => {
-      const { f, p } = cellP(l.k), n = V(normalOf(f)), d = V(l.d);
+      const { f, p } = cellP(l.k), n = V(normalOf(f)), d = V(l.d), col = new THREE.Color(hex(l.c));
+      const base = V(worldOf(f, p, BEAM_H));
+      const bodyMat = new THREE.MeshStandardMaterial({ color: col, roughness: .5 });
+      const tubeM = new THREE.Mesh(new THREE.CylinderGeometry(.17, .2, .46, 20), bodyMat);
+      tubeM.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d); tubeM.position.copy(base).addScaledVector(d, -.06).addScaledVector(n, .08); add(tubeM);
+      const head = new THREE.Mesh(new THREE.CylinderGeometry(.24, .17, .14, 20), new THREE.MeshStandardMaterial({ color: 0xffe9a8, roughness: .4 }));
+      head.quaternion.copy(tubeM.quaternion); head.position.copy(base).addScaledVector(d, .23).addScaledVector(n, .08); add(head);
+      const lens = new THREE.Mesh(new THREE.CircleGeometry(.2, 24), new THREE.MeshBasicMaterial({ color: col.clone().lerp(new THREE.Color(0x222244), .45) }));
+      lens.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), d); lens.position.copy(base).addScaledVector(d, .305).addScaledVector(n, .08); add(lens);
+      lens.userData = { col }; lanternLens.push(lens);
+      // arrow painted on the next tile edge
+      const sh = new THREE.Shape(); sh.moveTo(0, .16); sh.lineTo(.14, -.04); sh.lineTo(.05, -.04); sh.lineTo(.05, -.14); sh.lineTo(-.05, -.14); sh.lineTo(-.05, -.04); sh.lineTo(-.14, -.04); sh.closePath();
+      const arrow = new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color: col }));
+      const side = new THREE.Vector3().crossVectors(d, n);
+      arrow.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side, d, n));
+      arrow.position.copy(V(worldOf(f, p, .012))).addScaledVector(d, .62); add(arrow);
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteTex('lantern', hex(l.c), 'off'), transparent: true }));
-      sp.position.copy(V(worldOf(f, p, .42))); sp.scale.set(.8, .8, 1); sp.userData = { col: hex(l.c) };
-      world.add(sp); objs.push(sp); lanternSprites.push(sp);
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(.13, .26, 16), new THREE.MeshBasicMaterial({ color: hex(l.c) }));
-      cone.position.copy(V(worldOf(f, p, BEAM_H))).addScaledVector(d, .36); cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
-      world.add(cone); objs.push(cone);
+      sp.position.copy(base).addScaledVector(d, -.1).addScaledVector(n, .5); sp.scale.set(.5, .5, 1); sp.userData = { col: hex(l.c), base: .5 };
+      add(sp); lanternSprites.push(sp);
     });
     L.targets.forEach(t => {
       const { f, p } = cellP(t.k);
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteTex('target', hex(t.c), 'idle'), transparent: true }));
       sp.position.copy(V(worldOf(f, p, .4))); sp.scale.set(.74, .74, 1); sp.userData = { col: hex(t.c) };
-      world.add(sp); objs.push(sp); targetSprites[t.k] = sp;
+      add(sp); targetSprites[t.k] = sp;
     });
   }
 
@@ -367,22 +451,26 @@
   function clearBeams() {
     beams.forEach(b => { beamGroup.remove(b.core); beamGroup.remove(b.glow); }); beams = []; pendingHits = [];
     sparkMeshes.forEach(s => beamGroup.remove(s)); sparkMeshes = [];
-    Object.values(mirrors).forEach(m => m.material.emissive.setHex(0));
+    Object.values(mirrors).forEach(m => m.userData.frame.material.emissive.setHex(0));
     Object.values(targetSprites).forEach(sp => { sp.material.map = spriteTex('target', sp.userData.col, 'idle'); sp.scale.set(.74, .74, 1); });
     lanternSprites.forEach(sp => sp.material.map = spriteTex('lantern', sp.userData.col, lightOn ? 'on' : 'off'));
+    lanternLens.forEach(l => l.material.color.copy(lightOn ? l.userData.col.clone().lerp(new THREE.Color(0xffffff), .5) : l.userData.col.clone().lerp(new THREE.Color(0x222244), .45)));
   }
   const cyl = new THREE.CylinderGeometry(1, 1, 1, 12, 1, true);
-  const BEAM_SPEED = 6;
+  const BEAM_SPEED = 8;
+  let winTimer = 0;
   function drawBeams(animate) {
+    clearTimeout(winTimer);
     clearBeams();
     $('power').classList.toggle('on', lightOn);
     if (!lightOn) return;
     const tr = traceS(cells, L.lanterns);
-    tr.paths.forEach(p => {
+    tr.paths.forEach((p, li) => {
       let acc = 0;
+      const d0 = V(L.lanterns[li].d);
       for (let k = 1; k < p.pts.length; k++) {
         const a = V(p.pts[k - 1]), b = V(p.pts[k]);
-        if (k === 1) a.lerp(b, Math.min(.5, .34 / a.distanceTo(b)));
+        if (k === 1) a.addScaledVector(d0, .3).addScaledVector(V(normalOf(L.lanterns[li].k.split(':')[0])), .08 - 0);
         const len = a.distanceTo(b); if (len < 1e-4) continue;
         const dir = b.clone().sub(a).normalize(), col = new THREE.Color(hex(p.c));
         const core = new THREE.Mesh(cyl, new THREE.MeshBasicMaterial({ color: col.clone().lerp(new THREE.Color(0xffffff), .45) }));
@@ -391,7 +479,7 @@
         beams.push({ core, glow, a, dir, len, start: acc }); acc += len;
       }
     });
-    tr.hits.forEach(h => pendingHits.push({ at: h.d, fn: () => { const m = mirrors[h.k]; if (m) m.material.emissive.set(hex(h.c)).multiplyScalar(.35); } }));
+    tr.hits.forEach(h => pendingHits.push({ at: h.d, fn: () => { const m = mirrors[h.k]; if (m) m.userData.frame.material.emissive.set(hex(h.c)).multiplyScalar(.45); } }));
     tr.sparks.forEach(s => {
       const m = new THREE.Mesh(new THREE.SphereGeometry(.13, 12, 8), new THREE.MeshBasicMaterial({ color: hex(s.c), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
       m.position.copy(V(s.p)); beamGroup.add(m); sparkMeshes.push(m);
@@ -406,7 +494,7 @@
     if (allHit) {
       solved = true;
       const longest = Math.max(...L.targets.map(t => tr.endD[t.k] || 0));
-      setTimeout(win, (animate ? longest / BEAM_SPEED * 1000 : 0) + 700);
+      winTimer = setTimeout(win, (animate ? longest / BEAM_SPEED * 1000 : 0) + 700);
     }
   }
   function updateBeams(now) {
@@ -464,7 +552,7 @@
     const r = renderer.domElement.getBoundingClientRect();
     ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObjects([body, ...Object.values(tiles), ...Object.values(mirrors)], false)[0];
+    const hit = ray.intersectObjects([body, ...Object.values(tiles), ...Object.values(mirrors)], true)[0];
     if (hit && hit.object.userData.key && mirrors[hit.object.userData.key]) rotateMirror(hit.object.userData.key);
   }
   const FLIP = { '/': '\\', '\\': '/' };
@@ -496,7 +584,7 @@
   /* ---------- level flow ---------- */
   function computeOptimal() {
     const rot = Object.keys(cells).filter(k => cells[k].t in FLIP), st = rot.map(k => cells[k].t);
-    const tmp = {}; Object.entries(cells).forEach(([k, c]) => tmp[k] = { t: c.t });
+    const tmp = {}; Object.entries(cells).forEach(([k, c]) => tmp[k] = { ...c });
     let best = Infinity;
     for (let m = 0; m < 1 << rot.length; m++) {
       let cost = 0; rot.forEach((k, j) => { const f = m >> j & 1; cost += f; tmp[k].t = f ? FLIP[st[j]] : st[j]; });
@@ -566,9 +654,9 @@
     Object.values(mirrors).forEach(m => {
       const u = m.userData;
       if (u.t0) { const k = Math.min(1, (now - u.t0) / 260), e = 1 - Math.pow(1 - k, 3); m.quaternion.slerpQuaternions(u.fromQ, u.targetQ, e); if (k >= 1) u.t0 = 0; }
-      if (u.shake) { const k = (now - u.shake) / 300; m.rotateY(k < 1 ? Math.sin(k * 20) * .03 : 0); if (k >= 1) { u.shake = 0; m.quaternion.copy(u.targetQ); } }
+      if (u.shake) { const k = (now - u.shake) / 300; m.rotateY(k < 1 ? Math.sin(k * 20) * .05 : 0); if (k >= 1) { u.shake = 0; m.quaternion.copy(u.targetQ); } }
     });
-    lanternSprites.forEach((sp, i) => { const b = lightOn && !reduce ? Math.sin(now / 300 + i) * .03 : 0; sp.scale.set(.8 + b, .8 + b, 1); });
+    lanternSprites.forEach((sp, i) => { const b = lightOn && !reduce ? Math.sin(now / 300 + i) * .03 : 0; sp.scale.set(sp.userData.base + b, sp.userData.base + b, 1); });
     animateCamera(now); updateBeams(now);
     renderer.render(scene, camera);
     requestAnimationFrame(frameLoop);
