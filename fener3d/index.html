@@ -270,8 +270,8 @@
   const LEVELS = [{"lanterns": [{"k": "x+:0,2", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z+:0,0", "c": 4}], "pipes": [], "cells": [["y-:3,2", "\\"], ["z+:3,0", "/"]]}, {"lanterns": [{"k": "y+:2,1", "d": [-1, 0, 0], "c": 3}], "targets": [{"k": "z+:3,2", "c": 3}], "pipes": [], "cells": [["y+:0,1", "\\"], ["y+:0,2", "/"], ["x-:2,2", "/"], ["z+:0,1", "H"], ["x-:1,2", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x-:2,2", "d": [0, 1, 0], "c": 2}], "targets": [{"k": "x+:3,2", "c": 2}], "pipes": [{"a": "y+:1,2", "oa": [-1, 0, 0], "b": "y+:3,2", "ob": [0, 0, 1]}], "cells": [["y+:2,2", "H"], ["y+:3,3", "\\"], ["x+:3,3", "\\"], ["x-:3,3", "H"]]}, {"lanterns": [{"k": "y+:3,1", "d": [0, 0, -1], "c": 1}], "targets": [{"k": "x-:0,0", "c": 1}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "y-:3,3", "ob": [0, 0, -1]}], "cells": [["y+:3,0", "\\"], ["y+:2,0", "/"], ["y-:3,2", "/"], ["x+:0,2", "b"], ["z+:2,2", "H"], ["z+:3,0", "H"], ["x+:2,0", "H"]]}, {"lanterns": [{"k": "z-:2,2", "d": [-1, 0, 0], "c": 4}, {"k": "x+:2,2", "d": [0, 0, -1], "c": 3}], "targets": [{"k": "y+:1,1", "c": 4}, {"k": "y-:2,0", "c": 3}], "pipes": [{"a": "x-:1,0", "oa": [0, 0, -1], "b": "x-:3,2", "ob": [0, 1, 0]}], "cells": [["z-:0,2", "/"], ["z-:0,1", "\\"], ["x-:2,1", "H"], ["y+:1,2", "/"], ["x+:2,0", "\\"], ["x+:1,1", "H"], ["z+:1,1", "H"], ["y+:0,0", "H"]]}, {"lanterns": [{"k": "y+:0,1", "d": [0, 0, -1], "c": 5}], "targets": [{"k": "y-:0,1", "c": 5}], "pipes": [{"a": "y+:1,0", "oa": [-1, 0, 0], "b": "x+:0,3", "ob": [0, 0, -1]}, {"a": "y-:3,1", "oa": [1, 0, 0], "b": "z+:2,2", "ob": [1, 0, 0]}], "cells": [["y+:0,0", "\\"], ["x+:0,1", "\\"], ["z+:3,2", "/"], ["z+:3,1", "\\"], ["z+:2,1", "a"], ["y-:2,1", "/"], ["x-:2,1", "H"], ["x+:0,0", "H"], ["z-:2,2", "H"], ["z+:1,3", "H"]]}, {"lanterns": [{"k": "x-:3,0", "d": [0, 1, 0], "c": 6}, {"k": "z+:0,1", "d": [0, 1, 0], "c": 1}], "targets": [{"k": "x+:1,1", "c": 6}, {"k": "x+:2,1", "c": 1}], "pipes": [{"a": "z+:3,2", "oa": [0, 1, 0], "b": "z+:3,0", "ob": [1, 0, 0]}, {"a": "y+:0,3", "oa": [0, 0, 1], "b": "x-:2,1", "ob": [0, -1, 0]}], "cells": [["y+:1,0", "a"], ["z+:1,3", "/"], ["z+:3,3", "\\"], ["z+:3,1", "H"], ["x+:0,1", "\\"], ["x-:1,1", "\\"], ["z-:1,1", "\\"], ["z-:1,2", "\\"], ["y-:2,3", "H"], ["y-:1,3", "H"], ["z-:2,0", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x+:0,3", "d": [0, 0, 1], "c": 1}, {"k": "y+:2,2", "d": [0, 0, -1], "c": 2}, {"k": "z-:2,1", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z-:1,0", "c": 1}, {"k": "z+:3,3", "c": 2}, {"k": "y+:0,1", "c": 4}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "z-:0,0", "ob": [0, 1, 0]}, {"a": "z-:0,1", "oa": [0, -1, 0], "b": "z-:3,3", "ob": [0, 1, 0]}, {"a": "y-:2,1", "oa": [0, 0, -1], "b": "y-:0,1", "ob": [-1, 0, 0]}], "cells": [["z+:1,0", "/"], ["z-:1,2", "H"], ["z-:2,2", "H"], ["y+:3,1", "\\"], ["x+:3,1", "b"], ["x+:3,3", "a"], ["y+:3,3", "/"], ["x-:0,1", "\\"], ["x-:0,2", "\\"], ["x-:2,2", "\\"], ["x-:2,1", "/"], ["x+:3,0", "H"], ["x+:1,1", "H"], ["x+:2,2", "H"], ["y+:2,3", "H"], ["x+:0,0", "H"]]}];
   const HINTS = {
     0: 'Aynalara dokunup çevir, sonra düğmeye bas. Işık kenara gelince <b>yandaki yüze geçer</b>: küpü çevirip takip et.',
-    1: '<b>Çıkıntılar</b> ışığı keser. Işık düz gider, tümseğin üzerinden kendiliğinden geçemez.',
-    2: '<b>İçi aynalı boru</b> ışığı ağzından alır, içinde yansıta yansıta öbür ağızdan çıkarır. Çıkıntıların üzerinden böyle geçilir.',
+    1: '<b>Bloklar</b> ışığı keser. Işık düz gider, bloğun üzerinden kendiliğinden geçemez.',
+    2: '<b>İçi aynalı boru</b> ışığı ağzından alır, içinde yansıta yansıta öbür ağızdan çıkarır. Blokların üzerinden böyle geçilir.',
     3: 'Kilitli (mor çerçeveli) aynalar dönmez. Boru ışığı yandaki yüze de taşıyabilir.',
     4: 'İki fener! Her ışık kendi rengindeki hedefe gitmeli.',
   };
@@ -466,6 +466,12 @@
     g.userData = { key, frame };
     return g;
   }
+  const BLOCK_H = .56;
+  const blockGeo = (() => { const g = new THREE.ExtrudeGeometry(rrShape(.58, .58, .1), { depth: BLOCK_H - .08, bevelEnabled: true, bevelThickness: .04, bevelSize: .04, bevelSegments: 3, curveSegments: 6 });
+    g.rotateX(-Math.PI / 2); g.translate(0, .04, 0); return g; })();
+  const blockMat = new THREE.MeshStandardMaterial({ color: 0x6fd3a0, roughness: .6 });
+  const blockTopGeo = (() => { const g = new THREE.ShapeGeometry(rrShape(.4, .4, .08), 6); g.rotateX(-Math.PI / 2); return g; })();
+  const blockTopMat = new THREE.MeshStandardMaterial({ color: 0x9ae9bf, roughness: .5 });
   function build() {
     objs.forEach(o => world.remove(o)); objs = []; mirrors = {}; lanternSprites = []; lanternLens = []; targetSprites = {}; pipeMeshes = [];
     Object.values(tiles).forEach(t => t.material.color.setHex(0x2b3778));
@@ -478,14 +484,11 @@
     const add = m => { world.add(m); objs.push(m); return m; };
     Object.entries(cells).forEach(([k, c]) => {
       const { f, p } = cellP(k);
-      if (c.t === 'H') {                                   // bump: a soft rounded hill
-        const g = new THREE.Group();
-        const mat = new THREE.MeshStandardMaterial({ color: 0x7fd6a8, roughness: .8 });
-        const base = new THREE.Mesh(new THREE.CylinderGeometry(.33, .37, .26, 24), mat); base.position.y = .13;
-        const top = new THREE.Mesh(new THREE.SphereGeometry(.33, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), mat); top.position.y = .26;
-        const spot = new THREE.Mesh(new THREE.SphereGeometry(.07, 10, 8), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .6 })); spot.position.set(-.12, .5, .1);
-        g.add(base, top, spot);
+      if (c.t === 'H') {                                   // block: a small rounded cube sitting on the tile
+        const g = new THREE.Mesh(blockGeo, blockMat);
         g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(upQuat(f)); add(g);
+        const top = new THREE.Mesh(blockTopGeo, blockTopMat);
+        top.position.copy(V(worldOf(f, p, BLOCK_H + .012))); top.quaternion.copy(upQuat(f)); add(top);
         tiles[k].material.color.setHex(0x3e8a68);
       } else if ('/\\ab'.includes(c.t)) {
         const locked = c.t === 'a' || c.t === 'b';
@@ -747,7 +750,7 @@
       return g;
     };
     const ground = `<path d="M10 112 H250" stroke="#2b3778" stroke-width="10" stroke-linecap="round"/>`;
-    const hump = x => `<path d="M${x - 26} 108 Q${x - 26} 70 ${x} 70 Q${x + 26} 70 ${x + 26} 108 Z" fill="#7fd6a8"/><circle cx="${x - 9}" cy="82" r="3.5" fill="#fff" opacity=".8"/>`;
+    const hump = x => `<rect x="${x - 22}" y="66" width="44" height="42" rx="8" fill="#6fd3a0"/><rect x="${x - 14}" y="72" width="28" height="8" rx="4" fill="#9ae9bf"/>`;
     const [lx, ly] = iso(.5, 4, 2), [ex, ey] = iso(4.3, 4.3, 2), [tx, ty] = iso(4, 1.2, 2);
 
     const CARDS = {
@@ -769,8 +772,8 @@
         svg: svg(tiles([80, 120, 160], 85) + tile(120, 45) + lantern(36, 85, RD) + lantern(120, 14, BL, 90) + half(120, 85, 45) + beam('M50 85 H120', RD, 't-s1') + beam('M120 28 V85', BL, 't-s1') + beam('M120 85 H212', PU, 't-s2') + target(224, 85, PU, 't-show2')) },
       wrap: { title: 'Küp', text: 'Küpün kenarlarında 45° eğik ayna şeritler var. Işık kenara gelince bu aynadan yansıyıp yandaki yüze geçer. Küpü parmağınla sürükleyerek çevir.',
         svg: svg(cubeSVG() + `<path d="${P([[4.3, 4.3, .1], [4.3, 4.3, 3.9]])}" stroke="#ffc6dd" stroke-width="7" stroke-linecap="round"/><path d="${P([[4.3, 4.3, .1], [4.3, 4.3, 3.9]])}" stroke="#eaf7ff" stroke-width="4" stroke-linecap="round"/>` + `<circle cx="${lx}" cy="${ly - 4}" r="9" fill="${BL}"/>` + beam(`M${lx} ${ly} L${ex} ${ey}`, BL, 't-s1') + beam(`M${ex} ${ey} L${tx} ${ty}`, BL, 't-s2') + target(tx, ty, BL, 't-show2') + `<g class="t-drag"><circle cx="215" cy="120" r="9" fill="#fff" opacity=".85"/><path d="M200 120 h-14 m5 -5 l-5 5 l5 5" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/></g>`) },
-      bump: { title: 'Yeni: Çıkıntı', text: 'Işık hep düz gider, tümseğin üzerinden kendiliğinden geçemez. Çıkıntıya çarpan ışık orada durur.',
-        svg: svg(ground + hump(160) + lantern(36, 98, YE) + beam('M50 98 H133', YE, 't-s1') + spark(133, 98, YE, 't-blink1')) },
+      bump: { title: 'Yeni: Blok', text: 'Işık hep düz gider, bloğun üzerinden kendiliğinden geçemez. Bloğa çarpan ışık orada durur.',
+        svg: svg(ground + hump(160) + lantern(36, 98, YE) + beam('M50 98 H137', YE, 't-s1') + spark(137, 98, YE, 't-blink1')) },
       pipe: { title: 'Yeni: İçi aynalı boru', text: 'Boru ışığı bir ağzından alır, iç duvarlarından yansıta yansıta öbür ağzından çıkarır. Işık ağzın baktığı yönden gelmeli.',
         svg: svg(ground + hump(130) + `<path d="M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98" stroke="#bfe3ff" stroke-width="20" opacity=".35" fill="none"/><path d="M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98" stroke="#e9f7ff" stroke-width="20" opacity=".5" fill="none" stroke-dasharray="2 14"/><circle cx="64" cy="98" r="9" fill="none" stroke="#ffc6dd" stroke-width="4"/><circle cx="196" cy="98" r="9" fill="none" stroke="#ffc6dd" stroke-width="4"/>` + lantern(26, 98, '#4ee89a') + beam('M40 98 H64', '#4ee89a', 't-s1') + beam('M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98', '#4ee89a', 't-s2') + beam('M196 98 H222', '#4ee89a', 't-s3') + target(236, 98, '#4ee89a', 't-show3')) },
     };
