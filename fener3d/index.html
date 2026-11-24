@@ -541,7 +541,7 @@
   function upQuat(f) { return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), V(normalOf(f))); }
   function makeMirror(key, locked, motor) {
     const g = new THREE.Group();
-    const frameCol = motor ? 0xffb22e : locked ? 0xa594ff : 0xffcf86, baseCol = motor ? 0xffe066 : locked ? 0x6d63c9 : 0xff9fbe;
+    const frameCol = motor ? 0xffb22e : locked ? 0xa594ff : 0xffcf86, baseCol = motor ? 0xffe066 : locked ? 0x6d63c9 : 0xf6f8ff;
     const frameMat = new THREE.MeshStandardMaterial({ color: frameCol, roughness: .35, metalness: .15, emissive: 0 });
     const baseMat = new THREE.MeshStandardMaterial({ color: baseCol, roughness: .5 });
     const base = new THREE.Mesh(baseGeo, baseMat); base.position.y = .035;
@@ -579,13 +579,13 @@
     return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
   }
   // periscope parts: a pivot that turns around the face normal; local +X = the side it faces, +Y = up
-  const periBodyMat = new THREE.MeshStandardMaterial({ color: 0xffd3ea, roughness: .15, metalness: .15, envMap: envTex, transparent: true, opacity: .4, depthWrite: false, side: THREE.DoubleSide });
+  const periBodyMat = new THREE.MeshStandardMaterial({ color: 0xeef4ff, roughness: .15, metalness: .15, envMap: envTex, transparent: true, opacity: .4, depthWrite: false, side: THREE.DoubleSide });
   const PERI_R = .23;
   const periDiscGeo = (() => { const g = new THREE.CircleGeometry(PERI_R - .012, 48); g.scale(1, Math.SQRT2, 1); return g; })();
-  const periRimGeo = (() => { const g = new THREE.TorusGeometry(PERI_R - .012, .016, 8, 48); g.scale(1, Math.SQRT2, 1); return g; })();
+  const periRimGeo = (() => { const g = new THREE.TorusGeometry(PERI_R - .012, .01, 8, 48); g.scale(1, Math.SQRT2, 1); return g; })();
   const periShineGeo = (() => { const a = new THREE.Shape(); a.moveTo(-.1, -.16); a.lineTo(-.05, -.16); a.lineTo(.03, .16); a.lineTo(-.02, .16); a.closePath(); return new THREE.ShapeGeometry(a); })();
   const periGlassMat = new THREE.MeshStandardMaterial({ color: 0xcfe6ff, metalness: .9, roughness: .08, envMap: envTex, envMapIntensity: 1.2, side: THREE.DoubleSide, transparent: true, opacity: .85 });
-  const periCapMat = new THREE.MeshStandardMaterial({ color: 0xffa8d8, roughness: .5 });
+  const periCapMat = new THREE.MeshStandardMaterial({ color: 0xf6f8ff, roughness: .4 });
   function periQuat(key, fi) {
     const { f } = cellP(key), n = V(normalOf(f)), fd = V(tangentDirsS(f)[fi]);
     return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(fd, n, new THREE.Vector3().crossVectors(fd, n)));
@@ -595,7 +595,7 @@
     // the mirror: a 45° slice of the tube, i.e. an ellipse that fills the whole cross-section
     const m = new THREE.Group();
     const disc = new THREE.Mesh(periDiscGeo, periGlassMat); m.add(disc);
-    const rimMat = new THREE.MeshStandardMaterial({ color: 0xffa8d8, roughness: .35, metalness: .2, emissive: 0 });
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0xf6f8ff, roughness: .35, metalness: .2, emissive: 0 });
     const rim = new THREE.Mesh(periRimGeo, rimMat); m.add(rim);
     const shine = new THREE.Mesh(periShineGeo, streakMat); shine.position.z = .004; m.add(shine);
     const shineB = new THREE.Mesh(periShineGeo, streakMat); shineB.position.z = -.004; shineB.rotation.y = Math.PI; m.add(shineB);
@@ -604,8 +604,8 @@
     m.userData.frame = rim;
     pv.add(m);
     // window: a short open sleeve on the facing side with a ring around the opening
-    const sleeve = new THREE.Mesh(new THREE.BoxGeometry(.2, .26, .3), periBodyMat); sleeve.position.x = .33; pv.add(sleeve);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(.11, .025, 8, 20), periCapMat); ring.position.x = .43; ring.rotation.y = Math.PI / 2; pv.add(ring);
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, .22, 32, 1, true), periBodyMat); sleeve.rotation.z = Math.PI / 2; sleeve.position.x = .33; pv.add(sleeve);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(.12, .01, 8, 32), periCapMat); ring.position.x = .44; ring.rotation.y = Math.PI / 2; pv.add(ring);
     pv.traverse(o => { if (o.isMesh) o.userData.key = key; });
     pv.userData = { key, frame: m.userData.frame };
     return pv;
@@ -643,7 +643,7 @@
     g.rotateX(-Math.PI / 2); g.translate(0, .04, 0); return g; })();
   const blockMat = new THREE.MeshStandardMaterial({ color: 0x6fd3a0, roughness: .6 });
   const blockMat2 = new THREE.MeshStandardMaterial({ color: 0x52bd8a, roughness: .6 });
-  const towerMat = new THREE.MeshStandardMaterial({ color: 0xffa8d8, roughness: .5 });
+  const towerMat = new THREE.MeshStandardMaterial({ color: 0xf6f8ff, roughness: .5 });
   const blockTopGeo = (() => { const g = new THREE.ShapeGeometry(rrShape(.4, .4, .08), 6); g.rotateX(-Math.PI / 2); return g; })();
   const blockTopMat = new THREE.MeshStandardMaterial({ color: 0x9ae9bf, roughness: .5 });
   function build() {
@@ -681,7 +681,7 @@
         const tube = new THREE.Group(); tube.position.copy(base); tube.quaternion.copy(upQuat(f)); add(tube);
         const wall = new THREE.Mesh(new THREE.CylinderGeometry(PERI_R, PERI_R, bodyH, 40, 1, true), periBodyMat); wall.position.y = bodyH / 2; tube.add(wall);
         const lid = new THREE.Mesh(new THREE.CircleGeometry(PERI_R, 40), periBodyMat); lid.rotation.x = -Math.PI / 2; lid.position.y = bodyH; tube.add(lid);
-        [0.02, bodyH].forEach(y => { const rim = new THREE.Mesh(new THREE.TorusGeometry(PERI_R, .022, 10, 40), periCapMat); rim.rotation.x = Math.PI / 2; rim.position.y = y; tube.add(rim); });
+        [0.02, bodyH].forEach(y => { const rim = new THREE.Mesh(new THREE.TorusGeometry(PERI_R, .01, 8, 48), periCapMat); rim.rotation.x = Math.PI / 2; rim.position.y = y; tube.add(rim); });
         [['lo', 0, c.lo, true], ['hi', c.h, c.hi, false]].forEach(([part, lv, fi]) => {
           const mk = k + '#' + part, pv = makePeriMirror(mk, part === 'lo');
           pv.position.copy(V(worldOf(f, p, BEAM_H + lv * LVL))); pv.quaternion.copy(periQuat(k, fi)); pv.userData.targetQ = pv.quaternion.clone();
@@ -749,7 +749,7 @@
       add(tube); pipeMeshes.push(tube);
       [[pp.a, pp.oa], [pp.b, pp.ob]].forEach(([k, o]) => {
         const { f, p } = cellP(k);
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(.15, .04, 10, 24), new THREE.MeshStandardMaterial({ color: 0xffc6dd, roughness: .4 }));
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(.15, .04, 10, 24), new THREE.MeshStandardMaterial({ color: 0xf6f8ff, roughness: .4 }));
         ring.position.copy(V(worldOf(f, p, BEAM_H))).addScaledVector(V(o), .46);
         ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), V(o)); add(ring);
         tiles[k].material.color.setHex(0x4a5aa8);
