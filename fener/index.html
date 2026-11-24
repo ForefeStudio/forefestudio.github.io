@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Fener ve Aynalar</title>
+<meta name="description" content="Aynaları çevir, fenerleri yak, her ışığı kendi rengindeki hedefe ulaştır. 27 bölümlük ışık, cam ve yansıma bulmacası.">
+<meta name="theme-color" content="#0b1230">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@600;700;800&display=swap">
+<style>
+  /* Layout: flat, cute night theme. Board = 4x4 tiles plus a slimmer outer ring for lanterns, targets and the switch. */
+  :root {
+    color-scheme: dark;
+    --sky-0: #0b1230;
+    --sky-1: #1a2458;
+    --field: #141c45;
+    --tile: #2b3778;
+    --tile-locked: #3d3b6e;
+    --ink: #f4f6ff;
+    --muted: #a9b3e0;
+    --sun: #ffd166;
+    --face: #1b1f3b;
+    --blush: #ff9ab8;
+    --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+    --body: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    /* one unit = one tile; ring is 0.72 of a tile, so the board is n + 1.44 units wide */
+    --n: 4;
+    --u: min(calc((100vw - 28px) / (var(--n) + 1.44)), calc((100dvh - 170px) / (var(--n) + 1.44)), 112px);
+    --c: var(--u);
+    --r: calc(var(--u) * .72);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; }
+  body { min-height: 100dvh; }
+  body {
+    background: var(--sky-0);
+    color: var(--ink);
+    font-family: var(--body);
+    user-select: none; -webkit-user-select: none;
+    display: flex; flex-direction: column; align-items: center;
+    padding-block: 10px 24px;
+    padding-left: max(14px, env(safe-area-inset-left, 0px));
+    padding-right: max(14px, env(safe-area-inset-right, 0px));
+    overflow-x: hidden;
+  }
+  button { font-family: inherit; }
+  button:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+  #sky { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -2; display: block; }
+  .moon { position: fixed; z-index: -1; top: 6vh; right: 7vw; width: 64px; height: 64px; border-radius: 50%; background: #ffe9a8; box-shadow: 0 0 0 10px rgba(255,233,168,.08), 0 0 0 22px rgba(255,233,168,.04); }
+  .moon::before { content: ""; position: absolute; width: 14px; height: 14px; border-radius: 50%; background: #f4d98a; left: 16px; top: 30px; }
+  .moon::after { content: ""; position: absolute; width: 9px; height: 9px; border-radius: 50%; background: #f4d98a; left: 38px; top: 16px; }
+  @media (max-width: 700px) { .moon { display: none; } }
+
+  /* ---------- top bar ---------- */
+  .wrap { width: max(340px, calc(var(--c) * var(--n) + var(--r) * 2)); max-width: 100%; }
+  header { display: flex; align-items: center; gap: 8px; }
+  h1 { flex: 1; margin: 0; font-family: var(--display); font-weight: 800; font-size: clamp(17px, 4.9vw, 26px); line-height: 1; color: var(--sun); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .iconbtn {
+    width: 40px; height: 40px; border-radius: 14px; border: none; cursor: pointer; flex: none;
+    background: rgba(255,255,255,.09); color: var(--ink); display: grid; place-items: center;
+  }
+  .iconbtn svg { width: 20px; height: 20px; }
+  .iconbtn:active { transform: scale(.92); }
+
+  .bar { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .step { width: 34px; height: 34px; border-radius: 12px; border: none; background: rgba(255,255,255,.09); color: var(--ink); font-size: 20px; font-weight: 800; cursor: pointer; display: grid; place-items: center; padding: 0; line-height: 1; }
+  .step:disabled { opacity: .3; cursor: default; }
+  #levelTitle { font-family: var(--display); font-weight: 800; font-size: 19px; line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  #levelLights { display: flex; gap: 4px; flex: 1; }
+  #levelLights i { width: 12px; height: 12px; border-radius: 50%; display: block; background: currentColor; }
+  #moves { font-family: var(--display); font-weight: 700; font-size: 15px; line-height: 1; padding: 9px 12px 7px; border-radius: 999px; background: rgba(255,255,255,.09); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  #hint { font-size: 14px; font-weight: 700; color: var(--muted); margin: 10px 0 8px; text-align: center; min-height: 19px; text-wrap: balance; }
+  #hint b { color: var(--ink); }
+
+  /* ---------- board ---------- */
+  #board {
+    position: relative; margin: auto; flex: none;
+    width: calc(var(--c) * var(--n) + var(--r) * 2); height: calc(var(--c) * var(--n) + var(--r) * 2);
+    display: grid;
+    grid-template-columns: var(--r) repeat(var(--n), var(--c)) var(--r);
+    grid-template-rows: var(--r) repeat(var(--n), var(--c)) var(--r);
+  }
+  #board::before {
+    content: ""; position: absolute; border-radius: 22px; background: var(--field);
+    left: calc(var(--r) - 6px); top: calc(var(--r) - 6px);
+    width: calc(var(--c) * var(--n) + 12px); height: calc(var(--c) * var(--n) + 12px);
+  }
+  .cell { position: relative; display: grid; place-items: center; z-index: 1; }
+  .cell.out { z-index: 4; }
+  .tile {
+    width: calc(100% - 8px); height: calc(100% - 8px); border-radius: 16px; position: relative; overflow: hidden;
+    background: var(--tile); transition: background .25s;
+  }
+  .tile.rot { cursor: pointer; }
+  .tile.rot::before {  /* little rotate arrow */
+    content: ""; position: absolute; right: 7px; top: 7px; width: 10px; height: 10px;
+    border: 2.5px solid rgba(255,255,255,.28); border-left-color: transparent; border-bottom-color: transparent; border-radius: 50%;
+  }
+  @media (hover: hover) { .tile.rot:hover { background: #34418b; } }
+  .tile.rot:active { transform: scale(.94); }
+  .mirror {
+    position: absolute; left: 50%; top: 50%; width: 104%; height: 15%; border-radius: 99px;
+    background: #e9f7ff;
+    transform: translate(-50%, -50%) rotate(var(--a));
+    transition: transform .32s cubic-bezier(.3,1.7,.5,1);
+  }
+  .mirror::after { content: ""; position: absolute; left: 22%; right: 22%; top: 28%; height: 22%; border-radius: 99px; background: #ffffff; opacity: .9; }
+  .mirror::before { content: ""; position: absolute; inset: 0; border-radius: 99px; background: #a9cbe3; clip-path: inset(55% 0 0 0); }
+  .tile.lit { background: color-mix(in srgb, var(--glow) 28%, var(--tile)); }
+  .tile.locked { background: var(--tile-locked); }
+  .tile.locked .lock { position: absolute; right: 6px; top: 5px; width: 16px; height: 16px; opacity: .8; }
+  .tile.locked .mirror { background: #d9d6f2; }
+  .tile.locked.lit { background: color-mix(in srgb, var(--glow) 28%, var(--tile-locked)); }
+  .tile.shake { animation: shake .3s; }
+  @keyframes shake { 25% { transform: translateX(-4px) rotate(-3deg); } 75% { transform: translateX(4px) rotate(3deg); } }
+  .tile.wall { background: #8a5f45; }
+  .tile.wall svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  .tile.glass { background: color-mix(in srgb, var(--fc) 55%, var(--tile)); box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--fc) 80%, white); }
+  .tile.glass svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .tile.glass.lit { background: color-mix(in srgb, var(--fc) 75%, var(--tile)); }
+  .mirror.half { background: rgba(200, 240, 255, .45); outline: 3px dashed rgba(233, 247, 255, .95); outline-offset: -3px; }
+  .mirror.half::before, .mirror.half::after { display: none; }
+  .target .wrong { display: none; }
+  .target.wrongc .wrong { display: inline; }
+  .target.wrongc .sleepy { display: none; }
+  .target.wrongc { animation: shake .4s; }
+  .lantern, .target { width: 78%; height: 78%; position: relative; translate: var(--off, 0 0); }
+  .lantern svg, .target svg { width: 100%; height: 100%; overflow: visible; display: block; }
+  .lantern .body { transition: opacity .3s; opacity: .7; }
+  .lantern.on .body { opacity: 1; }
+  .lantern .awake, .target .happy { display: none; }
+  .lantern.on .awake, .target.hit .happy { display: inline; }
+  .lantern.on .asleep, .target.hit .sleepy { display: none; }
+  .lantern.on { animation: bob 1.4s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translateY(-2px) scale(1.03); } }
+  .target .disc { transition: fill .3s; }
+  .target.hit .disc { fill: var(--col); }
+  .target.hit { animation: hop .7s ease-in-out infinite; }
+  @keyframes hop { 50% { transform: translateY(-3px) scale(1.06); } }
+
+  #power {
+    width: 96%; height: 96%; border-radius: 50%; border: none; cursor: pointer; padding: 0; position: relative;
+    background: #ff5d73; color: #fff; display: grid; place-items: center;
+    box-shadow: 0 5px 0 #c23452; transition: transform .08s, box-shadow .08s, background .25s;
+  }
+  #power svg { width: 50%; height: 50%; }
+  #power:active { transform: translateY(4px); box-shadow: 0 1px 0 #c23452; }
+  #power.on { background: #39d98a; box-shadow: 0 5px 0 #1f9e5f; }
+  #power.on:active { box-shadow: 0 1px 0 #1f9e5f; }
+  #power.nudge { animation: nudge 1.2s ease-in-out infinite; }
+  @keyframes nudge { 50% { transform: scale(1.1); } }
+
+  #beams { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; overflow: visible; }
+
+  /* ---------- dialogs ---------- */
+  .overlay { position: fixed; inset: 0; display: none; place-items: center; z-index: 10; background: rgba(6, 9, 26, .6); padding: 16px; }
+  .overlay.show { display: grid; animation: fade .25s; }
+  @keyframes fade { from { opacity: 0; } }
+  .card {
+    max-height: calc(100dvh - 32px); overflow-y: auto;
+    background: var(--sky-1); border-radius: 26px; padding: 24px 22px 22px; text-align: center; width: min(340px, 100%);
+    animation: pop .4s cubic-bezier(.3,1.6,.5,1);
+  }
+  @keyframes pop { from { transform: scale(.8); } }
+  .card h2 { font-family: var(--display); margin: 0 0 4px; font-size: 28px; line-height: 1.1; color: var(--sun); }
+  .card p { margin: 0 0 14px; color: var(--muted); font-size: 15px; font-weight: 700; }
+  .stars { font-size: 42px; letter-spacing: 8px; margin-bottom: 16px; line-height: 1; }
+  .stars span { display: inline-block; animation: starIn .45s cubic-bezier(.3,1.8,.5,1) backwards; }
+  .stars span:nth-child(2) { animation-delay: .15s; } .stars span:nth-child(3) { animation-delay: .3s; }
+  @keyframes starIn { from { transform: scale(0) rotate(-90deg); } }
+  .stars .off { color: #3a4580; }
+  .stars .on { color: var(--sun); }
+  .btn { font-family: var(--display); font-weight: 800; font-size: 17px; line-height: 1; border: none; border-radius: 16px; padding: 13px 22px 11px; cursor: pointer; background: var(--sun); color: #3a2500; box-shadow: 0 4px 0 #d49a1e; }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #d49a1e; }
+  #levelGrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 6px 0 16px; }
+  #levelGrid button {
+    aspect-ratio: 1; border-radius: 14px; border: none; cursor: pointer; padding: 0;
+    background: rgba(255,255,255,.09); color: var(--ink); font-family: var(--display); font-weight: 800; font-size: 18px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; line-height: 1;
+  }
+  #levelGrid button small { font-size: 10px; color: var(--sun); letter-spacing: -1px; min-height: 10px; }
+  #levelGrid button.cur { background: var(--sun); color: #3a2500; }
+  #levelGrid button.cur small { color: #3a2500; }
+  #levelGrid button:disabled { opacity: .3; cursor: default; }
+  .ghost { background: none; border: none; color: var(--muted); font-weight: 800; font-size: 15px; cursor: pointer; padding: 6px 10px; }
+  #fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9; }
+
+  /* tutorial cards */
+  .eyebrow { font-size: 12px; font-weight: 800; letter-spacing: 1.2px; color: var(--muted); text-transform: uppercase; margin-bottom: 2px; }
+  .tutart { background: #141c45; border-radius: 18px; padding: 8px; margin: 12px 0 12px; }
+  .tutart svg { width: 100%; height: auto; display: block; }
+  #tutText { text-wrap: pretty; }
+  .t-s1, .t-s2, .t-s3 { stroke-dasharray: 1 1; }
+  .t-s1 { animation: tS1 5s infinite; } .t-s2 { animation: tS2 5s infinite; } .t-s3 { animation: tS3 5s infinite; }
+  @keyframes tS1 { 0%, 15% { stroke-dashoffset: 1; opacity: 1; } 40%, 88% { stroke-dashoffset: 0; opacity: 1; } 96%, 100% { stroke-dashoffset: 0; opacity: 0; } }
+  @keyframes tS2 { 0%, 40% { stroke-dashoffset: 1; opacity: 1; } 65%, 88% { stroke-dashoffset: 0; opacity: 1; } 96%, 100% { stroke-dashoffset: 0; opacity: 0; } }
+  @keyframes tS3 { 0%, 65% { stroke-dashoffset: 1; opacity: 1; } 82%, 88% { stroke-dashoffset: 0; opacity: 1; } 96%, 100% { stroke-dashoffset: 0; opacity: 0; } }
+  .t-show1 { animation: tShow1 5s infinite; } .t-show2 { animation: tShow2 5s infinite; } .t-show3 { animation: tShow3 5s infinite; }
+  @keyframes tShow1 { 0%, 40% { opacity: 0; } 45%, 88% { opacity: 1; } 96%, 100% { opacity: 0; } }
+  @keyframes tShow2 { 0%, 65% { opacity: 0; } 70%, 88% { opacity: 1; } 96%, 100% { opacity: 0; } }
+  @keyframes tShow3 { 0%, 82% { opacity: 0; } 86%, 90% { opacity: 1; } 96%, 100% { opacity: 0; } }
+  .t-rot { animation: tRot 5s infinite; }
+  @keyframes tRot { 0%, 6% { transform: rotate(-45deg); } 14%, 100% { transform: rotate(45deg); } }
+  .t-tap { transform-box: fill-box; transform-origin: center; animation: tTap 5s infinite; }
+  @keyframes tTap { 0% { transform: scale(.4); opacity: 0; } 3% { opacity: 1; } 11% { transform: scale(1.4); opacity: 0; } 100% { opacity: 0; } }
+  .t-shake { animation: tShake 5s infinite; }
+  @keyframes tShake { 0%, 9% { transform: rotate(-45deg); } 12% { transform: rotate(-33deg); } 15% { transform: rotate(-57deg); } 18% { transform: rotate(-38deg); } 22%, 100% { transform: rotate(-45deg); } }
+  .t-blink1 { animation: tBlink1 5s infinite; }
+  @keyframes tBlink1 { 0%, 40% { opacity: 0; } 44% { opacity: 1; } 52% { opacity: .3; } 60% { opacity: 1; } 68% { opacity: .3; } 76%, 88% { opacity: 1; } 96%, 100% { opacity: 0; } }
+  .t-drag { animation: tDrag 5s infinite; }
+  @keyframes tDrag { 0%, 8% { transform: translateX(0); opacity: 0; } 14% { opacity: 1; } 40% { transform: translateX(-34px); opacity: 1; } 48%, 100% { transform: translateX(-34px); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .tutart * { animation: none !important; } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<div class="moon"></div>
+<canvas id="fx"></canvas>
+
+<div class="wrap">
+  <header>
+    <h1>Fener &amp; Aynalar</h1>
+    <button class="iconbtn" id="helpBtn" title="Nasıl oynanır" aria-label="Nasıl oynanır"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.2-2.5 3.8"/><circle cx="12" cy="17.3" r=".6" fill="currentColor"/></svg></button>
+    <button class="iconbtn" id="levelsBtn" title="Bölümler" aria-label="Bölümler"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7.5" height="7.5" rx="2.2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2.2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2.2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2.2"/></svg></button>
+    <button class="iconbtn" id="soundBtn" title="Ses" aria-label="Sesi aç/kapat"></button>
+    <button class="iconbtn" id="resetBtn" title="Bölümü sıfırla" aria-label="Bölümü sıfırla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
+  </header>
+  <div class="bar">
+    <button class="step" id="prevBtn" aria-label="Önceki bölüm">‹</button>
+    <span id="levelTitle"></span>
+    <button class="step" id="nextBtn" aria-label="Sonraki bölüm">›</button>
+    <span id="levelLights"></span>
+    <span id="moves">Hamle 0</span>
+  </div>
+  <p id="hint"></p>
+</div>
+
+<div id="board">
+  <svg id="beams" viewBox="0 0 544 544" preserveAspectRatio="none">
+    <defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7"/></filter></defs>
+  </svg>
+</div>
+
+<div class="overlay" id="win" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+  <div class="card">
+    <h2 id="winTitle">Işık hedefte!</h2>
+    <p id="winText"></p>
+    <div class="stars" id="stars"></div>
+    <button class="btn" id="winNext">Sonraki bölüm</button>
+  </div>
+</div>
+
+<div class="overlay" id="tutDlg" role="dialog" aria-modal="true" aria-labelledby="tutTitle">
+  <div class="card">
+    <div class="eyebrow">Nasıl çalışır?</div>
+    <h2 id="tutTitle"></h2>
+    <div class="tutart" id="tutArt"></div>
+    <p id="tutText"></p>
+    <button class="btn" id="tutOk">Anladım</button>
+  </div>
+</div>
+<div class="overlay" id="levelsDlg" role="dialog" aria-modal="true" aria-labelledby="levelsTitle">
+  <div class="card">
+    <h2 id="levelsTitle">Bölümler</h2>
+    <div id="levelGrid"></div>
+    <button class="ghost" id="levelsClose">Kapat</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---- shared light engine (also used by the level generator) ----
+  // grid tokens: '.' empty, '#' brick, '1'-'6' colour filter (RGB mask), '/' '\' mirror, 'a' 'b' locked mirror, 'p' 'q' half mirror (splitter, rotatable)
+  // colours are RGB bitmasks: 1 red, 2 green, 4 blue
+  const RING = 72, CELL = 100;
+  const DIRS = { L: [1,0], R: [-1,0], T: [0,1], B: [0,-1] };
+  function sidePos(N, s, i) { return s === 'L' ? [-1, i] : s === 'R' ? [N, i] : s === 'T' ? [i, -1] : [i, N]; }
+  function keyOf(N, x, y) { return x < 0 ? 'L' + y : x >= N ? 'R' + y : y < 0 ? 'T' + x : 'B' + x; }
+  function coordOf(N, v) { return v < 0 ? RING / 2 : v >= N ? RING + N * CELL + RING / 2 : RING + v * CELL + CELL / 2; }
+  function turnSlash(dx, dy) { return [-dy, -dx]; }
+  function turnBack(dx, dy) { return [dy, dx]; }
+  function traceAll(g, N, lanterns) {
+    const paths = [], ends = {}, endD = {}, hits = [], sparks = [], seen = new Set();
+    const C = (x, y) => [coordOf(N, x), coordOf(N, y)];
+    const queue = [];
+    lanterns.forEach((l, li) => {
+      const [x, y] = sidePos(N, l.s, l.i), [dx, dy] = DIRS[l.s], [cx, cy] = C(x, y);
+      queue.push({ x, y, dx, dy, c: l.c, start: [cx + dx * 26, cy + dy * 26], d0: 0 });
+    });
+    let guard = 0;
+    while (queue.length && guard++ < 400) {
+      const r = queue.shift();
+      let { x, y, dx, dy, c, d0 } = r;
+      let pts = [r.start], dist = d0;
+      const push = p => { const q = pts[pts.length - 1]; dist += Math.hypot(p[0] - q[0], p[1] - q[1]); pts.push(p); };
+      const finish = () => { if (pts.length > 1) paths.push({ pts, c, d0 }); };
+      for (let k = 0; k < 200; k++) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= N || ny >= N) {
+          { const [ex, ey] = C(nx, ny); push([ex - dx * 24, ey - dy * 24]); } const key = keyOf(N, nx, ny);
+          ends[key] = (ends[key] || 0) | c; endD[key] = Math.max(endD[key] || 0, dist); finish(); break;
+        }
+        const sk = nx + ',' + ny + ',' + dx + ',' + dy + ',' + c;
+        if (seen.has(sk)) { push(C(nx, ny)); finish(); break; }
+        seen.add(sk);
+        const t = g[ny][nx], [cx, cy] = C(nx, ny);
+        x = nx; y = ny;
+        if (t === '#') { push([cx - dx * 44, cy - dy * 44]); hits.push({ x, y, c, d: dist }); sparks.push({ p: pts[pts.length - 1], c, d: dist }); finish(); break; }
+        if (t >= '1' && t <= '6') {           // coloured glass: passes only its own colour components
+          const nc = c & +t;
+          hits.push({ x, y, c: nc || c, d: dist + 50 });
+          if (nc !== c) {
+            const b = [cx - dx * 50, cy - dy * 50]; push(b); finish();
+            if (!nc) { paths.push({ pts: [b, [cx, cy]], c, d0: dist, fade: true }); break; }
+            c = nc; pts = [b]; d0 = dist;
+          }
+          continue;
+        }
+        if (t === '/' || t === 'a') { push([cx, cy]); hits.push({ x, y, c, d: dist }); [dx, dy] = turnSlash(dx, dy); continue; }
+        if (t === '\\' || t === 'b') { push([cx, cy]); hits.push({ x, y, c, d: dist }); [dx, dy] = turnBack(dx, dy); continue; }
+        if (t === 'p' || t === 'q') {
+          push([cx, cy]); hits.push({ x, y, c, d: dist });
+          const [rx, ry] = t === 'p' ? turnSlash(dx, dy) : turnBack(dx, dy);
+          queue.push({ x, y, dx: rx, dy: ry, c, start: [cx, cy], d0: dist });
+          continue;
+        }
+      }
+    }
+    return { paths, ends, endD, hits, sparks };
+  }
+  function isWin(g, L) {
+    const e = traceAll(g, L.n, L.lanterns).ends;
+    return L.targets.every(t => e[t.k] === t.c);
+  }
+  const COLORS = {
+    1: { name: 'kırmızı', hex: '#ff5d73' },
+    2: { name: 'yeşil',   hex: '#4ee89a' },
+    3: { name: 'sarı',    hex: '#ffc93d' },
+    4: { name: 'mavi',    hex: '#4c9dff' },
+    5: { name: 'mor',     hex: '#d27bff' },
+    6: { name: 'turkuaz', hex: '#3ef0d8' },
+    7: { name: 'beyaz',   hex: '#ffffff' },
+  };
+  const LEVELS = [{"n": 4, "grid": ["....", "....", "....", "\\.\\."], "lanterns": [{"s": "T", "i": 2, "c": 4}], "targets": [{"k": "B0", "c": 4}], "hint": "Aynalara dokunup çevir, sonra köşedeki <b>düğmeye</b> bas."}, {"n": 4, "grid": ["....", "\\.\\.", ".#..", "../."], "lanterns": [{"s": "B", "i": 0, "c": 3}], "targets": [{"k": "R3", "c": 3}], "hint": "Tuğla bloklar ışığı keser."}, {"n": 4, "grid": [".a..", "....", "...\\", ".#//"], "lanterns": [{"s": "T", "i": 2, "c": 2}], "targets": [{"k": "R2", "c": 2}], "hint": "Kilitli aynalar çevrilemez."}, {"n": 4, "grid": ["b.#.", "../.", ".#//", ".../"], "lanterns": [{"s": "R", "i": 3, "c": 1}], "targets": [{"k": "R1", "c": 1}]}, {"n": 4, "grid": ["....", "#\\\\\\", "....", "\\./."], "lanterns": [{"s": "B", "i": 0, "c": 4}, {"s": "B", "i": 3, "c": 1}], "targets": [{"k": "B1", "c": 4}, {"k": "R1", "c": 1}], "hint": "İki fener! Her ışık <b>kendi rengindeki</b> hedefe gitmeli."}, {"n": 4, "grid": ["\\.\\.", ".\\./", "//..", "##b."], "lanterns": [{"s": "R", "i": 3, "c": 5}], "targets": [{"k": "B3", "c": 5}]}, {"n": 4, "grid": ["..\\/", "/..\\", ".#..", "\\/.a"], "lanterns": [{"s": "B", "i": 1, "c": 3}, {"s": "T", "i": 2, "c": 2}], "targets": [{"k": "B2", "c": 3}, {"k": "L0", "c": 2}], "hint": "Işınlar birbirinin içinden geçebilir."}, {"n": 4, "grid": [".#//", ".a..", ".\\a\\", "#.\\\\"], "lanterns": [{"s": "T", "i": 3, "c": 6}, {"s": "B", "i": 2, "c": 4}], "targets": [{"k": "B1", "c": 6}, {"k": "R2", "c": 4}]}, {"n": 4, "grid": [".\\.b", "..#.", "//./", ".\\/."], "lanterns": [{"s": "T", "i": 0, "c": 2}, {"s": "T", "i": 1, "c": 5}], "targets": [{"k": "B2", "c": 2}, {"k": "R2", "c": 5}]}, {"n": 4, "grid": [".#//", ".../", "\\./.", "../b"], "lanterns": [{"s": "B", "i": 0, "c": 1}, {"s": "T", "i": 3, "c": 4}, {"s": "L", "i": 1, "c": 3}], "targets": [{"k": "B3", "c": 1}, {"k": "R0", "c": 4}, {"k": "R2", "c": 3}], "hint": "Üç fener! Tüm ışıklar aynı anda hedefe ulaşmalı."}, {"n": 4, "grid": ["a.\\.", "\\./\\", ".//.", "#/.."], "lanterns": [{"s": "T", "i": 3, "c": 2}, {"s": "R", "i": 3, "c": 6}, {"s": "T", "i": 2, "c": 4}], "targets": [{"k": "R2", "c": 2}, {"k": "B2", "c": 6}, {"k": "L1", "c": 4}]}, {"n": 4, "grid": ["\\\\/a", "/../", "..b#", "/./."], "lanterns": [{"s": "R", "i": 0, "c": 3}, {"s": "T", "i": 3, "c": 5}, {"s": "L", "i": 1, "c": 1}], "targets": [{"k": "B1", "c": 3}, {"k": "T2", "c": 5}, {"k": "B2", "c": 1}]}, {"n": 4, "grid": ["b\\\\.", "\\.\\\\", "/../", "\\#.."], "lanterns": [{"s": "T", "i": 1, "c": 4}, {"s": "B", "i": 2, "c": 1}, {"s": "L", "i": 2, "c": 2}, {"s": "L", "i": 1, "c": 3}], "targets": [{"k": "T0", "c": 4}, {"k": "L3", "c": 1}, {"k": "R0", "c": 2}, {"k": "L0", "c": 3}], "hint": "Dört fener! Bir ayna birden fazla ışığı etkileyebilir."}, {"n": 4, "grid": ["b#b\\", "\\/..", "\\//.", "..\\\\"], "lanterns": [{"s": "B", "i": 1, "c": 5}, {"s": "B", "i": 2, "c": 3}, {"s": "R", "i": 1, "c": 4}, {"s": "L", "i": 2, "c": 6}], "targets": [{"k": "B0", "c": 5}, {"k": "T2", "c": 3}, {"k": "L3", "c": 4}, {"k": "L1", "c": 6}]}, {"n": 4, "grid": ["\\aa/", "\\.\\.", "//#/", "/..\\"], "lanterns": [{"s": "T", "i": 3, "c": 1}, {"s": "B", "i": 0, "c": 2}, {"s": "L", "i": 1, "c": 4}, {"s": "R", "i": 2, "c": 3}], "targets": [{"k": "B1", "c": 1}, {"k": "B3", "c": 2}, {"k": "T1", "c": 4}, {"k": "R0", "c": 3}]}, {"n": 5, "grid": ["...#.", "././.", ".....", "#./\\.", "..\\.."], "lanterns": [{"s": "T", "i": 1, "c": 4}], "targets": [{"k": "R4", "c": 4}], "hint": "Büyük alan! Artık 5x5."}, {"n": 5, "grid": ["/..\\.", ".....", ".b.\\\\", "/..\\#", "#...."], "lanterns": [{"s": "B", "i": 3, "c": 1}, {"s": "T", "i": 4, "c": 2}], "targets": [{"k": "L0", "c": 1}, {"k": "R0", "c": 2}]}, {"n": 4, "grid": ["....", "/...", "....", "p\\.#"], "lanterns": [{"s": "L", "i": 3, "c": 3}], "targets": [{"k": "T1", "c": 3}, {"k": "L1", "c": 3}], "hint": "<b>Yarı saydam ayna</b>: ışığın yarısı geçer, yarısı yansır. Tek fener iki hedef!"}, {"n": 5, "grid": ["....#", "\\/#.b", "./.q.", "...\\.", "....."], "lanterns": [{"s": "L", "i": 2, "c": 4}, {"s": "T", "i": 0, "c": 1}], "targets": [{"k": "B1", "c": 4}, {"k": "R2", "c": 1}, {"k": "L3", "c": 1}]}, {"n": 5, "grid": [".#q/.", "..q/\\", ".../.", "..\\..", "..#.."], "lanterns": [{"s": "R", "i": 3, "c": 2}], "targets": [{"k": "T2", "c": 2}, {"k": "R2", "c": 2}, {"k": "B4", "c": 2}]}, {"n": 4, "grid": ["..1/", ".../", "#...", "...."], "lanterns": [{"s": "L", "i": 0, "c": 7}], "targets": [{"k": "R1", "c": 1}], "hint": "<b>Renkli cam</b> sadece kendi rengini geçirir. Beyaz ışık kırmızı camdan <b>kırmızı</b> çıkar."}, {"n": 5, "grid": ["/.#..", "/4\\..", "../..", "2.\\..", "....."], "lanterns": [{"s": "R", "i": 2, "c": 3}, {"s": "L", "i": 0, "c": 5}], "targets": [{"k": "L3", "c": 2}, {"k": "L2", "c": 4}], "hint": "Sarı = kırmızı + yeşil, mor = kırmızı + mavi. Cam, karışımdan sadece kendi rengini geçirir."}, {"n": 5, "grid": ["\\.q\\.", "\\.54.", ".....", ".#...", "..\\.."], "lanterns": [{"s": "B", "i": 3, "c": 7}], "targets": [{"k": "R1", "c": 4}, {"k": "L4", "c": 4}]}, {"n": 4, "grid": [".\\./", "#...", ".q.\\", "...."], "lanterns": [{"s": "B", "i": 3, "c": 1}, {"s": "R", "i": 2, "c": 4}], "targets": [{"k": "L2", "c": 5}, {"k": "B1", "c": 5}], "hint": "Işıklar yarı saydam aynada <b>birleşir</b>: kırmızı + mavi = mor."}, {"n": 6, "grid": ["..\\...", ".#....", "\\\\5.b.", ".p\\.#.", "\\3....", "..a/4."], "lanterns": [{"s": "B", "i": 3, "c": 7}, {"s": "L", "i": 4, "c": 1}], "targets": [{"k": "R5", "c": 4}, {"k": "B1", "c": 1}, {"k": "R0", "c": 1}], "hint": "6x6! Camları ve aynaları birlikte kullan."}, {"n": 6, "grid": ["...#\\.", "#..q./", "\\..6..", "6.....", "/..\\a\\", "....bp"], "lanterns": [{"s": "R", "i": 5, "c": 3}, {"s": "B", "i": 3, "c": 4}], "targets": [{"k": "L2", "c": 4}, {"k": "B5", "c": 3}, {"k": "R0", "c": 2}]}, {"n": 6, "grid": ["\\/..#.", ".\\./.b", ".b/.4/", "/..3#.", "..4...", ".../.p"], "lanterns": [{"s": "R", "i": 5, "c": 7}, {"s": "B", "i": 3, "c": 5}, {"s": "L", "i": 3, "c": 2}], "targets": [{"k": "T2", "c": 3}, {"k": "L5", "c": 5}, {"k": "T1", "c": 2}, {"k": "B2", "c": 4}]}];
+  const ROTS = { '/': '\\', '\\': '/', p: 'q', q: 'p' };
+  const ROT = { L: 0, T: 90, R: 180, B: 270 };
+  const hex = c => COLORS[c].hex;
+
+  const $ = id => document.getElementById(id);
+  const board = $('board'), svg = $('beams');
+  let lvl = 0, L, N, grid, angles, moves, lightOn = false, solvedLvl = false, optimal = 0, timers = [];
+  let progress = {}, soundOn = true;
+  try { progress = JSON.parse(localStorage.getItem('fener-progress') || '{}'); soundOn = localStorage.getItem('fener-sound') !== '0'; } catch (e) {}
+  const save = () => { try { localStorage.setItem('fener-progress', JSON.stringify(progress)); localStorage.setItem('fener-sound', soundOn ? '1' : '0'); } catch (e) {} };
+  const unlocked = i => i === 0 || !!progress[i - 1] || !!progress[i];
+
+  /* ---------- sound ---------- */
+  let ac = null;
+  function tone(freq, dur = .12, type = 'sine', vol = .08, delay = 0) {
+    if (!soundOn) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      const t = ac.currentTime + delay, o = ac.createOscillator(), g = ac.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+      o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + .02);
+    } catch (e) {}
+  }
+  const sfx = {
+    rotate: () => tone(560, .08, 'triangle', .06),
+    locked: () => tone(150, .12, 'square', .035),
+    on: () => { tone(330, .15, 'sine', .07); tone(660, .25, 'sine', .05, .05); },
+    off: () => tone(240, .12, 'sine', .05),
+    hit: i => tone(660 + i * 110, .35, 'sine', .06),
+    win: () => [523, 659, 784, 1046].forEach((f, k) => tone(f, .4, 'triangle', .07, k * .11)),
+  };
+  const soundIcon = () => $('soundBtn').innerHTML = soundOn
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
+
+  function computeOptimal() {
+    const rot = [];
+    L.grid.forEach((row, y) => [...row].forEach((c, x) => { if (c in ROTS) rot.push([x, y]); }));
+    let best = Infinity;
+    for (let m = 0; m < 1 << rot.length; m++) {
+      let d = 0; for (let j = 0; j < rot.length; j++) if (m >> j & 1) d++;
+      if (d >= best) continue;
+      const g = L.grid.map(r => [...r]);
+      rot.forEach(([x, y], j) => { if (m >> j & 1) g[y][x] = ROTS[g[y][x]]; });
+      if (isWin(g, L)) best = d;
+    }
+    return best;
+  }
+
+  /* ---------- cute pieces ---------- */
+  const lanternSVG = (c, rot) => `
+    <svg viewBox="-50 -50 100 100">
+      <g transform="rotate(${rot})"><path d="M20 -12 L35 -19 Q38 0 35 19 L20 12 Z" fill="${c}"/></g>
+      <g class="body">
+        <path d="M-12 -38 Q0 -50 12 -38" fill="none" stroke="#ffe9a8" stroke-width="5" stroke-linecap="round"/>
+        <rect x="-18" y="-38" width="36" height="8" rx="4" fill="#ffe9a8"/>
+        <rect x="-28" y="-32" width="56" height="58" rx="20" fill="${c}"/>
+        <rect x="-20" y="-25" width="10" height="16" rx="5" fill="#fff" opacity=".35"/>
+        <rect x="-18" y="24" width="36" height="9" rx="4.5" fill="#ffe9a8"/>
+        <g class="asleep" stroke="#1b1f3b" stroke-width="3.5" stroke-linecap="round" fill="none">
+          <path d="M-14 -2 q5 4 10 0"/><path d="M4 -2 q5 4 10 0"/>
+        </g>
+        <g class="awake" fill="#1b1f3b">
+          <ellipse cx="-9" cy="-3" rx="4" ry="5.5"/><ellipse cx="9" cy="-3" rx="4" ry="5.5"/>
+          <circle cx="-7.5" cy="-5" r="1.6" fill="#fff"/><circle cx="10.5" cy="-5" r="1.6" fill="#fff"/>
+        </g>
+        <circle cx="-17" cy="8" r="4.5" fill="#ff9ab8" opacity=".8"/><circle cx="17" cy="8" r="4.5" fill="#ff9ab8" opacity=".8"/>
+        <path d="M-5 9 q5 5 10 0" stroke="#1b1f3b" stroke-width="3" fill="none" stroke-linecap="round"/>
+      </g>
+    </svg>`;
+  const targetSVG = c => `
+    <svg viewBox="-50 -50 100 100">
+      <circle r="40" fill="none" stroke="${c}" stroke-width="5" stroke-dasharray="11 9" stroke-linecap="round"/>
+      <circle class="disc" r="30" fill="#2b3778"/>
+      <g class="sleepy" stroke="#a9b3e0" stroke-width="3.5" stroke-linecap="round" fill="none">
+        <path d="M-15 -2 h9"/><path d="M6 -2 h9"/><path d="M-4 11 h8"/>
+      </g>
+      <g class="happy" stroke="#1b1f3b" stroke-width="4" stroke-linecap="round" fill="none">
+        <path d="M-16 0 q5.5 -8 11 0"/><path d="M5 0 q5.5 -8 11 0"/>
+        <path d="M-8 9 q8 9 16 0" fill="#1b1f3b"/>
+      </g>
+      <g class="happy"><circle cx="-19" cy="10" r="4" fill="#ff9ab8"/><circle cx="19" cy="10" r="4" fill="#ff9ab8"/></g>
+      <g class="wrong" stroke="#1b1f3b" stroke-width="3.5" stroke-linecap="round" fill="none">
+        <path d="M-15 -6 l7 5 M-15 -1 l7 -5"/><path d="M8 -6 l7 5 M8 -1 l7 -5"/><path d="M-6 13 q6 -6 12 0"/>
+      </g>
+    </svg>`;
+  const lockSVG = `<svg class="lock" viewBox="0 0 16 16"><path d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2" fill="none" stroke="#fff" stroke-width="2"/><rect x="2.5" y="7" width="11" height="8" rx="2.5" fill="#fff"/></svg>`;
+  const wallSVG = `<svg viewBox="0 0 100 100" preserveAspectRatio="none"><g fill="#a8775a"><rect x="6" y="8" width="40" height="22" rx="6"/><rect x="54" y="8" width="40" height="22" rx="6"/><rect x="-14" y="39" width="40" height="22" rx="6"/><rect x="31" y="39" width="38" height="22" rx="6"/><rect x="74" y="39" width="40" height="22" rx="6"/><rect x="6" y="70" width="40" height="22" rx="6"/><rect x="54" y="70" width="40" height="22" rx="6"/></g></svg>`;
+  const glassSVG = `<svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M18 70 L62 18 L74 18 L30 70 Z M36 82 L80 30 L86 30 L42 82 Z" fill="#fff" opacity=".45"/></svg>`;
+  const powerSVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.6a8 8 0 1 0 11.4 0"/></svg>`;
+
+  function renderNav() {
+    $('prevBtn').disabled = lvl === 0;
+    $('nextBtn').disabled = lvl === LEVELS.length - 1 || !unlocked(lvl + 1);
+  }
+  function renderLevelGrid() {
+    const wrap = $('levelGrid'); wrap.innerHTML = '';
+    LEVELS.forEach((lv, i) => {
+      const b = document.createElement('button');
+      b.innerHTML = `${i + 1}<small>${'★'.repeat(progress[i] || 0)}</small>`;
+      b.setAttribute('aria-label', 'Bölüm ' + (i + 1));
+      if (i === lvl) b.classList.add('cur');
+      b.disabled = !unlocked(i);
+      b.onclick = () => { $('levelsDlg').classList.remove('show'); load(i); };
+      wrap.appendChild(b);
+    });
+  }
+
+  function load(i) {
+    timers.forEach(clearTimeout); timers = [];
+    lvl = i; L = LEVELS[i]; N = L.n;
+    grid = L.grid.map(r => [...r]);
+    angles = grid.map(r => r.map(c => (c === '/' || c === 'a' || c === 'p') ? -45 : 45));
+    moves = 0; lightOn = false; solvedLvl = false;
+    optimal = computeOptimal();
+    document.documentElement.style.setProperty('--n', N);
+    const size = 2 * RING + N * CELL;
+    svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+    $('levelTitle').textContent = `Bölüm ${i + 1}`;
+    $('levelLights').innerHTML = L.lanterns.map(l => `<i style="color:${hex(l.c)}" title="${COLORS[l.c].name}"></i>`).join('');
+    const cap = w => w.charAt(0).toLocaleUpperCase('tr') + w.slice(1);
+    const multi = L.lanterns.length > 1 || L.targets.length > 1;
+    $('hint').innerHTML = L.hint || (multi
+      ? 'Her hedef kendi rengindeki ışığı bekliyor.'
+      : `<b style="color:${hex(L.lanterns[0].c)}">${cap(COLORS[L.lanterns[0].c].name)}</b> ışığı hedefe ulaştır.`);
+    tint = L.lanterns.map(l => hex(l.c));
+    build(); renderNav(); updateMoves(); drawBeams(false);
+    if (LEVEL_TUT[i]) showTutorials(LEVEL_TUT[i]);
+  }
+
+  // push ring pieces slightly away from the board so they never overlap the tiles
+  const offOf = (gx, gy) => `${gx < 0 ? -12 : gx >= N ? 12 : 0}% ${gy < 0 ? -12 : gy >= N ? 12 : 0}%`;
+
+  function build() {
+    [...board.querySelectorAll('.cell')].forEach(n => n.remove());
+    const lanternAt = {}, targetAt = {};
+    L.lanterns.forEach((l, i) => lanternAt[l.s + l.i] = i);
+    L.targets.forEach((t, i) => targetAt[t.k] = i);
+    for (let gy = -1; gy <= N; gy++) for (let gx = -1; gx <= N; gx++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.style.gridColumn = gx + 2; cell.style.gridRow = gy + 2;
+      const inside = gx >= 0 && gy >= 0 && gx < N && gy < N;
+      const corner = (gx < 0 || gx >= N) && (gy < 0 || gy >= N);
+      if (inside) {
+        const c = grid[gy][gx];
+        const t = document.createElement('div'); t.className = 'tile'; t.dataset.x = gx; t.dataset.y = gy;
+        if (c === '#') { t.classList.add('wall'); t.innerHTML = wallSVG; }
+        else if (c >= '1' && c <= '6') { t.classList.add('glass'); t.style.setProperty('--fc', hex(+c)); t.title = COLORS[+c].name + ' cam'; t.innerHTML = glassSVG; }
+        else if (c !== '.') {
+          const m = document.createElement('div'); m.className = (c === 'p' || c === 'q') ? 'mirror half' : 'mirror';
+          m.style.setProperty('--a', angles[gy][gx] + 'deg');
+          t.appendChild(m);
+          if (c === 'a' || c === 'b') { t.classList.add('locked'); t.insertAdjacentHTML('beforeend', lockSVG); }
+          else t.classList.add('rot');
+          t.onclick = () => rotate(gx, gy, t);
+        }
+        cell.appendChild(t);
+      } else if (corner) {
+        if (gx === N && gy === N) {
+          cell.classList.add('out');
+          const b = document.createElement('button'); b.id = 'power'; b.innerHTML = powerSVG;
+          b.setAttribute('aria-label', 'Fenerleri aç/kapat');
+          b.onclick = togglePower;
+          cell.appendChild(b);
+        }
+      } else {
+        const k = keyOf(N, gx, gy);
+        if (k in lanternAt) {
+          const i = lanternAt[k], l = L.lanterns[i];
+          const d = document.createElement('div'); d.className = 'lantern'; d.style.setProperty('--off', offOf(gx, gy));
+          d.innerHTML = lanternSVG(hex(l.c), ROT[l.s]);
+          cell.appendChild(d);
+        } else if (k in targetAt) {
+          const i = targetAt[k], t = L.targets[i];
+          const d = document.createElement('div'); d.className = 'target'; d.dataset.k = k; d.style.setProperty('--off', offOf(gx, gy));
+          d.style.setProperty('--col', hex(t.c)); d.innerHTML = targetSVG(hex(t.c));
+          d.title = COLORS[t.c].name + ' ışık bekliyor';
+          cell.appendChild(d);
+        }
+      }
+      board.appendChild(cell);
+    }
+    $('power').classList.toggle('nudge', lvl === 0 && !progress[0]);
+  }
+
+  function rotate(x, y, el) {
+    if (solvedLvl) return;
+    const c = grid[y][x];
+    if (c === 'a' || c === 'b') { sfx.locked(); el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); return; }
+    grid[y][x] = ROTS[c];
+    angles[y][x] += 90;
+    el.querySelector('.mirror').style.setProperty('--a', angles[y][x] + 'deg');
+    moves++; updateMoves(); sfx.rotate();
+    if (lightOn) drawBeams(false);
+  }
+
+  function togglePower() {
+    if (solvedLvl) return;
+    lightOn = !lightOn;
+    $('power').classList.remove('nudge');
+    lightOn ? sfx.on() : sfx.off();
+    drawBeams(lightOn);
+  }
+
+  function updateMoves() { $('moves').textContent = 'Hamle ' + moves; }
+
+  const SPEED = 1.1; // ms per svg unit
+  function drawBeams(animate) {
+    timers.forEach(clearTimeout); timers = [];
+    [...svg.querySelectorAll('g.beam')].forEach(n => n.remove());
+    board.querySelectorAll('.tile.lit').forEach(t => t.classList.remove('lit'));
+    board.querySelectorAll('.target').forEach(t => t.classList.remove('hit', 'wrongc'));
+    board.querySelectorAll('.lantern').forEach(t => t.classList.toggle('on', lightOn));
+    $('power').classList.toggle('on', lightOn);
+    if (!lightOn) return;
+
+    const tr = traceAll(grid, N, L.lanterns);
+    const NS = 'http://www.w3.org/2000/svg';
+    let maxT = 0;
+    const later = (fn, t) => { if (animate && t > 0) timers.push(setTimeout(fn, t)); else fn(); };
+    tr.paths.forEach(p => {
+      const c = hex(p.c), d = 'M' + p.pts.map(q => q.join(' ')).join(' L');
+      const g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'beam');
+      if (p.fade) g.setAttribute('opacity', '.35');
+      const mk = (w, color, op, filt) => {
+        const e = document.createElementNS(NS, 'path');
+        e.setAttribute('d', d); e.setAttribute('fill', 'none'); e.setAttribute('stroke', color);
+        e.setAttribute('stroke-width', w); e.setAttribute('stroke-linecap', 'round'); e.setAttribute('stroke-linejoin', 'round');
+        e.setAttribute('opacity', op); if (filt) e.setAttribute('filter', 'url(#glow)');
+        g.appendChild(e); return e;
+      };
+      const els = [mk(20, c, .5, true), mk(9, c, 1), mk(3, '#ffffff', .8)];
+      svg.appendChild(g);
+      const len = els[1].getTotalLength();
+      const delay = p.d0 * SPEED, dur = Math.max(1, len * SPEED);
+      maxT = Math.max(maxT, delay + dur);
+      if (animate) els.forEach(e => {
+        e.style.strokeDasharray = len + 1; e.style.strokeDashoffset = len + 1;
+        e.animate([{ strokeDashoffset: len + 1 }, { strokeDashoffset: 0 }], { duration: dur, delay, easing: 'linear', fill: 'forwards' });
+      });
+    });
+    tr.hits.forEach(h => {
+      const t = board.querySelector(`.tile[data-x="${h.x}"][data-y="${h.y}"]`);
+      later(() => { if (lightOn && t) { t.style.setProperty('--glow', hex(h.c)); t.classList.add('lit'); } }, h.d * SPEED);
+    });
+    tr.sparks.forEach(s => {
+      const e = document.createElementNS(NS, 'circle');
+      e.setAttribute('cx', s.p[0]); e.setAttribute('cy', s.p[1]); e.setAttribute('r', 11); e.setAttribute('fill', hex(s.c));
+      e.setAttribute('filter', 'url(#glow)'); e.style.opacity = 0;
+      const g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'beam'); g.appendChild(e); svg.appendChild(g);
+      e.animate([{ opacity: 0 }, { opacity: 1 }, { opacity: .35 }], { duration: 800, delay: animate ? s.d * SPEED : 0, iterations: Infinity, direction: 'alternate' });
+    });
+    let allHit = true;
+    L.targets.forEach((t, i) => {
+      const got = tr.ends[t.k] || 0, ok = got === t.c;
+      if (!ok) allHit = false;
+      if (!got) return;
+      const el = board.querySelector(`.target[data-k="${t.k}"]`);
+      later(() => { if (!lightOn || !el) return; el.classList.add(ok ? 'hit' : 'wrongc'); if (ok && animate) sfx.hit(i); }, (tr.endD[t.k] || 0) * SPEED);
+    });
+    if (allHit) { solvedLvl = true; timers.push(setTimeout(win, (animate ? maxT : 0) + 600)); }
+  }
+
+  function win() {
+    const stars = moves <= optimal ? 3 : moves <= optimal + 2 ? 2 : 1;
+    progress[lvl] = Math.max(progress[lvl] || 0, stars); save();
+    $('stars').innerHTML = [1, 2, 3].map(s => `<span class="${s <= stars ? 'on' : 'off'}">★</span>`).join('');
+    const last = lvl === LEVELS.length - 1;
+    $('winTitle').textContent = L.targets.length > 1 ? 'Işıklar hedefte!' : 'Işık hedefte!';
+    $('winText').textContent = `${moves} hamlede çözdün (en az: ${optimal}).` + (last ? ' Tüm bölümleri bitirdin!' : '');
+    $('winNext').textContent = last ? 'Baştan oyna' : 'Sonraki bölüm';
+    $('win').classList.add('show');
+    sfx.win();
+    burst([...new Set(L.targets.map(t => hex(t.c)))]);
+    renderNav();
+    $('winNext').focus();
+  }
+
+  $('winNext').onclick = () => { $('win').classList.remove('show'); load(lvl === LEVELS.length - 1 ? 0 : lvl + 1); };
+  $('resetBtn').onclick = () => load(lvl);
+  $('prevBtn').onclick = () => lvl > 0 && load(lvl - 1);
+  $('nextBtn').onclick = () => lvl < LEVELS.length - 1 && unlocked(lvl + 1) && load(lvl + 1);
+  const TUT_KEY = 'fener-tut-seen';
+  const LEVEL_TUT = { 0: ['basics'], 1: ['brick'], 2: ['locked'], 4: ['two'], 6: ['cross'], 17: ['split'], 20: ['glass'], 23: ['mix'] };
+  /* ---------- animated tutorials: shown the first time a new piece appears ---------- */
+  const TUT = (() => {
+    const BL = '#4c9dff', RD = '#ff5d73', PU = '#d27bff', YE = '#ffc93d';
+    const tile = (x, y, fill = '#2b3778') => `<rect x="${x - 17}" y="${y - 17}" width="34" height="34" rx="8" fill="${fill}"/>`;
+    const tiles = (xs, y) => xs.map(x => tile(x, y)).join('');
+    const bar = (fill = '#e9f7ff') => `<rect x="-22" y="-3.5" width="44" height="7" rx="3.5" fill="${fill}"/>`;
+    const mirror = (x, y, deg, cls = '') => `<g transform="translate(${x} ${y})"><g class="${cls}" style="transform: rotate(${deg}deg)">${bar()}</g></g>`;
+    const half = (x, y, deg) => `<g transform="translate(${x} ${y}) rotate(${deg})"><rect x="-22" y="-4" width="44" height="8" rx="4" fill="rgba(200,240,255,.35)" stroke="#e9f7ff" stroke-width="2" stroke-dasharray="4 3"/></g>`;
+    const lockI = (x, y) => `<g transform="translate(${x} ${y})"><path d="M-3 0v-3a3 3 0 0 1 6 0v3" fill="none" stroke="#fff" stroke-width="1.6"/><rect x="-4.5" y="0" width="9" height="7" rx="2" fill="#fff"/></g>`;
+    const eyes = (o = 0) => `<path d="M${-6 + o} -1 q2.5 2 5 0 M${1 + o} -1 q2.5 2 5 0" stroke="#1b1f3b" stroke-width="1.8" fill="none" stroke-linecap="round"/>`;
+    const lantern = (x, y, col, dir = 0) => `<g transform="translate(${x} ${y})"><g transform="rotate(${dir})"><path d="M9 -7 L19 -11 Q21 0 19 11 L9 7 Z" fill="${col}"/></g><rect x="-13" y="-13" width="26" height="26" rx="9" fill="${col}"/><circle cx="-4" cy="-2" r="2" fill="#1b1f3b"/><circle cx="4" cy="-2" r="2" fill="#1b1f3b"/><path d="M-3 4 q3 3 6 0" stroke="#1b1f3b" stroke-width="1.6" fill="none" stroke-linecap="round"/></g>`;
+    const target = (x, y, col, cls) => `<g transform="translate(${x} ${y})"><circle r="15" fill="none" stroke="${col}" stroke-width="2.5" stroke-dasharray="5 4"/><circle r="10.5" fill="#2b3778"/><path d="M-6 -1 h4 M2 -1 h4" stroke="#a9b3e0" stroke-width="1.8" stroke-linecap="round"/><g class="${cls}" style="opacity:0"><circle r="10.5" fill="${col}"/><path d="M-6 0 q2.5 -3.5 5 0 M1 0 q2.5 -3.5 5 0" stroke="#1b1f3b" stroke-width="1.8" fill="none" stroke-linecap="round"/><path d="M-3.5 3.5 q3.5 4 7 0" fill="#1b1f3b"/></g></g>`;
+    const beam = (d, col, cls) => `<path class="${cls}" pathLength="1" d="${d}" stroke="${col}" stroke-width="10" opacity=".35" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path class="${cls}" pathLength="1" d="${d}" stroke="${col}" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path class="${cls}" pathLength="1" d="${d}" stroke="#fff" stroke-width="1.6" opacity=".85" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+    const tap = (x, y, cls = 't-tap') => `<g transform="translate(${x} ${y})"><circle class="${cls}" r="14" fill="none" stroke="#fff" stroke-width="2.5"/></g>`;
+    const spark = (x, y, col, cls) => `<circle class="${cls}" cx="${x}" cy="${y}" r="6" fill="${col}" style="opacity:0"/><circle class="${cls}" cx="${x}" cy="${y}" r="11" fill="${col}" style="opacity:0" opacity=".35"/>`;
+    const svg = inner => `<svg viewBox="0 0 260 150" role="img" aria-hidden="true">${inner}</svg>`;
+    // isometric helper for the cube cards
+    const iso = (x, y, z, s = 15) => [130 + (x - z) * .866 * s, 92 + (x + z) * .5 * s - y * s];
+    const P = pts => pts.map((p, i) => (i ? 'L' : 'M') + iso(...p).map(v => v.toFixed(1)).join(' ')).join(' ');
+    const cubeSVG = () => {
+      const face = (pts, fill) => `<path d="${P(pts)} Z" fill="${fill}" stroke="#0b1230" stroke-width="1.5"/>`;
+      let g = face([[0,4,0],[4,4,0],[4,4,4],[0,4,4]], '#34418b') + face([[4,4,0],[4,0,0],[4,0,4],[4,4,4]], '#26306b') + face([[0,4,4],[4,4,4],[4,0,4],[0,0,4]], '#2b3778');
+      for (let i = 1; i < 4; i++) g += `<path d="${P([[i,4,0],[i,4,4]])} ${P([[0,4,i],[4,4,i]])} ${P([[4,i,0],[4,i,4]])} ${P([[4,4,i],[4,0,i]])} ${P([[i,4,4],[i,0,4]])} ${P([[0,i,4],[4,i,4]])}" stroke="#0b1230" stroke-width="1" fill="none" opacity=".7"/>`;
+      return g;
+    };
+    const ground = `<path d="M10 112 H250" stroke="#2b3778" stroke-width="10" stroke-linecap="round"/>`;
+    const hump = x => `<path d="M${x - 26} 108 Q${x - 26} 70 ${x} 70 Q${x + 26} 70 ${x + 26} 108 Z" fill="#7fd6a8"/><circle cx="${x - 9}" cy="82" r="3.5" fill="#fff" opacity=".8"/>`;
+    const [lx, ly] = iso(.5, 4, 2), [ex, ey] = iso(4, 4, 2), [tx, ty] = iso(4, 1.2, 2);
+
+    const CARDS = {
+      basics: { title: 'Aynalar', text: 'Aynaya dokununca 90° döner. Köşedeki düğmeye basınca ışık aynadan yansır ve hedefe gider.',
+        svg: svg(tiles([80, 120, 160], 60) + tile(120, 110) + lantern(36, 60, BL) + mirror(120, 60, -45, 't-rot') + tap(120, 60) + beam('M50 60 H120', BL, 't-s1') + beam('M120 60 V100', BL, 't-s2') + target(120, 112, BL, 't-show2')) },
+      brick: { title: 'Tuğla', text: 'Tuğla ışığı keser. Işığı tuğlanın çevresinden dolaştırmak gerekir.',
+        svg: svg(tiles([80, 120], 75) + `<g transform="translate(160 75)"><rect x="-17" y="-17" width="34" height="34" rx="8" fill="#8a5f45"/><rect x="-13" y="-12" width="12" height="7" rx="2" fill="#a8775a"/><rect x="2" y="-12" width="12" height="7" rx="2" fill="#a8775a"/><rect x="-6" y="-3" width="12" height="7" rx="2" fill="#a8775a"/><rect x="-13" y="6" width="12" height="7" rx="2" fill="#a8775a"/><rect x="2" y="6" width="12" height="7" rx="2" fill="#a8775a"/></g>` + target(220, 75, YE, 'never') + lantern(36, 75, YE) + beam('M50 75 H142', YE, 't-s1') + spark(142, 75, YE, 't-blink1')) },
+      locked: { title: 'Kilitli ayna', text: 'Kilitli aynalar yerlerinde sabittir, dokununca dönmezler. Diğer aynaları onlara göre ayarla.',
+        svg: svg(tiles([80], 75) + tile(130, 75, '#3d3b6e') + lockI(142, 63) + `<g transform="translate(130 75)"><g class="t-shake">${bar('#d9d6f2')}</g></g>` + tap(130, 75)) },
+      two: { title: 'Birden fazla fener', text: 'Her ışık kendi rengindeki hedefe gitmeli. Bütün hedefler aynı anda yanınca bölüm biter.',
+        svg: svg(tiles([80, 120, 160], 45) + tiles([80, 120, 160], 105) + lantern(36, 45, BL) + lantern(36, 105, RD) + beam('M50 45 H212', BL, 't-s1') + beam('M50 105 H212', RD, 't-s1') + target(224, 45, BL, 't-show1') + target(224, 105, RD, 't-show1')) },
+      cross: { title: 'Kesişen ışınlar', text: 'Işınlar birbirinin içinden geçer, birbirini etkilemez.',
+        svg: svg(tiles([90, 130, 170], 75) + tiles([130], 35) + tiles([130], 115) + lantern(46, 75, YE) + lantern(130, 16, '#4ee89a', 90) + beam('M60 75 H210', YE, 't-s1') + beam('M130 30 V128', '#4ee89a', 't-s1') + target(222, 75, YE, 't-show1') + target(130, 140, '#4ee89a', 't-show1')) },
+      split: { title: 'Yeni: Yarı saydam ayna', text: 'Kesik çizgili ayna ışığın yarısını geçirir, yarısını yansıtır. Tek fenerle iki hedef yakılabilir. Dokununca o da döner.',
+        svg: svg(tiles([80, 120, 160], 55) + tile(120, 105) + lantern(36, 55, YE) + half(120, 55, 45) + beam('M50 55 H120', YE, 't-s1') + beam('M120 55 H212', YE, 't-s2') + beam('M120 55 V95', YE, 't-s2') + target(224, 55, YE, 't-show2') + target(120, 112, YE, 't-show2')) },
+      glass: { title: 'Yeni: Renkli cam', text: 'Cam yalnızca kendi rengini geçirir. Beyaz ışık kırmızı camdan kırmızı çıkar. Mavi ışık kırmızı camdan hiç geçemez.',
+        svg: svg(tiles([80, 160], 45) + tiles([80, 160], 105) + [45, 105].map(y => `<g transform="translate(120 ${y})"><rect x="-17" y="-17" width="34" height="34" rx="8" fill="${RD}" opacity=".6" stroke="#ff9aa8" stroke-width="2.5"/><path d="M-9 8 L5 -10 M-2 12 L10 -4" stroke="#fff" stroke-width="2.5" opacity=".6" stroke-linecap="round"/></g>`).join('') + lantern(36, 45, '#ffffff') + lantern(36, 105, BL) + beam('M50 45 H103', '#ffffff', 't-s1') + beam('M103 45 H212', RD, 't-s2') + beam('M50 105 H110', BL, 't-s1') + spark(110, 105, BL, 't-blink1') + target(224, 45, RD, 't-show2')) },
+      mix: { title: 'Yeni: Renk karışımı', text: 'İki ışık yarı saydam aynada birleşebilir. Işıklar toplanarak karışır: kırmızı + mavi = mor, kırmızı + yeşil = sarı.',
+        svg: svg(tiles([80, 120, 160], 85) + tile(120, 45) + lantern(36, 85, RD) + lantern(120, 14, BL, 90) + half(120, 85, 45) + beam('M50 85 H120', RD, 't-s1') + beam('M120 28 V85', BL, 't-s1') + beam('M120 85 H212', PU, 't-s2') + target(224, 85, PU, 't-show2')) },
+      wrap: { title: 'Küp', text: 'Işık bir yüzün kenarına gelince küpün köşesinden dönüp yandaki yüzde devam eder. Küpü parmağınla sürükleyerek çevir.',
+        svg: svg(cubeSVG() + `<circle cx="${lx}" cy="${ly - 4}" r="9" fill="${BL}"/>` + beam(`M${lx} ${ly} L${ex} ${ey}`, BL, 't-s1') + beam(`M${ex} ${ey} L${tx} ${ty}`, BL, 't-s2') + target(tx, ty, BL, 't-show2') + `<g class="t-drag"><circle cx="215" cy="120" r="9" fill="#fff" opacity=".85"/><path d="M200 120 h-14 m5 -5 l-5 5 l5 5" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/></g>`) },
+      bump: { title: 'Yeni: Çıkıntı', text: 'Işık hep düz gider, tümseğin üzerinden kendiliğinden geçemez. Çıkıntıya çarpan ışık orada durur.',
+        svg: svg(ground + hump(160) + lantern(36, 98, YE) + beam('M50 98 H133', YE, 't-s1') + spark(133, 98, YE, 't-blink1')) },
+      pipe: { title: 'Yeni: İçi aynalı boru', text: 'Boru ışığı bir ağzından alır, iç duvarlarından yansıta yansıta öbür ağzından çıkarır. Işık ağzın baktığı yönden gelmeli.',
+        svg: svg(ground + hump(130) + `<path d="M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98" stroke="#bfe3ff" stroke-width="20" opacity=".35" fill="none"/><path d="M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98" stroke="#e9f7ff" stroke-width="20" opacity=".5" fill="none" stroke-dasharray="2 14"/><circle cx="64" cy="98" r="9" fill="none" stroke="#ffc6dd" stroke-width="4"/><circle cx="196" cy="98" r="9" fill="none" stroke="#ffc6dd" stroke-width="4"/>` + lantern(26, 98, '#4ee89a') + beam('M40 98 H64', '#4ee89a', 't-s1') + beam('M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98', '#4ee89a', 't-s2') + beam('M196 98 H222', '#4ee89a', 't-s3') + target(236, 98, '#4ee89a', 't-show3')) },
+    };
+    return { CARDS };
+  })();
+  function tutSeen() { try { return JSON.parse(localStorage.getItem(TUT_KEY) || '{}'); } catch (e) { return {}; } }
+  let tutQueue = [];
+  function openCard(id) {
+    const card = TUT.CARDS[id];
+    $('tutTitle').textContent = card.title; $('tutText').textContent = card.text; $('tutArt').innerHTML = card.svg;
+    $('tutOk').textContent = tutQueue.length ? 'Devam' : 'Anladım';
+    $('tutDlg').classList.add('show'); $('tutOk').focus();
+  }
+  // ids: list of card ids; unseen ones are shown one after another (all of them when force)
+  function showTutorials(ids, force) {
+    const seen = tutSeen();
+    tutQueue = ids.filter(id => TUT.CARDS[id] && (force || !seen[id]));
+    tutQueue.forEach(id => seen[id] = 1);
+    try { localStorage.setItem(TUT_KEY, JSON.stringify(seen)); } catch (e) {}
+    if (tutQueue.length) openCard(tutQueue.shift());
+  }
+  function tutorialFor(i) { let k = i; while (k >= 0 && !(k in LEVEL_TUT)) k--; return k >= 0 ? LEVEL_TUT[k] : null; }
+  $('tutOk').onclick = () => { if (tutQueue.length) openCard(tutQueue.shift()); else $('tutDlg').classList.remove('show'); };
+  $('helpBtn').onclick = () => { const ids = tutorialFor(lvl); if (ids) showTutorials(ids, true); };
+  $('soundBtn').onclick = () => { soundOn = !soundOn; save(); soundIcon(); };
+  $('levelsBtn').onclick = () => { renderLevelGrid(); $('levelsDlg').classList.add('show'); };
+  $('levelsClose').onclick = () => $('levelsDlg').classList.remove('show');
+  $('levelsDlg').onclick = e => { if (e.target === $('levelsDlg')) $('levelsDlg').classList.remove('show'); };
+  soundIcon();
+
+  /* ---------- night sky ---------- */
+  const sky = $('sky'), sc = sky.getContext('2d');
+  const fx = $('fx'), fc = fx.getContext('2d');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let stars = [], tint = ['#4cc9ff'], W = 0, H = 0, dpr = 1, parts = [];
+  function resize() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = innerWidth; H = innerHeight;
+    [sky, fx].forEach(cv => { cv.width = W * dpr; cv.height = H * dpr; });
+    stars = Array.from({ length: Math.round(W * H / 4500) }, () => ({
+      x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.2 + .4,
+      p: Math.random() * Math.PI * 2, s: .5 + Math.random() * 1.5,
+    }));
+  }
+  function hexA(h, a) { const n = parseInt(h.slice(1), 16); return `rgba(${n >> 16},${n >> 8 & 255},${n & 255},${a})`; }
+  function drawSky(t) {
+    sc.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const g = sc.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#0b1230'); g.addColorStop(1, '#1d2a66');
+    sc.fillStyle = g; sc.fillRect(0, 0, W, H);
+    tint.forEach((c, i) => {
+      const a = t / 9000 + i * 2.1;
+      const x = W * (.5 + .4 * Math.cos(a)), y = H * (.5 + .3 * Math.sin(a * 1.3));
+      const rad = Math.max(W, H) * .5;
+      const rg = sc.createRadialGradient(x, y, 0, x, y, rad);
+      rg.addColorStop(0, hexA(c, .12)); rg.addColorStop(1, hexA(c, 0));
+      sc.fillStyle = rg; sc.fillRect(0, 0, W, H);
+    });
+    sc.fillStyle = '#fff';
+    for (const s of stars) {
+      sc.globalAlpha = reduce ? .7 : .45 + .45 * Math.sin(t / 1000 * s.s + s.p);
+      sc.beginPath(); sc.arc(s.x, s.y, s.r, 0, Math.PI * 2); sc.fill();
+    }
+    sc.globalAlpha = 1;
+  }
+  function burst(cols) {
+    if (reduce) return;
+    const rect = board.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+    for (let k = 0; k < 120; k++) {
+      const a = Math.random() * Math.PI * 2, v = 2 + Math.random() * 7;
+      parts.push({ x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, life: 1, c: cols[k % cols.length], r: 3 + Math.random() * 4, star: k % 3 === 0 });
+    }
+  }
+  function drawFx() {
+    fc.setTransform(dpr, 0, 0, dpr, 0, 0);
+    fc.clearRect(0, 0, W, H);
+    if (!parts.length) return;
+    parts = parts.filter(p => p.life > 0);
+    for (const p of parts) {
+      p.x += p.vx; p.y += p.vy; p.vy += .14; p.vx *= .985; p.life -= .012;
+      fc.globalAlpha = Math.max(0, p.life); fc.fillStyle = p.c;
+      fc.beginPath();
+      if (p.star) { for (let k = 0; k < 10; k++) { const rr = k % 2 ? p.r * .45 : p.r * 1.3, a = k * Math.PI / 5 - Math.PI / 2; fc.lineTo(p.x + Math.cos(a) * rr, p.y + Math.sin(a) * rr); } }
+      else fc.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      fc.fill();
+    }
+    fc.globalAlpha = 1;
+  }
+  function loop(t) { drawSky(t); drawFx(); requestAnimationFrame(loop); }
+  addEventListener('resize', resize);
+  resize(); requestAnimationFrame(loop);
+
+  let start = 0;
+  while (progress[start] && start < LEVELS.length - 1) start++;
+  load(start);
+})();
+</script>
+</body>
+</html>

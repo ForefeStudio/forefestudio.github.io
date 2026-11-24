@@ -1,0 +1,1262 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Fener Küpü</title>
+<meta name="description" content="Fener ve Aynalar'ın küp hali: altı yüzlü küpte aynalar, çıkıntılar ve içi aynalı borularla ışığı hedefe ulaştır.">
+<meta name="theme-color" content="#0b1230">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@600;700;800&display=swap">
+<style>
+  /* Layout: bright pastel day sky with drifting clouds; a full-height 3D stage under a compact top bar */
+  :root {
+    color-scheme: light;
+    --sky-0: #bfe6ff;
+    --sky-1: #ffffff;
+    --ink: #2e3466;
+    --muted: #6b74a8;
+    --sun: #ff9f43;
+    --chip: rgba(255,255,255,.72);
+    --chip-line: rgba(80,90,160,.12);
+    --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+    --body: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: linear-gradient(180deg, #a9dcff 0%, #d8f0ff 45%, #c4f0d2 100%) fixed, var(--sky-0);
+    color: var(--ink); font-family: var(--body);
+    user-select: none; -webkit-user-select: none;
+    display: flex; flex-direction: column; overflow: hidden;
+    padding-block: 10px 0;
+  }
+  button { font-family: inherit; }
+  button:focus-visible { outline: 3px solid #4c9dff; outline-offset: 2px; }
+  .top { padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: max(14px, env(safe-area-inset-right, 0px)); width: 100%; max-width: 640px; margin: 0 auto; flex: none; }
+  header { display: flex; align-items: center; gap: 8px; }
+  h1 { flex: 1; margin: 0; font-family: var(--display); font-weight: 800; font-size: clamp(20px, 6vw, 26px); line-height: 1; color: var(--sun); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  h1 small { font-size: .55em; color: var(--muted); font-weight: 700; margin-left: 4px; }
+  .iconbtn { width: 40px; height: 40px; border-radius: 14px; border: 1px solid var(--chip-line); cursor: pointer; flex: none; background: var(--chip); color: var(--ink); box-shadow: 0 3px 0 rgba(80,90,160,.12); display: grid; place-items: center; }
+  .iconbtn svg { width: 20px; height: 20px; }
+  .iconbtn:active { transform: scale(.92); }
+  .bar { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .step { width: 34px; height: 34px; border-radius: 12px; border: 1px solid var(--chip-line); background: var(--chip); color: var(--ink); font-size: 20px; font-weight: 800; cursor: pointer; display: grid; place-items: center; padding: 0; line-height: 1; }
+  .step:disabled { opacity: .3; cursor: default; }
+  #levelTitle { font-family: var(--display); font-weight: 800; font-size: 19px; line-height: 1; white-space: nowrap; }
+  #levelLights { display: flex; gap: 4px; flex: 1; }
+  #levelLights i { width: 12px; height: 12px; border-radius: 50%; display: block; background: currentColor; }
+  #moves { font-family: var(--display); font-weight: 700; font-size: 15px; line-height: 1; padding: 9px 12px 7px; border-radius: 999px; background: var(--chip); border: 1px solid var(--chip-line); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  #hint { font-size: 14px; font-weight: 700; color: var(--muted); margin: 10px 0 0; text-align: center; min-height: 19px; text-wrap: balance; }
+  #hint b { color: var(--ink); }
+
+  #stage { position: relative; flex: 1; min-height: 280px; touch-action: none; cursor: grab; }
+  #stage.dragging { cursor: grabbing; }
+  #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #stars { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; }
+
+  .dock {
+    position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: flex-end; justify-content: flex-end; gap: 10px;
+    padding: 0 max(14px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
+    pointer-events: none;
+  }
+  .dock > * { pointer-events: auto; }
+  #power {
+    width: 66px; height: 66px; border-radius: 50%; border: none; cursor: pointer; padding: 0; flex: none;
+    background: #ff5d73; color: #fff; display: grid; place-items: center;
+    box-shadow: 0 5px 0 #c23452; transition: transform .08s, box-shadow .08s, background .25s;
+  }
+  #power svg { width: 50%; height: 50%; }
+  #power:active { transform: translateY(4px); box-shadow: 0 1px 0 #c23452; }
+  #power.on { background: #39d98a; box-shadow: 0 5px 0 #1f9e5f; }
+  #power.nudge { animation: nudge 1.2s ease-in-out infinite; }
+  @keyframes nudge { 50% { transform: scale(1.1); } }
+  .findbtn { position: absolute; left: max(14px, env(safe-area-inset-left, 0px)); bottom: calc(26px + env(safe-area-inset-bottom, 0px)); height: 40px; padding: 0 14px; border-radius: 14px; border: 1px solid var(--chip-line); background: var(--chip); color: var(--ink); font-family: var(--display); font-weight: 800; font-size: 15px; cursor: pointer; z-index: 2; box-shadow: 0 3px 0 rgba(80,90,160,.12); }
+  #dragHint { position: absolute; left: 50%; top: 10px; translate: -50% 0; font-size: 13px; font-weight: 800; color: var(--ink); background: rgba(255,255,255,.75); padding: 6px 12px; border-radius: 99px; pointer-events: none; transition: opacity .5s; white-space: nowrap; }
+
+  .overlay { position: fixed; inset: 0; display: none; place-items: center; z-index: 10; background: rgba(70, 80, 140, .35); padding: 16px; }
+  .overlay.show { display: grid; animation: fade .25s; }
+  @keyframes fade { from { opacity: 0; } }
+  .card { max-height: calc(100dvh - 32px); overflow-y: auto; background: var(--sky-1); box-shadow: 0 18px 50px rgba(60,70,140,.25); border-radius: 26px; padding: 24px 22px 22px; text-align: center; width: min(340px, 100%); animation: pop .4s cubic-bezier(.3,1.6,.5,1); }
+  @keyframes pop { from { transform: scale(.8); } }
+  .card h2 { font-family: var(--display); margin: 0 0 4px; font-size: 28px; line-height: 1.1; color: var(--sun); }
+  .card p { margin: 0 0 14px; color: var(--muted); font-size: 15px; font-weight: 700; }
+  .stars { font-size: 42px; letter-spacing: 8px; margin-bottom: 16px; line-height: 1; }
+  .stars span { display: inline-block; animation: starIn .45s cubic-bezier(.3,1.8,.5,1) backwards; }
+  .stars span:nth-child(2) { animation-delay: .15s; } .stars span:nth-child(3) { animation-delay: .3s; }
+  @keyframes starIn { from { transform: scale(0) rotate(-90deg); } }
+  .stars .off { color: #dfe3f5; } .stars .on { color: var(--sun); }
+  .btn { font-family: var(--display); font-weight: 800; font-size: 17px; line-height: 1; border: none; border-radius: 16px; padding: 13px 22px 11px; cursor: pointer; background: var(--sun); color: #3a2500; box-shadow: 0 4px 0 #d49a1e; }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #d49a1e; }
+  #levelGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 6px 0 16px; }
+  #levelGrid button { aspect-ratio: 1; border-radius: 14px; border: none; cursor: pointer; padding: 0; background: #eef1ff; color: var(--ink); font-family: var(--display); font-weight: 800; font-size: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; line-height: 1; }
+  #levelGrid button small { font-size: 10px; color: #f5a623; letter-spacing: -1px; min-height: 10px; }
+  #levelGrid button.cur { background: var(--sun); color: #3a2500; }
+  #levelGrid button.cur small { color: #3a2500; }
+  #levelGrid button:disabled { opacity: .3; cursor: default; }
+  .ghost { background: none; border: none; color: var(--muted); font-weight: 800; font-size: 15px; cursor: pointer; padding: 6px 10px; }
+  #err { display: none; position: absolute; inset: 0; place-items: center; text-align: center; padding: 20px; color: var(--muted); font-weight: 700; }
+  /* tutorial cards */
+  .eyebrow { font-size: 12px; font-weight: 800; letter-spacing: 1.2px; color: var(--muted); text-transform: uppercase; margin-bottom: 2px; }
+  .tutart { background: #2f3b80; border-radius: 18px; padding: 8px; margin: 12px 0 12px; }
+  .tutart svg { width: 100%; height: auto; display: block; }
+  #tutText { text-wrap: pretty; }
+  .t-s1, .t-s2, .t-s3 { stroke-dasharray: 1 1; }
+  .t-s1 { animation: tS1 5s infinite; } .t-s2 { animation: tS2 5s infinite; } .t-s3 { animation: tS3 5s infinite; }
+  @keyframes tS1 { 0%, 15% { stroke-dashoffset: 1; opacity: 1; } 40%, 88% { stroke-dashoffset: 0; opacity: 1; } 96%, 100% { stroke-dashoffset: 0; opacity: 0; } }
+  @keyframes tS2 { 0%, 40% { stroke-dashoffset: 1; opacity: 1; } 65%, 88% { stroke-dashoffset: 0; opacity: 1; } 96%, 100% { stroke-dashoffset: 0; opacity: 0; } }
+  @keyframes tS3 { 0%, 65% { stroke-dashoffset: 1; opacity: 1; } 82%, 88% { stroke-dashoffset: 0; opacity: 1; } 96%, 100% { stroke-dashoffset: 0; opacity: 0; } }
+  .t-show1 { animation: tShow1 5s infinite; } .t-show2 { animation: tShow2 5s infinite; } .t-show3 { animation: tShow3 5s infinite; }
+  @keyframes tShow1 { 0%, 40% { opacity: 0; } 45%, 88% { opacity: 1; } 96%, 100% { opacity: 0; } }
+  @keyframes tShow2 { 0%, 65% { opacity: 0; } 70%, 88% { opacity: 1; } 96%, 100% { opacity: 0; } }
+  @keyframes tShow3 { 0%, 82% { opacity: 0; } 86%, 90% { opacity: 1; } 96%, 100% { opacity: 0; } }
+  .t-rot { animation: tRot 5s infinite; }
+  @keyframes tRot { 0%, 6% { transform: rotate(-45deg); } 14%, 100% { transform: rotate(45deg); } }
+  .t-tap { transform-box: fill-box; transform-origin: center; animation: tTap 5s infinite; }
+  @keyframes tTap { 0% { transform: scale(.4); opacity: 0; } 3% { opacity: 1; } 11% { transform: scale(1.4); opacity: 0; } 100% { opacity: 0; } }
+  .t-shake { animation: tShake 5s infinite; }
+  @keyframes tShake { 0%, 9% { transform: rotate(-45deg); } 12% { transform: rotate(-33deg); } 15% { transform: rotate(-57deg); } 18% { transform: rotate(-38deg); } 22%, 100% { transform: rotate(-45deg); } }
+  .t-blink1 { animation: tBlink1 5s infinite; }
+  @keyframes tBlink1 { 0%, 40% { opacity: 0; } 44% { opacity: 1; } 52% { opacity: .3; } 60% { opacity: 1; } 68% { opacity: .3; } 76%, 88% { opacity: 1; } 96%, 100% { opacity: 0; } }
+  .t-drag { animation: tDrag 5s infinite; }
+  @keyframes tDrag { 0%, 8% { transform: translateX(0); opacity: 0; } 14% { opacity: 1; } 40% { transform: translateX(-34px); opacity: 1; } 48%, 100% { transform: translateX(-34px); opacity: 0; } }
+  .t-glow1 { animation: tGlow1 5s infinite; }
+  @keyframes tGlow1 { 0%, 40% { fill: #23306b; } 44%, 88% { fill: #6fb6ff; } 96%, 100% { fill: #23306b; } }
+  .t-led { animation: tLed 5s infinite; }
+  @keyframes tLed { 0%, 42% { fill: #ff5d73; } 46%, 88% { fill: #5dff9d; } 96%, 100% { fill: #ff5d73; } }
+  .t-sink { transform-box: fill-box; transform-origin: center bottom; animation: tSink 5s infinite; }
+  @keyframes tSink { 0%, 42% { transform: scaleY(1); opacity: 1; } 52%, 88% { transform: scaleY(.08); opacity: .5; } 96%, 100% { transform: scaleY(1); opacity: 1; } }
+  .t-bloom { transform-box: fill-box; transform-origin: left center; animation: tBloom 5s infinite; }
+  @keyframes tBloom { 0%, 40% { transform: scale(.35, .7); } 50%, 88% { transform: scale(1, 1); } 96%, 100% { transform: scale(.35, .7); } }
+  .t-rot2 { animation: tRot2 5s infinite; }
+  @keyframes tRot2 { 0%, 42% { transform: rotate(45deg); } 52%, 92% { transform: rotate(-45deg); } 100% { transform: rotate(45deg); } }
+  @media (prefers-reduced-motion: reduce) { .tutart * { animation: none !important; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="top">
+  <header>
+    <h1>Fener Küpü <small>3B</small></h1>
+    <button class="iconbtn" id="helpBtn" title="Nasıl oynanır" aria-label="Nasıl oynanır"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.2-2.5 3.8"/><circle cx="12" cy="17.3" r=".6" fill="currentColor"/></svg></button>
+    <button class="iconbtn" id="levelsBtn" title="Bölümler" aria-label="Bölümler"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7.5" height="7.5" rx="2.2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2.2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2.2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2.2"/></svg></button>
+    <button class="iconbtn" id="soundBtn" title="Ses" aria-label="Sesi aç/kapat"></button>
+    <button class="iconbtn" id="resetBtn" title="Bölümü sıfırla" aria-label="Bölümü sıfırla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
+  </header>
+  <div class="bar">
+    <button class="step" id="prevBtn" aria-label="Önceki bölüm">‹</button>
+    <span id="levelTitle"></span>
+    <button class="step" id="nextBtn" aria-label="Sonraki bölüm">›</button>
+    <span id="levelLights"></span>
+    <span id="moves">Hamle 0</span>
+  </div>
+  <p id="hint"></p>
+</div>
+
+<div id="stage">
+  <div id="dragHint">Küpü sürükleyerek çevir</div>
+  <button id="findBtn" class="findbtn">Feneri göster</button>
+  <div id="err">3B görüntü bu cihazda açılamadı.</div>
+  <div class="dock">
+    <button id="power" aria-label="Fenerleri aç/kapat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.6a8 8 0 1 0 11.4 0"/></svg></button>
+  </div>
+</div>
+
+<div class="overlay" id="win" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+  <div class="card">
+    <h2 id="winTitle">Işık hedefte!</h2>
+    <p id="winText"></p>
+    <div class="stars" id="starsOut"></div>
+    <button class="btn" id="winNext">Sonraki bölüm</button>
+  </div>
+</div>
+<div class="overlay" id="tutDlg" role="dialog" aria-modal="true" aria-labelledby="tutTitle">
+  <div class="card">
+    <div class="eyebrow">Nasıl çalışır?</div>
+    <h2 id="tutTitle"></h2>
+    <div class="tutart" id="tutArt"></div>
+    <p id="tutText"></p>
+    <button class="btn" id="tutOk">Anladım</button>
+  </div>
+</div>
+<div class="overlay" id="levelsDlg" role="dialog" aria-modal="true" aria-labelledby="levelsTitle">
+  <div class="card">
+    <h2 id="levelsTitle">Bölümler</h2>
+    <div id="levelGrid"></div>
+    <button class="ghost" id="levelsClose">Kapat</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+  // ---- surface-cube light engine: six 4x4 faces, light wraps over the cube's edges ----
+  // cell key "x+:u,v"  (face = axis letter + sign; u,v = the other two axes in x,y,z order)
+  // cells: key -> { t: '/' | '\\' (rotatable mirror), 'a' | 'b' (locked), 'H' bump, 'L' lantern, 'T' target,
+  //                 'P' pipe mouth { o: direction the mouth faces, to: other mouth key },
+  //                 'Y' input mouth of a Y pipe { o, to: output key }, 'Q' Y pipe output { o } (two inputs, one output: the colours add up),
+  //                 'H' block { h: storeys (1 or 2), top: item on its roof ('/', '\\', 'a', 'b' mirror or 'T' target) },
+  //                 'K' periscope tower { lo, hi: facing of the bottom / top tilt mirror, h: storey of the top mirror },
+  //                 'O' hole mouth (open), 'U' hole mouth with a 45° tilt mirror { fi: which of the 4 surface directions it faces },
+  //                 'S' photocell that opens a door, 'F' photocell that turns a motor mirror (both { fi: the side the lens faces }),
+  //                 'S' sensor, 'D' door (closed blocks light), 'F' sun flower, 'c' / 'e' motor mirror ('/' / '\\', turned by a flower) }
+  var SN = 4, BEAM_H = .2, LVL = .56;   // LVL: height of one block storey
+  var AX = { x: 0, y: 1, z: 2 };
+  function faceInfo(f) { const a = AX[f[0]], s = f[1] === '+' ? 1 : -1, o = [0,1,2].filter(b => b !== a); return { a, s, u: o[0], v: o[1] }; }
+  function cellP(key) { const [f, uv] = key.split(':'), [u, v] = uv.split(',').map(Number), F = faceInfo(f), p = [0,0,0]; p[F.a] = F.s < 0 ? -1 : SN; p[F.u] = u; p[F.v] = v; return { f, F, p }; }
+  function keyFromP(f, p) { const F = faceInfo(f); return f + ':' + p[F.u] + ',' + p[F.v]; }
+  function normalOf(f) { const F = faceInfo(f), n = [0,0,0]; n[F.a] = F.s; return n; }
+  // world position of a cell centre lifted h above the surface
+  function worldOf(f, p, h) {
+    const F = faceInfo(f), w = [0,0,0];
+    for (let i = 0; i < 3; i++) w[i] = i === F.a ? F.s * SN / 2 + F.s * h : p[i] - (SN - 1) / 2;
+    return w;
+  }
+  function tangentDirsS(f) { const F = faceInfo(f), out = []; [F.u, F.v].forEach(ax => [1, -1].forEach(s => { const d = [0,0,0]; d[ax] = s; out.push(d); })); return out; }
+  // the cell straight across the cube (the other end of a hole)
+  function oppositeCell(key) { const { f, F, p } = cellP(key), q = p.slice(); q[F.a] = F.s < 0 ? SN : -1; const g = f[0] + (f[1] === '+' ? '-' : '+'); return { f: g, p: q, key: keyFromP(g, q) }; }
+  var add3 = (a, b, k) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
+  // points along a mirrored pipe from mouth A (light enters) to mouth B (light leaves)
+  function pipeCurve(ka, oa, kb, ob) {
+    const A = cellP(ka), B = cellP(kb), na = normalOf(A.f), nb = normalOf(B.f);
+    const ca = worldOf(A.f, A.p, BEAM_H), cb = worldOf(B.f, B.p, BEAM_H);
+    const ea = add3(ca, oa, .5), eb = add3(cb, ob, .5);
+    const ua = add3(ca, na, .5), ub = add3(cb, nb, .5);
+    const span = Math.hypot(ca[0] - cb[0], ca[1] - cb[1], ca[2] - cb[2]), H = .55 + span * .35;
+    const pts = [];
+    const quad = (p0, p1, p2, n) => { for (let i = 1; i <= n; i++) { const t = i / n, a = (1 - t) * (1 - t), b = 2 * (1 - t) * t, c = t * t; pts.push([0,1,2].map(j => a * p0[j] + b * p1[j] + c * p2[j])); } };
+    const cub = (p0, p1, p2, p3, n) => { for (let i = 1; i <= n; i++) { const t = i / n, a = (1 - t) ** 3, b = 3 * (1 - t) ** 2 * t, c = 3 * (1 - t) * t * t, d = t ** 3; pts.push([0,1,2].map(j => a * p0[j] + b * p1[j] + c * p2[j] + d * p3[j])); } };
+    pts.push(ea);
+    quad(ea, ca, ua, 6);
+    cub(ua, add3(ua, na, H), add3(ub, nb, H), ub, 18);
+    quad(ub, cb, eb, 6);
+    return pts;
+  }
+  function reflect(f, t, d) {
+    const F = faceInfo(f), du = d[F.u], dv = d[F.v], n = [0,0,0];
+    if (t === '/' || t === 'a' || t === 'c') { n[F.u] = dv; n[F.v] = du; } else { n[F.u] = -dv; n[F.v] = -du; }
+    return n;
+  }
+  // one step from (f,p) along d, wrapping over an edge when needed
+  function stepS(f, p, d) {
+    const q = [p[0] + d[0], p[1] + d[1], p[2] + d[2]], ad = d[0] ? 0 : d[1] ? 1 : 2;
+    if (q[ad] >= 0 && q[ad] < SN) return { f, p: q, d, wrapped: false };
+    const F = faceInfo(f), nf = 'xyz'[ad] + (d[ad] > 0 ? '+' : '-');
+    q[F.a] = F.s < 0 ? 0 : SN - 1;
+    const nd = [0,0,0]; nd[F.a] = -F.s;
+    return { f: nf, p: q, d: nd, wrapped: true };
+  }
+  // lanterns: [{ k: key, d: [dx,dy,dz], c }]
+  function traceS(cells, lanterns) {
+    const paths = [], ends = {}, endD = {}, endDir = {}, hits = [], sparks = [];
+    lanterns.forEach(l => {
+      let { f, p } = cellP(l.k), d = l.d.slice(), dist = 0, z = 0;   // z: storey the light travels at
+      const Hz = () => BEAM_H + z * LVL;
+      const pts = [worldOf(f, p, BEAM_H)], seen = new Set();
+      const add = (pt) => { const q = pts[pts.length - 1]; dist += Math.hypot(pt[0] - q[0], pt[1] - q[1], pt[2] - q[2]); pts.push(pt); };
+      for (let k = 0; k < 400; k++) {
+        const c0 = worldOf(f, p, Hz());
+        const s = stepS(f, p, d);
+        if (s.wrapped && z > 0) { add(add3(c0, d, 2.2)); break; }      // high light runs off the edge into space
+        if (s.wrapped) add([c0[0] + d[0] * (.5 + BEAM_H), c0[1] + d[1] * (.5 + BEAM_H), c0[2] + d[2] * (.5 + BEAM_H)]);
+        ({ f, p, d } = s);
+        const key = keyFromP(f, p), cell = cells[key], c = worldOf(f, p, Hz());
+        const sk = key + '|' + d.join(',') + '|' + z;
+        if (seen.has(sk)) { add(c); break; } seen.add(sk);
+        if (!cell || cell.t === 'O') continue;
+        const blockHere = () => { add([c[0] - d[0] * .42, c[1] - d[1] * .42, c[2] - d[2] * .42]); hits.push({ k: key, c: l.c, d: dist }); sparks.push({ p: pts[pts.length - 1], c: l.c, d: dist }); };
+        if (cell.t === 'K' && (z === 0 || z === cell.h)) {
+          // periscope tower: the tilt mirror at this storey lifts / lowers the light to the other mirror
+          const fd = tangentDirsS(f)[z === 0 ? cell.lo : cell.hi];
+          if (d[0] === -fd[0] && d[1] === -fd[1] && d[2] === -fd[2]) {
+            add(c); hits.push({ k: key + (z === 0 ? '#lo' : '#hi'), c: l.c, d: dist });
+            z = z === 0 ? cell.h : 0;
+            add(worldOf(f, p, Hz())); hits.push({ k: key + (z === 0 ? '#lo' : '#hi'), c: l.c, d: dist });
+            d = tangentDirsS(f)[z === 0 ? cell.lo : cell.hi].slice();
+            continue;
+          }
+          blockHere(); break;
+        }
+        if (z > 0) {                                                   // up high only blocks (and what stands on them) matter
+          if (cell.t !== 'H') continue;
+          const hh = cell.h || 1;
+          if (z < hh) { blockHere(); break; }
+          if (z > hh || !cell.top) continue;
+          if (cell.top === 'T') { add(c); ends[key] = (ends[key] || 0) | l.c; endD[key] = Math.max(endD[key] || 0, dist); break; }
+          add(c); hits.push({ k: key + '#top', c: l.c, d: dist });
+          d = reflect(f, cell.top, d);
+          continue;
+        }
+        if (cell.t === 'U') {
+          const fd = tangentDirsS(f)[cell.fi];
+          if (d[0] === -fd[0] && d[1] === -fd[1] && d[2] === -fd[2]) {
+            // the tilt mirror sends the light down the hole, straight through the cube
+            add(c); hits.push({ k: key, c: l.c, d: dist });
+            const ex = oppositeCell(key), ce = worldOf(ex.f, ex.p, BEAM_H), exCell = cells[ex.key];
+            add(ce); hits.push({ k: ex.key, c: l.c, d: dist });
+            f = ex.f; p = ex.p;
+            if (exCell && exCell.t === 'U') { d = tangentDirsS(f)[exCell.fi]; seen.add(ex.key + '|' + d.join(',')); continue; }
+            add(add3(ce, normalOf(f), 2.6)); break;          // open far end: the light leaves into space
+          }
+          add([c[0] - d[0] * .42, c[1] - d[1] * .42, c[2] - d[2] * .42]); hits.push({ k: key, c: l.c, d: dist }); sparks.push({ p: pts[pts.length - 1], c: l.c, d: dist }); break;
+        }
+        if ((cell.t === 'S' || cell.t === 'F') && cell.fi !== undefined) {
+          // photocell: only light that comes in through its lens (from the side it faces) is detected
+          const fd = tangentDirsS(f)[cell.fi];
+          if (!(d[0] === -fd[0] && d[1] === -fd[1] && d[2] === -fd[2])) { blockHere(); break; }
+        }
+        if (cell.t === 'T' || cell.t === 'S' || cell.t === 'F') { add(c); ends[key] = (ends[key] || 0) | l.c; endD[key] = Math.max(endD[key] || 0, dist); endDir[key] = d.slice(); break; }
+        if (cell.t === 'P' && d[0] === -cell.o[0] && d[1] === -cell.o[1] && d[2] === -cell.o[2]) {
+          const peer = cells[cell.to];
+          pipeCurve(key, cell.o, cell.to, peer.o).forEach(add);
+          hits.push({ k: key, c: l.c, d: dist });
+          ({ f, p } = cellP(cell.to)); d = peer.o.slice();
+          seen.add(cell.to + '|' + d.join(','));
+          continue;
+        }
+        if (cell.t === 'Y' && d[0] === -cell.o[0] && d[1] === -cell.o[1] && d[2] === -cell.o[2]) {
+          const out = cells[cell.to];
+          pipeCurve(key, cell.o, cell.to, out.o).forEach(add);
+          hits.push({ k: key, c: l.c, d: dist });
+          ({ f, p } = cellP(cell.to)); d = out.o.slice();
+          seen.add(cell.to + '|' + d.join(','));
+          continue;
+        }
+        if (cell.t === 'H' || cell.t === 'L' || cell.t === 'P' || cell.t === 'D' || cell.t === 'Y' || cell.t === 'Q') { add([c[0] - d[0] * .42, c[1] - d[1] * .42, c[2] - d[2] * .42]); if (cell.t !== 'L') { hits.push({ k: key, c: l.c, d: dist }); sparks.push({ p: pts[pts.length - 1], c: l.c, d: dist }); } break; }
+        add(c); hits.push({ k: key, c: l.c, d: dist });
+        d = reflect(f, cell.t, d);
+      }
+      paths.push({ pts, c: l.c });
+    });
+    return { paths, ends, endD, endDir, hits, sparks };
+  }
+  // sensors open doors and flowers turn motor mirrors; once triggered they stay triggered while the light is on
+  var MOTOR_FLIP = { c: 'e', e: 'c' };
+  function runS(cells, L) {
+    const opened = new Set(), flipped = new Set(), stages = [];
+    for (let it = 0; it < 8; it++) {
+      const eff = {};
+      for (const k in cells) { if (opened.has(k)) continue; const c = cells[k]; eff[k] = flipped.has(k) ? Object.assign({}, c, { t: MOTOR_FLIP[c.t] }) : c; }
+      const tr = traceS(eff, L.lanterns), acts = [];
+      (L.sensors || []).forEach(s => { if (tr.ends[s.k] && !opened.has(s.door)) acts.push({ type: 'door', src: s.k, k: s.door, d: tr.endD[s.k] }); });
+      (L.flowers || []).forEach(f => { if (tr.ends[f.k] && !flipped.has(f.m)) acts.push({ type: 'flip', src: f.k, k: f.m, d: tr.endD[f.k] }); });
+      stages.push({ tr, acts });
+      if (!acts.length) break;
+      acts.forEach(a => (a.type === 'door' ? opened : flipped).add(a.k));
+    }
+    return { stages, final: stages[stages.length - 1].tr, opened, flipped };
+  }
+  function isWinS(cells, L) { const e = runS(cells, L).final.ends; return L.targets.every(t => e[t.k] === t.c); }
+  const N = SN;
+  const COLORS = {
+    1: { name: 'kırmızı', hex: '#ff5d73' }, 2: { name: 'yeşil', hex: '#4ee89a' }, 3: { name: 'sarı', hex: '#ffc93d' },
+    4: { name: 'mavi', hex: '#4c9dff' }, 5: { name: 'mor', hex: '#d27bff' }, 6: { name: 'turkuaz', hex: '#3ef0d8' }, 7: { name: 'beyaz', hex: '#ffffff' },
+  };
+  const hex = c => COLORS[c].hex;
+  const LEVELS = [{"lanterns":[{"k":"x+:0,2","d":[0,-1,0],"c":4}],"targets":[{"k":"z+:0,0","c":4}],"pipes":[],"cells":[["y-:3,2","\\"],["z+:3,0","/"]]},{"lanterns":[{"k":"y+:2,1","d":[-1,0,0],"c":3}],"targets":[{"k":"z+:3,2","c":3}],"pipes":[],"cells":[["y+:0,1","\\"],["y+:0,2","/"],["x-:2,2","/"],["z+:0,1","H"],["x-:1,2","H"],["z+:2,0","H"]]},{"lanterns":[{"k":"x-:2,2","d":[0,1,0],"c":2}],"targets":[{"k":"x+:3,2","c":2}],"pipes":[{"a":"y+:1,2","oa":[-1,0,0],"b":"y+:3,2","ob":[0,0,1]}],"cells":[["y+:2,2","H"],["y+:3,3","\\"],["x+:3,3","\\"],["x-:3,3","H"]]},{"lanterns":[{"k":"y+:3,1","d":[0,0,-1],"c":1}],"targets":[{"k":"x-:0,0","c":1}],"pipes":[{"a":"z-:2,3","oa":[0,1,0],"b":"y-:3,3","ob":[0,0,-1]}],"cells":[["y+:3,0","\\"],["y+:2,0","/"],["y-:3,2","/"],["x+:0,2","b"],["z+:2,2","H"],["z+:3,0","H"],["x+:2,0","H"]]},{"lanterns":[{"k":"z-:2,2","d":[-1,0,0],"c":4},{"k":"x+:2,2","d":[0,0,-1],"c":3}],"targets":[{"k":"y+:1,1","c":4},{"k":"y-:2,0","c":3}],"pipes":[{"a":"x-:1,0","oa":[0,0,-1],"b":"x-:3,2","ob":[0,1,0]}],"cells":[["z-:0,2","/"],["z-:0,1","\\"],["x-:2,1","H"],["y+:1,2","/"],["x+:2,0","\\"],["x+:1,1","H"],["z+:1,1","H"],["y+:0,0","H"]]},{"lanterns":[{"k":"y+:0,1","d":[0,0,-1],"c":5}],"targets":[{"k":"y-:0,1","c":5}],"pipes":[{"a":"y+:1,0","oa":[-1,0,0],"b":"x+:0,3","ob":[0,0,-1]},{"a":"y-:3,1","oa":[1,0,0],"b":"z+:2,2","ob":[1,0,0]}],"cells":[["y+:0,0","\\"],["x+:0,1","\\"],["z+:3,2","/"],["z+:3,1","\\"],["z+:2,1","a"],["y-:2,1","/"],["x-:2,1","H"],["x+:0,0","H"],["z-:2,2","H"],["z+:1,3","H"]]},{"lanterns":[{"k":"x-:3,0","d":[0,1,0],"c":6},{"k":"z+:0,1","d":[0,1,0],"c":1}],"targets":[{"k":"x+:1,1","c":6},{"k":"x+:2,1","c":1}],"pipes":[{"a":"z+:3,2","oa":[0,1,0],"b":"z+:3,0","ob":[1,0,0]},{"a":"y+:0,3","oa":[0,0,1],"b":"x-:2,1","ob":[0,-1,0]}],"cells":[["y+:1,0","a"],["z+:1,3","/"],["z+:3,3","\\"],["z+:3,1","H"],["x+:0,1","\\"],["x-:1,1","\\"],["z-:1,1","\\"],["z-:1,2","\\"],["y-:2,3","H"],["y-:1,3","H"],["z-:2,0","H"],["z+:2,0","H"]]},{"lanterns":[{"k":"x+:0,3","d":[0,0,1],"c":1},{"k":"y+:2,2","d":[0,0,-1],"c":2},{"k":"z-:2,1","d":[0,-1,0],"c":4}],"targets":[{"k":"z-:1,0","c":1},{"k":"z+:3,3","c":2},{"k":"y+:0,1","c":4}],"pipes":[{"a":"z-:2,3","oa":[0,1,0],"b":"z-:0,0","ob":[0,1,0]},{"a":"z-:0,1","oa":[0,-1,0],"b":"z-:3,3","ob":[0,1,0]},{"a":"y-:2,1","oa":[0,0,-1],"b":"y-:0,1","ob":[-1,0,0]}],"cells":[["z+:1,0","/"],["z-:1,2","H"],["z-:2,2","H"],["y+:3,1","\\"],["x+:3,1","b"],["x+:3,3","a"],["y+:3,3","/"],["x-:0,1","\\"],["x-:0,2","\\"],["x-:2,2","\\"],["x-:2,1","/"],["x+:3,0","H"],["x+:1,1","H"],["x+:2,2","H"],["y+:2,3","H"],["x+:0,0","H"]]},{"lanterns":[{"k":"z+:1,2","d":[-1,0,0],"c":3},{"k":"x+:3,3","d":[0,0,-1],"c":4}],"targets":[{"k":"z-:0,3","c":4}],"pipes":[],"sensors":[{"k":"z+:1,0","door":"x+:3,1","fi":1}],"flowers":[],"cells":[["x-:2,3","\\"],["x-:0,3","/"],["x+:3,1","D"]]},{"lanterns":[{"k":"z+:2,0","d":[0,1,0],"c":1},{"k":"x+:3,2","d":[0,1,0],"c":6}],"targets":[{"k":"y-:2,0","c":6}],"pipes":[],"sensors":[{"k":"x-:0,3","door":"y+:2,1","fi":3}],"flowers":[],"cells":[["z+:2,3","/"],["z+:0,3","\\"],["z+:0,1","\\"],["x-:1,3","a"],["y+:2,2","/"],["y+:2,1","D"],["x-:2,3","H"],["y+:3,1","H"],["y-:0,2","H"]]},{"lanterns":[{"k":"y-:3,3","d":[0,0,1],"c":3},{"k":"y-:3,2","d":[0,0,-1],"c":2}],"targets":[{"k":"x+:2,0","c":2}],"pipes":[],"sensors":[],"flowers":[{"k":"z+:0,1","m":"z-:3,1","fi":1}],"cells":[["z+:3,1","/"],["z-:3,1","e"],["x+:1,0","\\"]]},{"lanterns":[{"k":"z-:0,0","d":[0,1,0],"c":3},{"k":"y+:3,0","d":[0,0,-1],"c":5},{"k":"y-:0,0","d":[-1,0,0],"c":4}],"targets":[{"k":"z+:0,3","c":4}],"pipes":[],"sensors":[{"k":"y-:3,1","door":"x-:0,2","fi":0}],"flowers":[{"k":"y+:0,2","m":"x-:0,0","fi":2}],"cells":[["x-:0,0","e"],["x-:0,2","D"],["z+:0,0","\\"],["z+:0,1","\\"],["x-:1,3","/"],["x-:3,3","\\"],["y+:1,3","H"],["x+:3,2","H"],["x-:1,0","H"]]},{"lanterns":[{"k":"z-:1,3","d":[1,0,0],"c":4}],"targets":[{"k":"x-:1,2","c":4}],"pipes":[],"sensors":[],"flowers":[],"cells":[["z-:2,3","U",3],["z+:2,3","U",2],["z+:2,1","/"]]},{"lanterns":[{"k":"x+:1,2","d":[0,0,1],"c":3}],"targets":[{"k":"x+:2,0","c":3}],"pipes":[],"sensors":[],"flowers":[],"cells":[["x+:1,3","U",3],["x-:1,3","U",0],["x-:1,2","\\"],["y-:3,2","/"],["y-:3,0","\\"],["y-:2,2","O"],["y+:2,2","O"],["z+:3,3","H"],["y+:0,0","H"]]},{"lanterns":[{"k":"z+:3,3","d":[-1,0,0],"c":1},{"k":"x-:2,0","d":[0,0,1],"c":2}],"targets":[{"k":"z-:1,0","c":1},{"k":"z+:0,0","c":2}],"pipes":[],"sensors":[],"flowers":[],"cells":[["z+:0,3","\\"],["z+:0,2","/"],["z+:1,2","U",2],["z-:1,2","U",2],["x-:2,2","U",3],["x+:2,2","U",2],["x+:0,2","\\"],["z+:1,3","O"],["z-:1,3","O"],["x-:1,3","H"],["z-:2,2","H"]]},{"lanterns":[{"k":"y-:0,3","d":[0,0,-1],"c":5},{"k":"z-:3,0","d":[1,0,0],"c":6}],"targets":[{"k":"z+:3,3","c":6}],"pipes":[],"sensors":[{"k":"z-:1,2","door":"y+:3,3","fi":1}],"flowers":[],"cells":[["z-:0,0","/"],["z-:1,0","\\"],["x+:0,1","\\"],["y-:3,1","U",1],["y+:3,1","U",3],["y+:3,3","D"],["y-:1,1","H"],["z+:3,2","H"]]},{"lanterns":[{"k":"x-:2,3","d":[0,-1,0],"c":1},{"k":"y+:1,3","d":[1,0,0],"c":4}],"targets":[{"k":"y-:3,1","c":5}],"pipes":[],"sensors":[],"flowers":[],"ypipes":[{"a":"y-:2,2","oa":[-1,0,0],"b":"x+:2,3","ob":[0,1,0],"out":"z-:3,2","oo":[0,-1,0]}],"cells":[["x-:1,3","\\"],["x-:1,2","/"]]},{"lanterns":[{"k":"x-:3,3","d":[0,1,0],"c":1},{"k":"z-:1,1","d":[-1,0,0],"c":2}],"targets":[{"k":"x+:3,3","c":3}],"pipes":[],"sensors":[],"flowers":[],"ypipes":[{"a":"x-:3,2","oa":[0,1,0],"b":"y+:1,0","ob":[-1,0,0],"out":"z+:3,3","oo":[0,-1,0]}],"cells":[["y+:1,3","\\"],["y+:1,2","\\"],["x-:1,0","\\"],["y-:3,3","/"],["z-:3,0","H"],["y+:3,1","H"],["z-:1,2","H"]]},{"lanterns":[{"k":"x+:0,3","d":[0,1,0],"c":2},{"k":"y+:2,2","d":[-1,0,0],"c":4}],"targets":[{"k":"x+:1,1","c":6}],"pipes":[],"sensors":[],"flowers":[],"ypipes":[{"a":"x+:2,1","oa":[0,1,0],"b":"x-:3,2","ob":[0,1,0],"out":"y+:0,0","oo":[1,0,0]}],"cells":[["x+:3,3","/"],["x+:3,1","/"],["y+:1,0","U",3],["y-:1,0","U",1],["y-:1,1","/"],["y+:2,1","H"],["x-:0,1","H"]]},{"lanterns":[{"k":"y+:3,3","d":[0,0,1],"c":1},{"k":"y+:2,2","d":[0,0,-1],"c":4},{"k":"y+:0,2","d":[0,0,-1],"c":3}],"targets":[{"k":"x+:0,1","c":5},{"k":"x-:2,2","c":3}],"pipes":[],"sensors":[],"flowers":[],"ypipes":[{"a":"x+:3,0","oa":[0,-1,0],"b":"z-:2,1","ob":[0,1,0],"out":"x+:1,1","oo":[0,0,1]}],"cells":[["z+:3,2","/"],["x+:2,0","\\"],["x+:1,3","/"],["y-:3,3","/"],["y-:3,1","b"],["z-:0,2","\\"],["x+:0,0","H"],["y+:1,3","H"],["z+:1,0","H"]]},{"lanterns":[{"k":"y-:1,3","d":[0,0,1],"c":4}],"targets":[{"k":"z+:0,0","c":4}],"pipes":[],"sensors":[],"flowers":[],"ypipes":[],"cells":[["z+:1,2",{"t":"K","h":1,"lo":2,"hi":1}],["z+:0,2",{"t":"H","h":1,"top":"\\"}],["z+:0,0",{"t":"H","h":1,"top":"T"}],["z+:0,1",{"t":"H","h":1}],["y-:2,0",{"t":"H","h":1}],["x-:1,2",{"t":"H","h":1}]]},{"lanterns":[{"k":"x+:0,1","d":[0,0,-1],"c":3}],"targets":[{"k":"y-:3,3","c":3}],"pipes":[],"sensors":[],"flowers":[],"ypipes":[],"cells":[["x+:0,0","/"],["y-:1,0",{"t":"K","h":1,"lo":3,"hi":0}],["y-:0,0",{"t":"H","h":1,"top":"\\"}],["y-:0,1",{"t":"H","h":1,"top":"\\"}],["y-:3,1",{"t":"K","h":1,"hi":3,"lo":3}],["z+:3,3",{"t":"H","h":1}],["z-:0,1",{"t":"H","h":1}],["x+:1,3",{"t":"H","h":1}],["y-:2,1",{"t":"H","h":1}]]},{"lanterns":[{"k":"y-:1,1","d":[-1,0,0],"c":2}],"targets":[{"k":"x-:3,2","c":2}],"pipes":[],"sensors":[],"flowers":[],"ypipes":[],"cells":[["x-:1,1",{"t":"K","h":2,"lo":2,"hi":3}],["x-:1,3",{"t":"H","h":2,"top":"/"}],["x-:3,3",{"t":"H","h":2,"top":"/"}],["x-:3,2",{"t":"H","h":2,"top":"T"}],["x-:1,2",{"t":"H","h":1}],["z-:3,2",{"t":"H","h":1}],["y+:3,3",{"t":"H","h":1}],["x+:0,2",{"t":"H","h":1}],["y-:3,0",{"t":"H","h":1}]]},{"lanterns":[{"k":"z-:0,3","d":[0,-1,0],"c":1},{"k":"y-:2,3","d":[1,0,0],"c":4}],"targets":[{"k":"y+:3,1","c":1},{"k":"x+:2,1","c":4}],"pipes":[],"sensors":[],"flowers":[],"ypipes":[],"cells":[["z-:0,2",{"t":"K","h":2,"lo":1,"hi":3}],["z-:2,2",{"t":"H","h":2,"top":"\\"}],["z-:2,1",{"t":"H","h":2,"top":"/"}],["z-:3,1",{"t":"K","h":2,"hi":0,"lo":1}],["y-:3,3","/"],["z+:3,2","/"],["z-:1,2",{"t":"H","h":1}],["z-:0,0",{"t":"H","h":1}],["y+:1,3",{"t":"H","h":1}],["y+:1,2",{"t":"H","h":1}]]}];
+  const HINTS = {
+    0: 'Aynalara dokunup çevir, sonra düğmeye bas. Işık kenara gelince <b>yandaki yüze geçer</b>: küpü çevirip takip et.',
+    1: '<b>Bloklar</b> ışığı keser. Işık düz gider, bloğun üzerinden kendiliğinden geçemez.',
+    2: '<b>İçi aynalı boru</b> ışığı ağzından alır, içinde yansıta yansıta öbür ağızdan çıkarır. Blokların üzerinden böyle geçilir.',
+    3: 'Kilitli (mor çerçeveli) aynalar dönmez. Boru ışığı yandaki yüze de taşıyabilir.',
+    4: 'İki fener! Her ışık kendi rengindeki hedefe gitmeli.',
+    8: 'Işık <b>fotosele</b> ulaşınca turuncu <b>kapının</b> motoru çalışır, kapı yere iner ve oradan ışık geçebilir.',
+    10: 'Sarı şeritli <b>fotosel</b> ışığı algılayınca sarı çerçeveli <b>motorlu aynanın</b> motoru çalışır ve ayna döner.',
+    11: 'İki fotosel ve bir kapı bir arada. Hangi ışığın neyi tetiklediğini takip et.',
+    12: 'Deliğin ağzındaki <b>eğik ayna</b> ışığı küpün içine yollar, karşı yüzdeki eğik ayna dışarı çıkarır. Eğik aynaya dokununca 4 yönden birine döner.',
+    13: 'Ağzında ayna olmayan deliğin üzerinden ışık düz geçer.',
+    14: 'İki fener, iki delik. Küpü çevirip deliğin öbür ucunu bul.',
+    15: 'Delik, fotosel ve kapı bir arada.',
+    16: 'İki girişli <b>Y boru</b>: iki ışık tek çıkışta birleşir, renkleri toplanır. Kırmızı + mavi = mor.',
+    17: 'Kırmızı + yeşil = sarı. İki ışığı da borunun girişlerine ulaştır.',
+    18: 'Yeşil + mavi = turkuaz. Borunun çıkışından sonra ışık bir delikten geçmeli.',
+    19: 'Bir Y boru ve ayrı bir sarı fener. Her hedef kendi rengini bekliyor.',
+    20: '<b>Periskop kulesi</b> ışığı bir blok yüksekliğine çıkarır. Yüksekteki ışık alçak blokların üzerinden geçer, blok tepesindeki aynaya ve hedefe ulaşır.',
+    21: 'Işığı kuleyle yukarı çıkar, ikinci kuleyle yeniden aşağı indir.',
+    22: 'İki katlı bloklar! Kule ışığı ikinci kata çıkarır; bir katlı blokların üzerinden geçer.',
+    23: 'İki fener, iki kule. Hangi ışığın hangi katta gittiğini takip et.',
+  };
+  const $ = id => document.getElementById(id);
+  const stage = $('stage');
+
+  /* ---------- state ---------- */
+  let lvl = 0, L, cells, moves = 0, lightOn = false, solved = false, optimal = 0, layer = -1;
+  let progress = {}, soundOn = true;
+  try { progress = JSON.parse(localStorage.getItem('fenerkup-progress') || '{}'); soundOn = localStorage.getItem('fener-sound') !== '0'; } catch (e) {}
+  const save = () => { try { localStorage.setItem('fenerkup-progress', JSON.stringify(progress)); localStorage.setItem('fener-sound', soundOn ? '1' : '0'); } catch (e) {} };
+  const START_LEVEL = 20;  // the game opens at level 21; levels 1-21 are always open
+  const unlocked = i => i <= START_LEVEL || !!progress[i - 1] || !!progress[i];
+
+  /* ---------- sound ---------- */
+  let ac = null;
+  function tone(freq, dur = .12, type = 'sine', vol = .08, delay = 0) {
+    if (!soundOn) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      const t = ac.currentTime + delay, o = ac.createOscillator(), g = ac.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+      o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + .02);
+    } catch (e) {}
+  }
+  const sfx = {
+    rotate: () => tone(560, .08, 'triangle', .06), locked: () => tone(150, .12, 'square', .035),
+    on: () => { tone(330, .15, 'sine', .07); tone(660, .25, 'sine', .05, .05); }, off: () => tone(240, .12, 'sine', .05),
+    hit: i => tone(660 + i * 110, .35, 'sine', .06), win: () => [523, 659, 784, 1046].forEach((f, k) => tone(f, .4, 'triangle', .07, k * .11)),
+  };
+  const soundIcon = () => $('soundBtn').innerHTML = soundOn
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
+
+  /* ---------- three.js setup ---------- */
+  if (!window.THREE) { $('err').style.display = 'grid'; return; }
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); } catch (e) { $('err').style.display = 'grid'; return; }
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+  stage.prepend(renderer.domElement);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, 1, .1, 100);
+  scene.add(new THREE.AmbientLight(0xffffff, .58)); scene.add(new THREE.HemisphereLight(0xffffff, 0xdfe6ff, .3));
+  const sun = new THREE.DirectionalLight(0xffffff, .32); sun.position.set(5, 9, 7); scene.add(sun);
+  const fillL = new THREE.DirectionalLight(0xffffff, .22); fillL.position.set(-6, -4, -5); scene.add(fillL);
+  const world = new THREE.Group(); scene.add(world);
+
+  /* ---------- the cube ---------- */
+  const V = a => new THREE.Vector3(a[0], a[1], a[2]);
+  const TILE_SINK = .065;   // tiles are set into the body, their tops end at the surface where objects stand
+  // cube body with softly rounded edges (a rounded square extruded with a round bevel)
+  const bodyGeo = (() => {
+    const R = .13, w = N - 2 * R - 2 * TILE_SINK, c = .04, sh = new THREE.Shape(), h = w / 2;
+    sh.moveTo(-h + c, -h); sh.lineTo(h - c, -h); sh.quadraticCurveTo(h, -h, h, -h + c); sh.lineTo(h, h - c); sh.quadraticCurveTo(h, h, h - c, h); sh.lineTo(-h + c, h); sh.quadraticCurveTo(-h, h, -h, h - c); sh.lineTo(-h, -h + c); sh.quadraticCurveTo(-h, -h, -h + c, -h);
+    const g = new THREE.ExtrudeGeometry(sh, { depth: w, bevelEnabled: true, bevelThickness: R, bevelSize: R, bevelSegments: 8, curveSegments: 10 });
+    g.translate(0, 0, -w / 2); g.computeVertexNormals(); return g;
+  })();
+  const body = new THREE.Mesh(bodyGeo, new THREE.MeshStandardMaterial({ color: 0xfff3df, roughness: .55 }));
+  world.add(body);
+  const shadow = (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 128; const g = cv.getContext('2d');
+    const gr = g.createRadialGradient(64, 64, 4, 64, 64, 62); gr.addColorStop(0, 'rgba(40,90,70,.35)'); gr.addColorStop(1, 'rgba(40,90,70,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(7.5, 7.5), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2; m.position.y = -4.3; m.renderOrder = -1; return m; })();
+  scene.add(shadow);
+  const roundRect = (w, r) => { const s = new THREE.Shape(), h = w / 2; s.moveTo(-h + r, -h); s.lineTo(h - r, -h); s.quadraticCurveTo(h, -h, h, -h + r); s.lineTo(h, h - r); s.quadraticCurveTo(h, h, h - r, h); s.lineTo(-h + r, h); s.quadraticCurveTo(-h, h, -h, h - r); s.lineTo(-h, -h + r); s.quadraticCurveTo(-h, -h, -h + r, -h); return new THREE.ShapeGeometry(s, 4); };
+  // raised, softly bevelled tiles (a little pillow on every square)
+  const tileGeo = (() => { const s2 = new THREE.Shape(), h = .38, r = .13; s2.moveTo(-h + r, -h); s2.lineTo(h - r, -h); s2.quadraticCurveTo(h, -h, h, -h + r); s2.lineTo(h, h - r); s2.quadraticCurveTo(h, h, h - r, h); s2.lineTo(-h + r, h); s2.quadraticCurveTo(-h, h, -h, h - r); s2.lineTo(-h, -h + r); s2.quadraticCurveTo(-h, -h, -h + r, -h);
+    const g = new THREE.ExtrudeGeometry(s2, { depth: .015, bevelEnabled: true, bevelThickness: .03, bevelSize: .04, bevelSegments: 4, curveSegments: 8 }); g.computeVertexNormals(); return g; })();
+  // every face gets its own soft pastel, like a toy cube
+  const FACE_COL = { 'x-': 0x8fe3b8, 'x+': 0xb3b9f5, 'y-': 0xc4b3ff, 'y+': 0x9fd0ff, 'z-': 0xffc98f, 'z+': 0xffe680 };
+  const tileBase = k => FACE_COL[k.split(':')[0]];
+  const FACE_LIST = ['x-', 'x+', 'y-', 'y+', 'z-', 'z+'];
+  const tiles = {};
+  const zUp = new THREE.Vector3(0, 0, 1);
+  FACE_LIST.forEach(f => {
+    const n = V(normalOf(f));
+    for (let u = 0; u < N; u++) for (let v = 0; v < N; v++) {
+      const key = f + ':' + u + ',' + v, { p } = cellP(key);
+      const m = new THREE.Mesh(tileGeo, new THREE.MeshStandardMaterial({ color: FACE_COL[f], roughness: .55 }));
+      m.position.copy(V(worldOf(f, p, -.035))); m.quaternion.setFromUnitVectors(zUp, n);
+      m.userData.key = key; world.add(m); tiles[key] = m;
+    }
+  });
+
+  /* ---------- cute sprites (drawn on canvas) ---------- */
+  const texCache = {};
+  function spriteTex(kind, col, state) {
+    const key = kind + col + state; if (texCache[key]) return texCache[key];
+    const cv = document.createElement('canvas'); cv.width = cv.height = 256; const g = cv.getContext('2d');
+    g.translate(128, 128); g.lineCap = 'round'; g.lineJoin = 'round';
+    const rr = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+    if (kind === 'lantern') {
+      g.strokeStyle = '#ffe9a8'; g.lineWidth = 12; g.beginPath(); g.arc(0, -82, 26, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
+      g.fillStyle = '#ffe9a8'; rr(-46, -96, 92, 20, 10); g.fill(); rr(-46, 62, 92, 22, 11); g.fill();
+      g.globalAlpha = state === 'on' ? 1 : .75; g.fillStyle = col; rr(-72, -82, 144, 150, 52); g.fill(); g.globalAlpha = 1;
+      g.fillStyle = 'rgba(255,255,255,.35)'; rr(-52, -64, 24, 40, 12); g.fill();
+      g.strokeStyle = g.fillStyle = '#1b1f3b'; g.lineWidth = 9;
+      if (state === 'on') { [-24, 24].forEach(x => { g.beginPath(); g.ellipse(x, -6, 10, 14, 0, 0, 7); g.fill(); }); g.fillStyle = '#fff'; [-20, 28].forEach(x => { g.beginPath(); g.arc(x, -11, 4, 0, 7); g.fill(); }); }
+      else { [-24, 24].forEach(x => { g.beginPath(); g.arc(x, -10, 13, .2 * Math.PI, .8 * Math.PI); g.stroke(); }); }
+      g.fillStyle = 'rgba(255,154,184,.85)'; [-44, 44].forEach(x => { g.beginPath(); g.arc(x, 22, 11, 0, 7); g.fill(); });
+      g.strokeStyle = '#1b1f3b'; g.lineWidth = 8; g.beginPath(); g.arc(0, 16, 13, .15 * Math.PI, .85 * Math.PI); g.stroke();
+    } else {
+      g.strokeStyle = col; g.lineWidth = 14; g.setLineDash([30, 22]); g.beginPath(); g.arc(0, 0, 104, 0, 7); g.stroke(); g.setLineDash([]);
+      g.fillStyle = state === 'hit' ? col : '#2b3778'; g.beginPath(); g.arc(0, 0, 78, 0, 7); g.fill();
+      g.strokeStyle = state === 'idle' ? '#a9b3e0' : '#1b1f3b'; g.lineWidth = 10;
+      if (state === 'hit') {
+        [-26, 26].forEach(x => { g.beginPath(); g.arc(x, 4, 15, 1.1 * Math.PI, 1.9 * Math.PI); g.stroke(); });
+        g.fillStyle = '#1b1f3b'; g.beginPath(); g.arc(0, 20, 20, 0, Math.PI); g.fill();
+        g.fillStyle = '#ff9ab8'; [-50, 50].forEach(x => { g.beginPath(); g.arc(x, 26, 10, 0, 7); g.fill(); });
+      } else if (state === 'wrong') {
+        [-26, 26].forEach(x => { g.beginPath(); g.moveTo(x - 10, -14); g.lineTo(x + 10, 2); g.moveTo(x - 10, 2); g.lineTo(x + 10, -14); g.stroke(); });
+        g.beginPath(); g.arc(0, 44, 16, 1.15 * Math.PI, 1.85 * Math.PI); g.stroke();
+      } else {
+        [-26, 26].forEach(x => { g.beginPath(); g.moveTo(x - 14, -4); g.lineTo(x + 14, -4); g.stroke(); });
+        g.beginPath(); g.moveTo(-10, 30); g.lineTo(10, 30); g.stroke();
+      }
+    }
+    const t = new THREE.CanvasTexture(cv); t.anisotropy = 4; texCache[key] = t; return t;
+  }
+
+  /* ---------- reflective environment for the mirrors ---------- */
+  const envTex = (() => {
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256; const g = cv.getContext('2d');
+    const gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, '#ffffff'); gr.addColorStop(.45, '#b8e2ff'); gr.addColorStop(.55, '#9fb3ff'); gr.addColorStop(1, '#e6d6ff');
+    g.fillStyle = gr; g.fillRect(0, 0, 512, 256);
+    g.fillStyle = '#ffffff'; [[80, 40, 40], [300, 30, 60], [430, 60, 30]].forEach(([x, y, w]) => { g.globalAlpha = .9; g.fillRect(x, y, w, 14); });
+    g.globalAlpha = 1; g.fillStyle = '#ffe9a8'; g.beginPath(); g.arc(200, 50, 16, 0, 7); g.fill();
+    const t = new THREE.CanvasTexture(cv); t.mapping = THREE.EquirectangularReflectionMapping;
+    const pm = new THREE.PMREMGenerator(renderer); const rt = pm.fromEquirectangular(t); pm.dispose(); return rt.texture;
+  })();
+
+  /* ---------- 45° mirror strips over every cube edge: they turn the light onto the next face ---------- */
+  const edgeStrips = {};
+  const holderGeo = new THREE.CylinderGeometry(.013, .013, 1, 8), cornerGeo = new THREE.SphereGeometry(.06, 16, 12);
+  const holderMat = new THREE.MeshStandardMaterial({ color: 0x323e86, roughness: .7, metalness: .1 });
+  const edgeId = pt => pt.map(v => Math.abs(v) > N / 2 + .01 ? Math.sign(v) : 0).join(',');
+  (() => {
+    const half = N / 2, w = .24;
+    for (let ax = 0; ax < 3; ax++) for (const s1 of [-1, 1]) for (const s2 of [-1, 1]) {
+      const o = [0, 1, 2].filter(a => a !== ax), n1 = [0,0,0], n2 = [0,0,0]; n1[o[0]] = s1; n2[o[1]] = s2;
+      const E = [0,0,0]; E[o[0]] = s1 * half; E[o[1]] = s2 * half;
+      const along = [0,0,0]; along[ax] = 1;
+      const m = V(n1).add(V(n2)).normalize();                     // strip normal (it reflects on its inner side)
+      const across = new THREE.Vector3().crossVectors(m, V(along));
+      const g = new THREE.Group();
+      const glass = new THREE.Mesh(new THREE.BoxGeometry(N - .1, w, .025), new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 1, roughness: .06, envMap: envTex, transparent: true, opacity: .18, emissive: 0, depthWrite: false }));
+      const back = new THREE.Mesh(new THREE.BoxGeometry(N - .1, w + .03, .02), new THREE.MeshStandardMaterial({ color: 0x8f9bd6, roughness: .5, transparent: true, opacity: .16, depthWrite: false })); back.position.z = .025;
+      g.add(glass, back); g.userData = { glass, back };
+      g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(V(along), across, m));
+      g.position.copy(V(E)).addScaledVector(V(n1), BEAM_H).addScaledVector(V(n2), BEAM_H).addScaledVector(m, .015);
+      const holderLen = BEAM_H * Math.SQRT2 + .01;
+      [-(N / 2 - .1), N / 2 - .1].forEach(t => {
+        const rod = new THREE.Mesh(holderGeo, holderMat);
+        rod.position.copy(V(E)).addScaledVector(V(along), t).addScaledVector(m, holderLen / 2);
+        rod.scale.y = holderLen; rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), m);
+        world.add(rod);
+      });
+      world.add(g);
+      const P = [0,0,0]; P[o[0]] = s1 * 9; P[o[1]] = s2 * 9; edgeStrips[edgeId(P)] = g;
+    }
+    // a little golden ball on each of the 8 corners: the strips' holders start here
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+      const k = new THREE.Mesh(cornerGeo, holderMat); k.position.set(sx * half, sy * half, sz * half); world.add(k);
+    }
+  })();
+
+  /* ---------- level objects ---------- */
+  let objs = [], mirrors = {}, lanternSprites = [], lanternLens = [], targetSprites = {}, pipeMeshes = [], beamGroup = new THREE.Group(), beams = [], beamT0 = 0, pendingHits = [], sparkMeshes = [];
+  world.add(beamGroup);
+  /* cute mirror: rounded frame + reflective glass with shine streaks, standing on a small turntable */
+  const MW = .84, MH = .48, MB = .018, MR = .09, LIFT = .1;
+  const rrShape = (w, h, r) => { const s = new THREE.Shape(), x = -w / 2, y = -h / 2; s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r); s.lineTo(x + w, y + h - r); s.quadraticCurveTo(x + w, y + h, x + w - r, y + h); s.lineTo(x + r, y + h); s.quadraticCurveTo(x, y + h, x, y + h - r); s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y); return s; };
+  const frameShape = rrShape(MW, MH, MR); frameShape.holes.push(rrShape(MW - 2 * MB, MH - 2 * MB, MR - MB * .6));
+  const frameGeo = new THREE.ExtrudeGeometry(frameShape, { depth: .022, bevelEnabled: true, bevelThickness: .005, bevelSize: .005, bevelSegments: 2, curveSegments: 10 });
+  frameGeo.translate(0, 0, -.011);
+  const glassGeo = new THREE.ShapeGeometry(rrShape(MW - 2 * MB + .02, MH - 2 * MB + .02, MR - MB * .6), 10);
+  const streakGeo = (() => { const g = new THREE.Shape(); g.moveTo(-.22, -.16); g.lineTo(-.13, -.16); g.lineTo(-.02, .16); g.lineTo(-.11, .16); g.closePath();
+    const h = new THREE.Shape(); h.moveTo(-.06, -.16); h.lineTo(-.025, -.16); h.lineTo(.085, .16); h.lineTo(.05, .16); h.closePath(); return new THREE.ShapeGeometry([g, h]); })();
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0xcfe6ff, metalness: .92, roughness: .07, envMap: envTex, envMapIntensity: 1.25, side: THREE.DoubleSide });
+  const streakMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .55, side: THREE.DoubleSide, depthWrite: false });
+  const baseGeo = new THREE.CylinderGeometry(.27, .3, .07, 32);
+  const capGeo = new THREE.CylinderGeometry(.05, .06, .06, 16);
+  const lockBody = new THREE.BoxGeometry(.13, .11, .05), lockLoop = new THREE.TorusGeometry(.045, .016, 8, 16, Math.PI);
+  function mirrorQuat(key, t) {
+    const { f } = cellP(key), F = faceInfo(f), n = V(normalOf(f));
+    const a = [0,0,0]; a[F.u] = 1; a[F.v] = (t === '/' || t === 'a' || t === 'c') ? 1 : -1;
+    const along = V(a).normalize(), side = new THREE.Vector3().crossVectors(along, n);
+    return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(along, n, side));
+  }
+  function upQuat(f) { return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), V(normalOf(f))); }
+  function makeMirror(key, locked, motor) {
+    const g = new THREE.Group();
+    const frameCol = motor ? 0xffb22e : locked ? 0xa594ff : 0xffcf86, baseCol = motor ? 0xffe066 : locked ? 0x6d63c9 : 0xf6f8ff;
+    const frameMat = new THREE.MeshStandardMaterial({ color: frameCol, roughness: .35, metalness: .15, emissive: 0 });
+    const baseMat = new THREE.MeshStandardMaterial({ color: baseCol, roughness: .5 });
+    const base = new THREE.Mesh(baseGeo, baseMat); base.position.y = .035;
+    const cap = new THREE.Mesh(capGeo, frameMat); cap.position.y = .1;
+    const frame = new THREE.Mesh(frameGeo, frameMat); frame.position.y = LIFT + MH / 2;
+    const glassF = new THREE.Mesh(glassGeo, glassMat); glassF.position.set(0, LIFT + MH / 2, .004);
+    const glassB = new THREE.Mesh(glassGeo, glassMat); glassB.position.set(0, LIFT + MH / 2, -.004); glassB.rotation.y = Math.PI;
+    const shF = new THREE.Mesh(streakGeo, streakMat); shF.position.set(0, LIFT + MH / 2, .012);
+    const shB = new THREE.Mesh(streakGeo, streakMat); shB.position.set(0, LIFT + MH / 2, -.012); shB.rotation.y = Math.PI;
+    g.add(base, cap, frame, glassF, glassB, shF, shB);
+    if (locked) {
+      const lm = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .4 });
+      const lb = new THREE.Mesh(lockBody, lm), ll = new THREE.Mesh(lockLoop, lm);
+      lb.position.set(0, LIFT + MH + .07, 0); ll.position.set(0, LIFT + MH + .125, 0);
+      g.add(lb, ll);
+    }
+    if (motor) {   // a little sun badge on top: this mirror is turned by a sun flower
+      const sun = new THREE.Mesh(new THREE.SphereGeometry(.06, 14, 10), new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xff9f1c, emissiveIntensity: .4 }));
+      sun.position.set(0, LIFT + MH + .07, 0); g.add(sun);
+      for (let i = 0; i < 8; i++) { const ray = new THREE.Mesh(new THREE.BoxGeometry(.018, .05, .018), sun.material); const an = i / 8 * Math.PI * 2; ray.position.set(Math.cos(an) * .1, LIFT + MH + .07 + Math.sin(an) * .1, 0); ray.rotation.z = an - Math.PI / 2; g.add(ray); }
+    }
+    g.traverse(m => { if (m.isMesh) m.userData.key = key; });
+    g.userData = { key, frame };
+    return g;
+  }
+  const BLOCK_H = .56;
+  let holeRings = {};
+  const holeDiscGeo = new THREE.CircleGeometry(.3, 32), holeDiscMat = new THREE.MeshBasicMaterial({ color: 0x05081a });
+  const holeRingGeo = new THREE.TorusGeometry(.31, .03, 10, 36);
+  const holeTubeGeo = new THREE.CylinderGeometry(.3, .3, .4, 32, 1, true), holeTubeMat = new THREE.MeshBasicMaterial({ color: 0x0a0f2a, side: THREE.BackSide });
+  // 45° tilt mirror over a hole: catches light coming from the side it faces and sends it down the hole (and the other way round)
+  function tiltQuat(key, fi) {
+    const { f } = cellP(key), n = V(normalOf(f)), fd = V(tangentDirsS(f)[fi]);
+    const x = new THREE.Vector3().crossVectors(n, fd), y = fd.clone().add(n).normalize(), z = fd.clone().sub(n).normalize();
+    return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+  }
+  // periscope parts: a pivot that turns around the face normal; local +X = the side it faces, +Y = up
+  const periBodyMat = new THREE.MeshStandardMaterial({ color: 0xeef4ff, roughness: .15, metalness: .15, envMap: envTex, transparent: true, opacity: .4, depthWrite: false, side: THREE.DoubleSide });
+  const PERI_R = .23;
+  const periHitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+  let periHits = [];
+  const periDiscGeo = (() => { const g = new THREE.CircleGeometry(PERI_R - .012, 48); g.scale(1, Math.SQRT2, 1); return g; })();
+  const periRimGeo = (() => { const g = new THREE.TorusGeometry(PERI_R - .012, .01, 8, 48); g.scale(1, Math.SQRT2, 1); return g; })();
+  const periShineGeo = (() => { const a = new THREE.Shape(); a.moveTo(-.1, -.16); a.lineTo(-.05, -.16); a.lineTo(.03, .16); a.lineTo(-.02, .16); a.closePath(); return new THREE.ShapeGeometry(a); })();
+  const periGlassMat = new THREE.MeshStandardMaterial({ color: 0xcfe6ff, metalness: .9, roughness: .08, envMap: envTex, envMapIntensity: 1.2, side: THREE.DoubleSide, transparent: true, opacity: .85 });
+  const periCapMat = new THREE.MeshStandardMaterial({ color: 0xffcf86, roughness: .35, metalness: .15 });
+  function periQuat(key, fi) {
+    const { f } = cellP(key), n = V(normalOf(f)), fd = V(tangentDirsS(f)[fi]);
+    return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(fd, n, new THREE.Vector3().crossVectors(fd, n)));
+  }
+  // photocell: a small white housing with a hooded lens on its +X side, a status lamp on top, on a turntable
+  const photoHouseGeo = (() => { const g = new THREE.ExtrudeGeometry(rrShape(.3, .26, .08), { depth: .26, bevelEnabled: true, bevelThickness: .025, bevelSize: .025, bevelSegments: 3, curveSegments: 8 }); g.translate(0, 0, -.13); return g; })();
+  function makePhotocell(key, bandCol) {
+    const pv = new THREE.Group();
+    const white = photoBaseMat, band = new THREE.MeshStandardMaterial({ color: bandCol, roughness: .4, emissive: 0 });
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(.27, .29, .05, 32), white); base.position.y = .025; pv.add(base);
+    const baseRing = new THREE.Mesh(new THREE.TorusGeometry(.28, .012, 8, 40), band); baseRing.rotation.x = Math.PI / 2; baseRing.position.y = .05; pv.add(baseRing);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(.05, .06, .05, 16), white); neck.position.y = .07; pv.add(neck);
+    const house = new THREE.Mesh(photoHouseGeo, white); house.position.y = BEAM_H; pv.add(house);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(.03, .22, .24), band); back.position.set(-.18, BEAM_H, 0); pv.add(back);
+    const lensMat = new THREE.MeshStandardMaterial({ color: 0x1b2a5a, roughness: .08, metalness: .5, envMap: envTex, emissive: 0x000000 });
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(.08, 32), lensMat); lens.rotation.y = Math.PI / 2; lens.position.set(.177, BEAM_H, 0); pv.add(lens);
+    const glint = new THREE.Mesh(new THREE.CircleGeometry(.022, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .8 })); glint.rotation.y = Math.PI / 2; glint.position.set(.179, BEAM_H + .035, -.03); pv.add(glint);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(.088, .014, 8, 32), band); ring.rotation.y = Math.PI / 2; ring.position.set(.178, BEAM_H, 0); pv.add(ring);
+    const hood = new THREE.Mesh(new THREE.CylinderGeometry(.115, .115, .07, 24, 1, true, -Math.PI / 2, Math.PI), white); hood.rotation.z = Math.PI / 2; hood.position.set(.2, BEAM_H, 0); pv.add(hood);
+    const ledMat = new THREE.MeshStandardMaterial({ color: 0xff5d73, roughness: .3, emissive: 0x7a1020 });
+    const led = new THREE.Mesh(new THREE.SphereGeometry(.03, 12, 8), ledMat); led.position.set(-.07, BEAM_H + .165, 0); pv.add(led);
+    pv.traverse(o => { if (o.isMesh) o.userData.key = key; });
+    pv.userData = { key, frame: back, lensMat, ledMat };
+    return pv;
+  }
+  function makePeriMirror(key, up) {
+    const pv = new THREE.Group();
+    // the mirror: a 45° slice of the tube, i.e. an ellipse that fills the whole cross-section
+    const m = new THREE.Group();
+    const disc = new THREE.Mesh(periDiscGeo, periGlassMat); m.add(disc);
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0xffcf86, roughness: .35, metalness: .15, emissive: 0 });
+    const rim = new THREE.Mesh(periRimGeo, rimMat); m.add(rim);
+    const shine = new THREE.Mesh(periShineGeo, streakMat); shine.position.z = .004; m.add(shine);
+    const shineB = new THREE.Mesh(periShineGeo, streakMat); shineB.position.z = -.004; shineB.rotation.y = Math.PI; m.add(shineB);
+    const zz = new THREE.Vector3(1, up ? 1 : -1, 0).normalize(), xx = new THREE.Vector3(0, 0, 1), yy = new THREE.Vector3().crossVectors(zz, xx);
+    m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xx, yy, zz));
+    m.userData.frame = rim;
+    pv.add(m);
+    // window: a short open sleeve on the facing side with a ring around the opening
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, .22, 32, 1, true), periBodyMat); sleeve.rotation.z = Math.PI / 2; sleeve.position.x = .33; pv.add(sleeve);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(.12, .01, 8, 32), periCapMat); ring.position.x = .44; ring.rotation.y = Math.PI / 2; pv.add(ring);
+    pv.traverse(o => { if (o.isMesh) o.userData.key = key; });
+    pv.userData = { key, frame: m.userData.frame };
+    return pv;
+  }
+  // tilt mirror that sends light coming from its facing side up (up = true) or down
+  function tiltQuatGen(key, fi, up) {
+    const { f } = cellP(key), n = V(normalOf(f)), fd = V(tangentDirsS(f)[fi]);
+    const x = new THREE.Vector3().crossVectors(n, fd), z = fd.clone().add(up ? n : n.clone().negate()).normalize(), y = new THREE.Vector3().crossVectors(z, x);
+    return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+  }
+  function makeTiltMirror(key) {
+    const g = new THREE.Group();
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x5ee0d0, roughness: .35, metalness: .15, emissive: 0 });
+    const frame = new THREE.Mesh(frameGeo, frameMat); frame.scale.set(.82, 1.15, 1);
+    const gF = new THREE.Mesh(glassGeo, glassMat); gF.scale.set(.82, 1.15, 1); gF.position.z = .004;
+    const gB = new THREE.Mesh(glassGeo, glassMat); gB.scale.set(.82, 1.15, 1); gB.position.z = -.004; gB.rotation.y = Math.PI;
+    const sF = new THREE.Mesh(streakGeo, streakMat); sF.scale.set(.82, 1.15, 1); sF.position.z = .012;
+    const sB = new THREE.Mesh(streakGeo, streakMat); sB.scale.set(.82, 1.15, 1); sB.position.z = -.012; sB.rotation.y = Math.PI;
+    g.add(frame, gF, gB, sF, sB);
+    g.traverse(m => { if (m.isMesh) m.userData.key = key; });
+    g.userData = { key, frame };
+    return g;
+  }
+  let doors = {}, sensorObjs = {}, flowerObjs = {}, stageTimers = [];
+  const doorMat = new THREE.MeshStandardMaterial({ color: 0xff9a52, roughness: .55 });
+  const doorTopMat = new THREE.MeshStandardMaterial({ color: 0xffc08a, roughness: .5 });
+  const petalGeo = new THREE.SphereGeometry(.12, 14, 10);
+  const photoBaseMat = new THREE.MeshStandardMaterial({ color: 0xf6f8ff, roughness: .4 });
+  const photoDomeMat = new THREE.MeshStandardMaterial({ color: 0xdff1ff, roughness: .05, metalness: .1, envMap: envTex, transparent: true, opacity: .45, depthWrite: false });
+  const sensorPadGeo = (() => { const g = new THREE.ExtrudeGeometry(rrShape(.56, .56, .12), { depth: .03, bevelEnabled: true, bevelThickness: .02, bevelSize: .02, bevelSegments: 2 }); g.rotateX(-Math.PI / 2); g.translate(0, .02, 0); return g; })();
+  const panelTex = (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 128; const g = cv.getContext('2d');
+    g.fillStyle = '#ffc08a'; g.fillRect(0, 0, 128, 128);
+    for (let x = 0; x < 3; x++) for (let y = 0; y < 3; y++) { g.fillStyle = '#2a4fb8'; g.fillRect(8 + x * 39, 8 + y * 39, 35, 35); g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(8 + x * 39, 8 + y * 39, 35, 6); }
+    const t = new THREE.CanvasTexture(cv); t.anisotropy = 4; return t; })();
+  const petalMat = new THREE.MeshStandardMaterial({ color: 0xffd166, roughness: .5 });
+  const blockGeo = (() => { const g = new THREE.ExtrudeGeometry(rrShape(.58, .58, .1), { depth: BLOCK_H - .08, bevelEnabled: true, bevelThickness: .04, bevelSize: .04, bevelSegments: 3, curveSegments: 6 });
+    g.rotateX(-Math.PI / 2); g.translate(0, .04, 0); return g; })();
+  const blockMat = new THREE.MeshStandardMaterial({ color: 0x6fd3a0, roughness: .6 });
+  const blockMat2 = new THREE.MeshStandardMaterial({ color: 0x52bd8a, roughness: .6 });
+  const towerMat = new THREE.MeshStandardMaterial({ color: 0xf6f8ff, roughness: .5 });
+  const blockTopGeo = (() => { const g = new THREE.ShapeGeometry(rrShape(.4, .4, .08), 6); g.rotateX(-Math.PI / 2); return g; })();
+  const blockTopMat = new THREE.MeshStandardMaterial({ color: 0x9ae9bf, roughness: .5 });
+  function build() {
+    objs.forEach(o => world.remove(o)); objs = []; mirrors = {}; lanternSprites = []; lanternLens = []; targetSprites = {}; pipeMeshes = [];
+    Object.entries(tiles).forEach(([k, t]) => t.material.color.setHex(tileBase(k)));
+    clearBeams();
+    cells = {};
+    L.cells.forEach(([k, t, fi]) => cells[k] = typeof t === 'object' ? JSON.parse(JSON.stringify(t)) : { t, fi });
+    L.lanterns.forEach(l => cells[l.k] = { t: 'L' });
+    L.targets.forEach(t => { if (!cells[t.k]) cells[t.k] = { t: 'T' }; });
+    L.pipes.forEach(p => { cells[p.a] = { t: 'P', o: p.oa, to: p.b }; cells[p.b] = { t: 'P', o: p.ob, to: p.a }; });
+    (L.sensors || []).forEach(x => cells[x.k] = { t: 'S', fi: x.fi });
+    (L.flowers || []).forEach(x => cells[x.k] = { t: 'F', fi: x.fi });
+    (L.ypipes || []).forEach(y => { cells[y.a] = { t: 'Y', o: y.oa, to: y.out }; cells[y.b] = { t: 'Y', o: y.ob, to: y.out }; cells[y.out] = { t: 'Q', o: y.oo }; });
+    doors = {}; sensorObjs = {}; flowerObjs = {}; holeRings = {}; periHits = [];
+    const add = m => { world.add(m); objs.push(m); return m; };
+    Object.entries(cells).forEach(([k, c]) => {
+      const { f, p } = cellP(k);
+      if (c.t === 'H') {                                   // block: 1 or 2 storeys, maybe a mirror / target on its roof
+        const hh = c.h || 1;
+        const g = new THREE.Mesh(blockGeo, hh > 1 ? blockMat2 : blockMat); g.scale.y = hh;
+        g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(upQuat(f)); add(g);
+        const top = new THREE.Mesh(blockTopGeo, blockTopMat);
+        top.position.copy(V(worldOf(f, p, hh * BLOCK_H + .012))); top.quaternion.copy(upQuat(f)); add(top);
+        if (hh > 1) { const line = new THREE.Mesh(new THREE.BoxGeometry(.66, .025, .66), blockTopMat); line.position.copy(V(worldOf(f, p, BLOCK_H))); line.quaternion.copy(upQuat(f)); add(line); }
+        if (c.top === '/' || c.top === '\\') {
+          const mk = k + '#top', mg = makeMirror(mk, false);
+          mg.position.copy(V(worldOf(f, p, hh * BLOCK_H))); mg.quaternion.copy(mirrorQuat(k, c.top)); mg.userData.targetQ = mg.quaternion.clone();
+          add(mg); mirrors[mk] = mg;
+        }
+        tiles[k].material.color.setHex(0xa6e6c4);
+      } else if (c.t === 'K') {                            // periscope: translucent body, two mirrors inside, a window at each mirror
+        const n = V(normalOf(f)), base = V(worldOf(f, p, 0));
+        const bodyH = c.h * LVL + BEAM_H + .26;
+        const tube = new THREE.Group(); tube.position.copy(base); tube.quaternion.copy(upQuat(f)); add(tube);
+        const wall = new THREE.Mesh(new THREE.CylinderGeometry(PERI_R, PERI_R, bodyH, 40, 1, true), periBodyMat); wall.position.y = bodyH / 2; tube.add(wall);
+        const lid = new THREE.Mesh(new THREE.CircleGeometry(PERI_R, 40), periBodyMat); lid.rotation.x = -Math.PI / 2; lid.position.y = bodyH; tube.add(lid);
+        [0.02, bodyH].forEach(y => { const rim = new THREE.Mesh(new THREE.TorusGeometry(PERI_R, .01, 8, 48), periCapMat); rim.rotation.x = Math.PI / 2; rim.position.y = y; tube.add(rim); });
+        // invisible, slightly fatter touch area over the whole tube: lower half turns the bottom mirror, upper half the top one
+        const hit = new THREE.Mesh(new THREE.CylinderGeometry(.38, .38, bodyH + .15, 16), periHitMat); hit.position.y = bodyH / 2;
+        hit.userData = { peri: k, splitY: BEAM_H + c.h * LVL / 2 }; tube.add(hit); periHits.push(hit);
+        [['lo', 0, c.lo, true], ['hi', c.h, c.hi, false]].forEach(([part, lv, fi]) => {
+          const mk = k + '#' + part, pv = makePeriMirror(mk, part === 'lo');
+          pv.position.copy(V(worldOf(f, p, BEAM_H + lv * LVL))); pv.quaternion.copy(periQuat(k, fi)); pv.userData.targetQ = pv.quaternion.clone();
+          add(pv); mirrors[mk] = pv;
+        });
+        tiles[k].material.color.setHex(0xcfc6ff);
+      } else if (c.t === 'O' || c.t === 'U') {              // hole mouth (+ tilt mirror)
+        const n = V(normalOf(f)), q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+        const disc = new THREE.Mesh(holeDiscGeo, holeDiscMat); disc.position.copy(V(worldOf(f, p, .015))); disc.quaternion.copy(q); add(disc);
+        const ringMat = new THREE.MeshStandardMaterial({ color: 0x9d8cff, roughness: .4, emissive: 0 });
+        const ring = new THREE.Mesh(holeRingGeo, ringMat); ring.position.copy(disc.position); ring.quaternion.copy(q); add(ring); holeRings[k] = ringMat;
+        const tube = new THREE.Mesh(holeTubeGeo, holeTubeMat); tube.position.copy(V(worldOf(f, p, -.2))); tube.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n); add(tube);
+        tiles[k].material.color.setHex(0xc2b8ff);
+        if (c.t === 'U') {
+          const g = makeTiltMirror(k);
+          g.position.copy(V(worldOf(f, p, BEAM_H))); g.quaternion.copy(tiltQuat(k, c.fi)); g.userData.targetQ = g.quaternion.clone(); g.userData.tilt = true;
+          add(g); mirrors[k] = g;
+        }
+      } else if (c.t === 'D') {                            // door: an orange block that sinks into the cube when its sensor is lit
+        const g = new THREE.Group();
+        const body = new THREE.Mesh(blockGeo, doorMat); g.add(body);
+        const top = new THREE.Mesh(blockTopGeo, doorTopMat); top.position.y = BLOCK_H + .012; g.add(top);
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(.62, .07, .62), doorTopMat); bar.position.y = BLOCK_H * .45; g.add(bar);
+        g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(upQuat(f)); add(g); doors[k] = g;
+        tiles[k].material.color.setHex(0xffcaa3);
+      } else if (c.t === 'S' || c.t === 'F') {             // photocell: lens on one side; orange ones open doors, gold ones run motor mirrors
+        const pv = makePhotocell(k, c.t === 'S' ? 0xff9a52 : 0xffb22e);
+        pv.position.copy(V(worldOf(f, p, 0))); pv.quaternion.copy(periQuat(k, c.fi)); pv.userData.targetQ = pv.quaternion.clone();
+        add(pv); mirrors[k] = pv; sensorObjs[k] = { lensMat: pv.userData.lensMat, ledMat: pv.userData.ledMat };
+        tiles[k].material.color.setHex(c.t === 'S' ? 0xffcaa3 : 0xffe58f);
+      } else if ('/\\abce'.includes(c.t)) {
+        const locked = c.t === 'a' || c.t === 'b', motor = c.t === 'c' || c.t === 'e';
+        const g = makeMirror(k, locked, motor);
+        if (motor) { g.userData.motor = true; tiles[k].material.color.setHex(0xffe58f); }
+        g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(mirrorQuat(k, c.t)); g.userData.targetQ = g.quaternion.clone();
+        add(g); mirrors[k] = g;
+        if (locked) tiles[k].material.color.setHex(0xc8bfff);
+      }
+    });
+    // mirrored pipes: shiny tube following the light's own curve
+    L.pipes.forEach(pp => {
+      const pts = pipeCurve(pp.a, pp.oa, pp.b, pp.ob).map(V);
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 80, .15, 20, false),
+        new THREE.MeshStandardMaterial({ color: 0xbfe3ff, metalness: .6, roughness: .15, envMap: envTex, transparent: true, opacity: .55, side: THREE.DoubleSide, depthWrite: false }));
+      add(tube); pipeMeshes.push(tube);
+      [[pp.a, pp.oa], [pp.b, pp.ob]].forEach(([k, o]) => {
+        const { f, p } = cellP(k);
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(.15, .04, 10, 24), new THREE.MeshStandardMaterial({ color: 0xf6f8ff, roughness: .4 }));
+        ring.position.copy(V(worldOf(f, p, BEAM_H))).addScaledVector(V(o), .46);
+        ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), V(o)); add(ring);
+        tiles[k].material.color.setHex(0xb9d3ff);
+      });
+    });
+    // Y pipes: two arms merge above the output mouth; the light of both arms comes out mixed
+    (L.ypipes || []).forEach(yp => {
+      const tubeMat = new THREE.MeshStandardMaterial({ color: 0xe2d4ff, metalness: .6, roughness: .15, envMap: envTex, transparent: true, opacity: .55, side: THREE.DoubleSide, depthWrite: false });
+      [[yp.a, yp.oa], [yp.b, yp.ob]].forEach(([k, o]) => {
+        const curve = new THREE.CatmullRomCurve3(pipeCurve(k, o, yp.out, yp.oo).map(V));
+        add(new THREE.Mesh(new THREE.TubeGeometry(curve, 80, .15, 20, false), tubeMat));
+      });
+      [[yp.a, yp.oa, .15], [yp.b, yp.ob, .15], [yp.out, yp.oo, .17]].forEach(([k, o, r]) => {
+        const { f, p } = cellP(k);
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(r, .045, 10, 24), new THREE.MeshStandardMaterial({ color: 0xffcf86, roughness: .35, metalness: .2 }));
+        ring.position.copy(V(worldOf(f, p, BEAM_H))).addScaledVector(V(o), .46);
+        ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), V(o)); add(ring);
+        tiles[k].material.color.setHex(0xcfc6ff);
+      });
+    });
+    // lanterns: a little torch lying on its tile, pointing where the light will go, plus an arrow on the tile
+    L.lanterns.forEach(l => {
+      const { f, p } = cellP(l.k), n = V(normalOf(f)), d = V(l.d), col = new THREE.Color(hex(l.c));
+      const base = V(worldOf(f, p, BEAM_H));
+      const bodyMat = new THREE.MeshStandardMaterial({ color: col, roughness: .5 });
+      const tubeM = new THREE.Mesh(new THREE.CylinderGeometry(.13, .15, .32, 20), bodyMat);
+      tubeM.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d); tubeM.position.copy(base).addScaledVector(d, -.04); add(tubeM);
+      const head = new THREE.Mesh(new THREE.CylinderGeometry(.18, .13, .1, 20), new THREE.MeshStandardMaterial({ color: 0xffe9a8, roughness: .4 }));
+      head.quaternion.copy(tubeM.quaternion); head.position.copy(base).addScaledVector(d, .17); add(head);
+      const lens = new THREE.Mesh(new THREE.CircleGeometry(.15, 24), new THREE.MeshBasicMaterial({ color: col.clone().lerp(new THREE.Color(0x222244), .45) }));
+      lens.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), d); lens.position.copy(base).addScaledVector(d, .225); add(lens);
+      lens.userData = { col }; lanternLens.push(lens);
+      // arrow painted on the next tile edge
+      const sh = new THREE.Shape(); sh.moveTo(0, .16); sh.lineTo(.14, -.04); sh.lineTo(.05, -.04); sh.lineTo(.05, -.14); sh.lineTo(-.05, -.14); sh.lineTo(-.05, -.04); sh.lineTo(-.14, -.04); sh.closePath();
+      const arrow = new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color: col }));
+      const side = new THREE.Vector3().crossVectors(d, n);
+      arrow.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side, d, n));
+      arrow.position.copy(V(worldOf(f, p, .015))).addScaledVector(d, .66); add(arrow);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteTex('lantern', hex(l.c), 'off'), transparent: true }));
+      sp.position.copy(base).addScaledVector(d, -.12).addScaledVector(n, .38); sp.scale.set(.46, .46, 1); sp.userData = { col: hex(l.c), base: .46 };
+      add(sp); lanternSprites.push(sp);
+    });
+    L.targets.forEach(t => {
+      const { f, p } = cellP(t.k), tc = cells[t.k], lift = tc.t === 'H' ? (tc.h || 1) * BLOCK_H : 0;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteTex('target', hex(t.c), 'idle'), transparent: true }));
+      sp.position.copy(V(worldOf(f, p, .45 + lift))); sp.scale.set(.74, .74, 1); sp.userData = { col: hex(t.c) };
+      add(sp); targetSprites[t.k] = sp;
+    });
+  }
+
+  /* ---------- beams ---------- */
+  function clearBeams() {
+    beams.forEach(b => { beamGroup.remove(b.core); beamGroup.remove(b.glow); }); beams = []; pendingHits = [];
+    sparkMeshes.forEach(s => beamGroup.remove(s)); sparkMeshes = [];
+    Object.values(mirrors).forEach(m => m.userData.frame.material.emissive.setHex(0));
+    Object.values(holeRings || {}).forEach(r => r.emissive.setHex(0));
+    Object.values(edgeStrips).forEach(g => { g.userData.glass.material.opacity = .18; g.userData.glass.material.color.setHex(0xffffff); g.userData.glass.material.emissive.setHex(0); g.userData.back.material.opacity = .16; });
+    Object.values(targetSprites).forEach(sp => { sp.material.map = spriteTex('target', sp.userData.col, 'idle'); sp.scale.set(.74, .74, 1); });
+    lanternSprites.forEach(sp => sp.material.map = spriteTex('lantern', sp.userData.col, lightOn ? 'on' : 'off'));
+    lanternLens.forEach(l => l.material.color.copy(lightOn ? l.userData.col.clone().lerp(new THREE.Color(0xffffff), .5) : l.userData.col.clone().lerp(new THREE.Color(0x222244), .45)));
+  }
+  const cyl = new THREE.CylinderGeometry(1, 1, 1, 12, 1, true);
+  const BEAM_SPEED = 8;
+  let winTimer = 0;
+  // put doors, flowers and motor mirrors back as they are with the light off
+  function resetEffects() {
+    Object.values(doors).forEach(g => { g.userData.h = 1; g.userData.to = 1; g.scale.y = 1; });
+    Object.values(flowerObjs).forEach(o => { o.to = 0; });
+    Object.values(sensorObjs).forEach(o => { o.lensMat.emissive.setHex(0); o.ledMat.color.setHex(0xff5d73); o.ledMat.emissive.setHex(0x7a1020); });
+    Object.entries(mirrors).forEach(([k, m]) => { if (m.userData.motor) { m.userData.t0 = 0; m.quaternion.copy(mirrorQuat(k, cells[k].t)); m.userData.targetQ = m.quaternion.clone(); } });
+  }
+  function applyEffect(a, animated) {
+    if (a.type === 'door') {
+      const so = sensorObjs[a.src]; if (so) { so.lensMat.emissive.setHex(0x6fb6ff); so.ledMat.color.setHex(0x5dff9d); so.ledMat.emissive.setHex(0x2bd46a); }
+      const g = doors[a.k]; if (g) { g.userData.to = .04; if (!animated) g.scale.y = .04; }
+      if (animated) tone(330, .25, 'square', .03);
+    } else {
+      const so = sensorObjs[a.src]; if (so) { so.lensMat.emissive.setHex(0x6fb6ff); so.ledMat.color.setHex(0x5dff9d); so.ledMat.emissive.setHex(0x2bd46a); }
+      const m = mirrors[a.k];
+      if (m) { const q = mirrorQuat(a.k, MOTOR_FLIP[cells[a.k].t]); if (animated) { m.userData.fromQ = m.quaternion.clone(); m.userData.targetQ = q; m.userData.t0 = performance.now(); } else { m.quaternion.copy(q); m.userData.targetQ = q; } }
+      if (animated) { tone(880, .2, 'sine', .05); tone(1175, .3, 'sine', .04, .08); }
+    }
+  }
+  function drawBeams(animate) {
+    clearTimeout(winTimer); stageTimers.forEach(clearTimeout); stageTimers = [];
+    resetEffects();
+    clearBeams();
+    $('power').classList.toggle('on', lightOn);
+    if (!lightOn) return;
+    const run = runS(cells, L);
+    if (!animate) {
+      run.stages.forEach(st => st.acts.forEach(a => applyEffect(a, false)));
+      renderTrace(run.final, false, 0);
+      finishStage(run.final, 0, false);
+      return;
+    }
+    playStage(run, 0, 0);
+  }
+  function playStage(run, idx, offset) {
+    const st = run.stages[idx];
+    renderTrace(st.tr, true, offset);
+    if (st.acts.length) {
+      const maxD = Math.max(...st.acts.map(a => a.d));
+      st.acts.forEach(a => stageTimers.push(setTimeout(() => applyEffect(a, true), Math.max(0, a.d - offset) / BEAM_SPEED * 1000)));
+      stageTimers.push(setTimeout(() => playStage(run, idx + 1, maxD), Math.max(0, maxD - offset) / BEAM_SPEED * 1000 + 600));
+    } else finishStage(st.tr, offset, true);
+  }
+  function finishStage(tr, offset, animate) {
+    if (!L.targets.every(t => tr.ends[t.k] === t.c)) return;
+    solved = true;
+    const longest = Math.max(...L.targets.map(t => tr.endD[t.k] || 0));
+    winTimer = setTimeout(win, (animate ? Math.max(0, longest - offset) / BEAM_SPEED * 1000 : 0) + 700);
+  }
+  function renderTrace(tr, animate, offset) {
+    clearBeams();
+    const segs = new Map(), kf = v => v.toArray().map(x => x.toFixed(2)).join(',');
+    tr.paths.forEach((p, li) => {
+      let acc = 0;
+      const d0 = V(L.lanterns[li].d);
+      for (let k = 1; k < p.pts.length; k++) {
+        const a = V(p.pts[k - 1]), b = V(p.pts[k]);
+        if (k === 1) a.addScaledVector(d0, .23);
+        const len = a.distanceTo(b); if (len < 1e-4) continue;
+        const key = kf(a) + '|' + kf(b), sg = segs.get(key);
+        if (sg) { sg.c |= p.c; sg.start = Math.min(sg.start, acc); }
+        else segs.set(key, { a, b, len, start: acc, c: p.c, end: p.pts[k] });
+        acc += len;
+      }
+    });
+    segs.forEach(sg => {
+      const dir = sg.b.clone().sub(sg.a).normalize(), col = new THREE.Color(hex(sg.c));
+      const core = new THREE.Mesh(cyl, new THREE.MeshBasicMaterial({ color: col.clone().lerp(new THREE.Color(0xffffff), .15) }));
+      const glow = new THREE.Mesh(cyl, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: .32, depthWrite: false }));
+      [core, glow].forEach((m, j) => { m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); m.userData.r = j ? .11 : .04; beamGroup.add(m); });
+      beams.push({ core, glow, a: sg.a, dir, len: sg.len, start: sg.start });
+      const eid = edgeId(sg.end), strip = eid.split(',').filter(v => v !== '0').length === 2 && edgeStrips[eid];
+      if (strip) { const c = hex(sg.c); pendingHits.push({ at: sg.start + sg.len, fn: () => { strip.userData.glass.material.opacity = .65; strip.userData.glass.material.color.set(c); strip.userData.glass.material.emissive.set(c).multiplyScalar(.45); } }); }
+    });
+    tr.hits.forEach(h => pendingHits.push({ at: h.d, fn: () => { const m = mirrors[h.k]; if (m) m.userData.frame.material.emissive.set(hex(h.c)).multiplyScalar(.45); const r = holeRings[h.k]; if (r) r.emissive.set(hex(h.c)).multiplyScalar(.8); } }));
+    tr.sparks.forEach(s => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(.13, 12, 8), new THREE.MeshBasicMaterial({ color: hex(s.c), transparent: true, opacity: 0, depthWrite: false }));
+      m.position.copy(V(s.p)); beamGroup.add(m); sparkMeshes.push(m);
+      pendingHits.push({ at: s.d, fn: () => m.userData.on = true });
+    });
+    L.targets.forEach((t, i) => {
+      const got = tr.ends[t.k] || 0, ok = got === t.c, at = tr.endD[t.k] || 0;
+      if (got) pendingHits.push({ at, fn: () => { const sp = targetSprites[t.k]; sp.material.map = spriteTex('target', sp.userData.col, ok ? 'hit' : 'wrong'); if (ok) { sp.scale.set(.9, .9, 1); if (animate && at > offset) sfx.hit(i); } } });
+    });
+    beamT0 = animate ? performance.now() - offset / BEAM_SPEED * 1000 : -1e9;
+  }
+  function updateBeams(now) {
+    const done = (now - beamT0) / 1000 * BEAM_SPEED;
+    beams.forEach(b => {
+      const l = Math.max(0, Math.min(b.len, done - b.start));
+      [b.core, b.glow].forEach(m => { m.visible = l > .001; m.scale.set(m.userData.r, l || .001, m.userData.r); m.position.copy(b.a).addScaledVector(b.dir, l / 2); });
+    });
+    sparkMeshes.forEach(m => { if (m.userData.on) m.material.opacity = .5 + .35 * Math.sin(now / 160); });
+    pendingHits = pendingHits.filter(h => { if (done >= h.at) { h.fn(); return false; } return true; });
+  }
+
+  /* ---------- camera orbit ---------- */
+  let theta = 0, phi = 1.22, radius = 12.5, spin = 0;   // the camera stays put; dragging turns the cube itself
+  function placeCamera() {
+    camera.position.set(radius * Math.sin(phi) * Math.sin(theta), radius * Math.cos(phi), radius * Math.sin(phi) * Math.cos(theta));
+    camera.lookAt(0, 0, 0);
+  }
+  function resize() {
+    const w = stage.clientWidth, h = stage.clientHeight;
+    renderer.setSize(w, h, false); camera.aspect = w / h;
+    // keep the whole cube in view on narrow screens
+    radius = Math.max(11.5, 11.5 * Math.min(1.6, .85 / Math.min(1, camera.aspect)));
+    camera.updateProjectionMatrix(); placeCamera();
+  }
+  new ResizeObserver(resize).observe(stage);
+
+  const pointers = new Map(); let downAt = null, moved = 0, pinch0 = 0, r0 = 0, twist0 = 0;
+  stage.addEventListener('pointerdown', e => {
+    if (e.target.closest('button')) return;
+    try { stage.setPointerCapture(e.pointerId); } catch (err) {} pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1) { downAt = { x: e.clientX, y: e.clientY }; moved = 0; }
+    if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); r0 = radius; twist0 = Math.atan2(b.y - a.y, b.x - a.x); camAnim = null; }
+  });
+  stage.addEventListener('pointermove', e => {
+    if (!pointers.has(e.pointerId)) return;
+    const prev = pointers.get(e.pointerId); const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      // pinch: zoom in / out
+      radius = Math.max(8, Math.min(20, r0 * pinch0 / Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)))); placeCamera();
+      // twist (one finger up, the other down): roll the cube around the line of sight, the same way the fingers turn
+      const ang = Math.atan2(b.y - a.y, b.x - a.x); let dAng = ang - twist0; dAng = Math.atan2(Math.sin(dAng), Math.cos(dAng)); twist0 = ang;
+      const toViewer = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 2);
+      world.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(toViewer, -dAng));
+      moved = 99; hideDragHint(); return;
+    }
+    moved += Math.abs(dx) + Math.abs(dy);
+    if (moved > 6) {
+      camAnim = null; stage.classList.add('dragging'); hideDragHint();
+      // rotate around the screen's own axes, so the cube always follows the finger
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0), upv = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+      const q = new THREE.Quaternion().setFromAxisAngle(upv, dx * .009).multiply(new THREE.Quaternion().setFromAxisAngle(right, dy * .009));
+      world.quaternion.premultiply(q);
+    }
+  });
+  const up = e => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.delete(e.pointerId); stage.classList.remove('dragging');
+    if (pointers.size === 0 && moved <= 6 && downAt) pick(e.clientX, e.clientY);
+    if (pointers.size === 0) downAt = null;
+  };
+  stage.addEventListener('pointerup', up); stage.addEventListener('pointercancel', up);
+  stage.addEventListener('wheel', e => { e.preventDefault(); radius = Math.max(8, Math.min(20, radius * (1 + e.deltaY * .001))); placeCamera(); }, { passive: false });
+  function hideDragHint() { $('dragHint').style.opacity = 0; }
+
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  function pick(cx, cy) {
+    const r = renderer.domElement.getBoundingClientRect();
+    ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    const hit = ray.intersectObjects([body, ...Object.values(tiles), ...Object.values(mirrors), ...periHits], true)[0];
+    if (!hit) return;
+    if (hit.object.userData.peri) {
+      // height on the tube's own axis that is closest to the finger's line of sight (not where the ray grazes the surface)
+      const g = hit.object.parent, inv = new THREE.Matrix4().copy(g.matrixWorld).invert();
+      const o = ray.ray.origin.clone().applyMatrix4(inv), d = ray.ray.direction.clone().transformDirection(inv);
+      const bb = d.y, cc = d.dot(d), dd = o.y, ee = d.dot(o), den = cc - bb * bb;
+      const yAxis = Math.abs(den) < 1e-6 ? hit.object.parent.worldToLocal(hit.point.clone()).y : (cc * dd - bb * ee) / den;
+      rotateMirror(hit.object.userData.peri + (yAxis < hit.object.userData.splitY ? '#lo' : '#hi'));
+      return;
+    }
+    if (hit.object.userData.key && mirrors[hit.object.userData.key]) rotateMirror(hit.object.userData.key);
+  }
+  const FLIP = { '/': '\\', '\\': '/' };
+  function rotateMirror(k) {
+    if (solved) return;
+    if (k.includes('#')) {
+      const [ck, part] = k.split('#'), c = cells[ck], m = mirrors[k];
+      m.userData.fromQ = m.quaternion.clone(); m.userData.t0 = performance.now();
+      if (part === 'top') { c.top = FLIP[c.top]; m.userData.targetQ = mirrorQuat(ck, c.top); }
+      else { c[part] = (c[part] + 1) % 4; m.userData.targetQ = periQuat(ck, c[part]); }
+      moves++; updateMoves(); sfx.rotate();
+      if (lightOn) drawBeams(false);
+      return;
+    }
+    const c = cells[k], m = mirrors[k];
+    if (c.t === 'a' || c.t === 'b' || c.t === 'c' || c.t === 'e') { sfx.locked(); m.userData.shake = performance.now(); return; }
+    if (c.t === 'U') { c.fi = (c.fi + 1) % 4; m.userData.fromQ = m.quaternion.clone(); m.userData.targetQ = tiltQuat(k, c.fi); m.userData.t0 = performance.now(); }
+    else if (c.t === 'S' || c.t === 'F') { c.fi = (c.fi + 1) % 4; m.userData.fromQ = m.quaternion.clone(); m.userData.targetQ = periQuat(k, c.fi); m.userData.t0 = performance.now(); }
+    else { c.t = FLIP[c.t]; m.userData.fromQ = m.quaternion.clone(); m.userData.targetQ = mirrorQuat(k, c.t); m.userData.t0 = performance.now(); }
+    moves++; updateMoves(); sfx.rotate();
+    if (lightOn) drawBeams(false);
+  }
+  // turn the cube so a given face looks at the viewer
+  let camAnim = null;
+  // turn the cube so that face f looks at the viewer (slightly from above-right, so the neighbours show too)
+  function lookAtFace(f) {
+    const n = V(normalOf(f)).applyQuaternion(world.quaternion);
+    const view = camera.position.clone().normalize().add(new THREE.Vector3(.35, .45, 0)).normalize();
+    const delta = new THREE.Quaternion().setFromUnitVectors(n, view);
+    camAnim = { t0: performance.now(), from: world.quaternion.clone(), to: delta.multiply(world.quaternion.clone()) };
+  }
+  function animateCamera(now) {
+    if (!camAnim) return;
+    const k = Math.min(1, (now - camAnim.t0) / 600), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    world.quaternion.slerpQuaternions(camAnim.from, camAnim.to, e);
+    if (k >= 1) camAnim = null;
+  }
+  $('findBtn').onclick = () => lookAtFace(L.lanterns[0].k.split(':')[0]);
+
+  /* ---------- level flow ---------- */
+  function computeOptimal() {
+    const tmp = {}; Object.entries(cells).forEach(([k, c]) => tmp[k] = JSON.parse(JSON.stringify(c)));
+    const P = [];
+    for (const k in tmp) {
+      const c = tmp[k];
+      if (c.t === '/' || c.t === '\\') P.push([2, () => c.t === '/' ? 0 : 1, v => c.t = v ? '\\' : '/']);
+      else if (c.t === 'U' || ((c.t === 'S' || c.t === 'F') && c.fi !== undefined)) P.push([4, () => c.fi, v => c.fi = v]);
+      else if (c.t === 'K') { P.push([4, () => c.lo, v => c.lo = v]); P.push([4, () => c.hi, v => c.hi = v]); }
+      else if (c.t === 'H' && (c.top === '/' || c.top === '\\')) P.push([2, () => c.top === '/' ? 0 : 1, v => c.top = v ? '\\' : '/']);
+    }
+    const st = P.map(q => q[1]()), total = P.reduce((x, q) => x * q[0], 1);
+    let best = Infinity;
+    for (let m = 0; m < total; m++) {
+      let mm = m, cost = 0;
+      P.forEach((q, j) => { const v = mm % q[0]; mm = Math.floor(mm / q[0]); cost += (v - st[j] + q[0]) % q[0]; q[2](v); });
+      if (cost < best && isWinS(tmp, L)) best = cost;
+    }
+    return best;
+  }
+  function load(i) {
+    lvl = i; L = LEVELS[i]; moves = 0; lightOn = false; solved = false;
+    build(); optimal = computeOptimal();
+    $('levelTitle').textContent = `Bölüm ${i + 1}`;
+    $('levelLights').innerHTML = L.lanterns.map(l => `<i style="color:${hex(l.c)}" title="${COLORS[l.c].name}"></i>`).join('');
+    $('hint').innerHTML = HINTS[i] || 'Her hedef kendi rengindeki ışığı bekliyor.';
+    $('prevBtn').disabled = i === 0;
+    $('nextBtn').disabled = i === LEVELS.length - 1 || !unlocked(i + 1);
+    $('power').classList.toggle('nudge', i === 0 && !progress[0]);
+    updateMoves(); drawBeams(false);
+    lookAtFace(L.lanterns[0].k.split(':')[0]);
+    if (LEVEL_TUT[i]) showTutorials(LEVEL_TUT[i]);
+  }
+  function updateMoves() { $('moves').textContent = 'Hamle ' + moves; }
+  function win() {
+    const stars = moves <= optimal ? 3 : moves <= optimal + 2 ? 2 : 1;
+    progress[lvl] = Math.max(progress[lvl] || 0, stars); save();
+    $('starsOut').innerHTML = [1, 2, 3].map(s => `<span class="${s <= stars ? 'on' : 'off'}">★</span>`).join('');
+    const last = lvl === LEVELS.length - 1;
+    $('winTitle').textContent = L.targets.length > 1 ? 'Işıklar hedefte!' : 'Işık hedefte!';
+    $('winText').textContent = `${moves} hamlede çözdün (en az: ${optimal}).` + (last ? ' Tüm küpleri bitirdin!' : '');
+    $('winNext').textContent = last ? 'Baştan oyna' : 'Sonraki bölüm';
+    $('win').classList.add('show'); sfx.win();
+    $('nextBtn').disabled = last;
+    $('winNext').focus();
+  }
+  $('power').onclick = () => { if (solved) return; lightOn = !lightOn; $('power').classList.remove('nudge'); lightOn ? sfx.on() : sfx.off(); drawBeams(lightOn); };
+  $('winNext').onclick = () => { $('win').classList.remove('show'); load(lvl === LEVELS.length - 1 ? 0 : lvl + 1); };
+  $('resetBtn').onclick = () => load(lvl);
+  $('prevBtn').onclick = () => lvl > 0 && load(lvl - 1);
+  $('nextBtn').onclick = () => lvl < LEVELS.length - 1 && unlocked(lvl + 1) && load(lvl + 1);
+  const TUT_KEY = 'fenerkup-tut-seen';
+  const LEVEL_TUT = { 0: ['wrap', 'basics'], 1: ['bump'], 2: ['pipe'], 3: ['locked'], 4: ['two'], 8: ['sensor'], 10: ['flower'], 12: ['hole'], 16: ['ypipe'], 20: ['tower'] };
+  /* ---------- animated tutorials: shown the first time a new piece appears ---------- */
+  const TUT = (() => {
+    const BL = '#4c9dff', RD = '#ff5d73', PU = '#d27bff', YE = '#ffc93d';
+    const tile = (x, y, fill = '#2b3778') => `<rect x="${x - 17}" y="${y - 17}" width="34" height="34" rx="8" fill="${fill}"/>`;
+    const tiles = (xs, y) => xs.map(x => tile(x, y)).join('');
+    const bar = (fill = '#e9f7ff') => `<rect x="-22" y="-3.5" width="44" height="7" rx="3.5" fill="${fill}"/>`;
+    const mirror = (x, y, deg, cls = '') => `<g transform="translate(${x} ${y})"><g class="${cls}" style="transform: rotate(${deg}deg)">${bar()}</g></g>`;
+    const half = (x, y, deg) => `<g transform="translate(${x} ${y}) rotate(${deg})"><rect x="-22" y="-4" width="44" height="8" rx="4" fill="rgba(200,240,255,.35)" stroke="#e9f7ff" stroke-width="2" stroke-dasharray="4 3"/></g>`;
+    const lockI = (x, y) => `<g transform="translate(${x} ${y})"><path d="M-3 0v-3a3 3 0 0 1 6 0v3" fill="none" stroke="#fff" stroke-width="1.6"/><rect x="-4.5" y="0" width="9" height="7" rx="2" fill="#fff"/></g>`;
+    const eyes = (o = 0) => `<path d="M${-6 + o} -1 q2.5 2 5 0 M${1 + o} -1 q2.5 2 5 0" stroke="#1b1f3b" stroke-width="1.8" fill="none" stroke-linecap="round"/>`;
+    const lantern = (x, y, col, dir = 0) => `<g transform="translate(${x} ${y})"><g transform="rotate(${dir})"><path d="M9 -7 L19 -11 Q21 0 19 11 L9 7 Z" fill="${col}"/></g><rect x="-13" y="-13" width="26" height="26" rx="9" fill="${col}"/><circle cx="-4" cy="-2" r="2" fill="#1b1f3b"/><circle cx="4" cy="-2" r="2" fill="#1b1f3b"/><path d="M-3 4 q3 3 6 0" stroke="#1b1f3b" stroke-width="1.6" fill="none" stroke-linecap="round"/></g>`;
+    const target = (x, y, col, cls) => `<g transform="translate(${x} ${y})"><circle r="15" fill="none" stroke="${col}" stroke-width="2.5" stroke-dasharray="5 4"/><circle r="10.5" fill="#2b3778"/><path d="M-6 -1 h4 M2 -1 h4" stroke="#a9b3e0" stroke-width="1.8" stroke-linecap="round"/><g class="${cls}" style="opacity:0"><circle r="10.5" fill="${col}"/><path d="M-6 0 q2.5 -3.5 5 0 M1 0 q2.5 -3.5 5 0" stroke="#1b1f3b" stroke-width="1.8" fill="none" stroke-linecap="round"/><path d="M-3.5 3.5 q3.5 4 7 0" fill="#1b1f3b"/></g></g>`;
+    const beam = (d, col, cls) => `<path class="${cls}" pathLength="1" d="${d}" stroke="${col}" stroke-width="10" opacity=".35" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path class="${cls}" pathLength="1" d="${d}" stroke="${col}" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path class="${cls}" pathLength="1" d="${d}" stroke="#fff" stroke-width="1.6" opacity=".85" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+    const tap = (x, y, cls = 't-tap') => `<g transform="translate(${x} ${y})"><circle class="${cls}" r="14" fill="none" stroke="#fff" stroke-width="2.5"/></g>`;
+    const spark = (x, y, col, cls) => `<circle class="${cls}" cx="${x}" cy="${y}" r="6" fill="${col}" style="opacity:0"/><circle class="${cls}" cx="${x}" cy="${y}" r="11" fill="${col}" style="opacity:0" opacity=".35"/>`;
+    const svg = inner => `<svg viewBox="0 0 260 150" role="img" aria-hidden="true">${inner}</svg>`;
+    // isometric helper for the cube cards
+    const iso = (x, y, z, s = 15) => [130 + (x - z) * .866 * s, 92 + (x + z) * .5 * s - y * s];
+    const P = pts => pts.map((p, i) => (i ? 'L' : 'M') + iso(...p).map(v => v.toFixed(1)).join(' ')).join(' ');
+    const cubeSVG = () => {
+      const face = (pts, fill) => `<path d="${P(pts)} Z" fill="${fill}" stroke="#0b1230" stroke-width="1.5"/>`;
+      let g = face([[0,4,0],[4,4,0],[4,4,4],[0,4,4]], '#34418b') + face([[4,4,0],[4,0,0],[4,0,4],[4,4,4]], '#26306b') + face([[0,4,4],[4,4,4],[4,0,4],[0,0,4]], '#2b3778');
+      for (let i = 1; i < 4; i++) g += `<path d="${P([[i,4,0],[i,4,4]])} ${P([[0,4,i],[4,4,i]])} ${P([[4,i,0],[4,i,4]])} ${P([[4,4,i],[4,0,i]])} ${P([[i,4,4],[i,0,4]])} ${P([[0,i,4],[4,i,4]])}" stroke="#0b1230" stroke-width="1" fill="none" opacity=".7"/>`;
+      return g;
+    };
+    const ground = `<path d="M10 112 H250" stroke="#2b3778" stroke-width="10" stroke-linecap="round"/>`;
+    const hump = x => `<rect x="${x - 22}" y="66" width="44" height="42" rx="8" fill="#6fd3a0"/><rect x="${x - 14}" y="72" width="28" height="8" rx="4" fill="#9ae9bf"/>`;
+    const [lx, ly] = iso(.5, 4, 2), [ex, ey] = iso(4.3, 4.3, 2), [tx, ty] = iso(4, 1.2, 2);
+
+    const CARDS = {
+      basics: { title: 'Aynalar', text: 'Aynaya dokununca 90° döner. Köşedeki düğmeye basınca ışık aynadan yansır ve hedefe gider.',
+        svg: svg(tiles([80, 120, 160], 60) + tile(120, 110) + lantern(36, 60, BL) + mirror(120, 60, -45, 't-rot') + tap(120, 60) + beam('M50 60 H120', BL, 't-s1') + beam('M120 60 V100', BL, 't-s2') + target(120, 112, BL, 't-show2')) },
+      brick: { title: 'Tuğla', text: 'Tuğla ışığı keser. Işığı tuğlanın çevresinden dolaştırmak gerekir.',
+        svg: svg(tiles([80, 120], 75) + `<g transform="translate(160 75)"><rect x="-17" y="-17" width="34" height="34" rx="8" fill="#8a5f45"/><rect x="-13" y="-12" width="12" height="7" rx="2" fill="#a8775a"/><rect x="2" y="-12" width="12" height="7" rx="2" fill="#a8775a"/><rect x="-6" y="-3" width="12" height="7" rx="2" fill="#a8775a"/><rect x="-13" y="6" width="12" height="7" rx="2" fill="#a8775a"/><rect x="2" y="6" width="12" height="7" rx="2" fill="#a8775a"/></g>` + target(220, 75, YE, 'never') + lantern(36, 75, YE) + beam('M50 75 H142', YE, 't-s1') + spark(142, 75, YE, 't-blink1')) },
+      locked: { title: 'Kilitli ayna', text: 'Kilitli aynalar yerlerinde sabittir, dokununca dönmezler. Diğer aynaları onlara göre ayarla.',
+        svg: svg(tiles([80], 75) + tile(130, 75, '#3d3b6e') + lockI(142, 63) + `<g transform="translate(130 75)"><g class="t-shake">${bar('#d9d6f2')}</g></g>` + tap(130, 75)) },
+      two: { title: 'Birden fazla fener', text: 'Her ışık kendi rengindeki hedefe gitmeli. Bütün hedefler aynı anda yanınca bölüm biter.',
+        svg: svg(tiles([80, 120, 160], 45) + tiles([80, 120, 160], 105) + lantern(36, 45, BL) + lantern(36, 105, RD) + beam('M50 45 H212', BL, 't-s1') + beam('M50 105 H212', RD, 't-s1') + target(224, 45, BL, 't-show1') + target(224, 105, RD, 't-show1')) },
+      cross: { title: 'Kesişen ışınlar', text: 'Işınlar birbirinin içinden geçer, birbirini etkilemez.',
+        svg: svg(tiles([90, 130, 170], 75) + tiles([130], 35) + tiles([130], 115) + lantern(46, 75, YE) + lantern(130, 16, '#4ee89a', 90) + beam('M60 75 H210', YE, 't-s1') + beam('M130 30 V128', '#4ee89a', 't-s1') + target(222, 75, YE, 't-show1') + target(130, 140, '#4ee89a', 't-show1')) },
+      split: { title: 'Yeni: Yarı saydam ayna', text: 'Kesik çizgili ayna ışığın yarısını geçirir, yarısını yansıtır. Tek fenerle iki hedef yakılabilir. Dokununca o da döner.',
+        svg: svg(tiles([80, 120, 160], 55) + tile(120, 105) + lantern(36, 55, YE) + half(120, 55, 45) + beam('M50 55 H120', YE, 't-s1') + beam('M120 55 H212', YE, 't-s2') + beam('M120 55 V95', YE, 't-s2') + target(224, 55, YE, 't-show2') + target(120, 112, YE, 't-show2')) },
+      glass: { title: 'Yeni: Renkli cam', text: 'Cam yalnızca kendi rengini geçirir. Beyaz ışık kırmızı camdan kırmızı çıkar. Mavi ışık kırmızı camdan hiç geçemez.',
+        svg: svg(tiles([80, 160], 45) + tiles([80, 160], 105) + [45, 105].map(y => `<g transform="translate(120 ${y})"><rect x="-17" y="-17" width="34" height="34" rx="8" fill="${RD}" opacity=".6" stroke="#ff9aa8" stroke-width="2.5"/><path d="M-9 8 L5 -10 M-2 12 L10 -4" stroke="#fff" stroke-width="2.5" opacity=".6" stroke-linecap="round"/></g>`).join('') + lantern(36, 45, '#ffffff') + lantern(36, 105, BL) + beam('M50 45 H103', '#ffffff', 't-s1') + beam('M103 45 H212', RD, 't-s2') + beam('M50 105 H110', BL, 't-s1') + spark(110, 105, BL, 't-blink1') + target(224, 45, RD, 't-show2')) },
+      mix: { title: 'Yeni: Renk karışımı', text: 'İki ışık yarı saydam aynada birleşebilir. Işıklar toplanarak karışır: kırmızı + mavi = mor, kırmızı + yeşil = sarı.',
+        svg: svg(tiles([80, 120, 160], 85) + tile(120, 45) + lantern(36, 85, RD) + lantern(120, 14, BL, 90) + half(120, 85, 45) + beam('M50 85 H120', RD, 't-s1') + beam('M120 28 V85', BL, 't-s1') + beam('M120 85 H212', PU, 't-s2') + target(224, 85, PU, 't-show2')) },
+      wrap: { title: 'Küp', text: 'Küpün kenarlarında 45° eğik ayna şeritler var. Işık kenara gelince bu aynadan yansıyıp yandaki yüze geçer. Küpü parmağınla sürükleyerek çevir.',
+        svg: svg(cubeSVG() + `<path d="${P([[4.3, 4.3, .1], [4.3, 4.3, 3.9]])}" stroke="#ffc6dd" stroke-width="7" stroke-linecap="round"/><path d="${P([[4.3, 4.3, .1], [4.3, 4.3, 3.9]])}" stroke="#eaf7ff" stroke-width="4" stroke-linecap="round"/>` + `<circle cx="${lx}" cy="${ly - 4}" r="9" fill="${BL}"/>` + beam(`M${lx} ${ly} L${ex} ${ey}`, BL, 't-s1') + beam(`M${ex} ${ey} L${tx} ${ty}`, BL, 't-s2') + target(tx, ty, BL, 't-show2') + `<g class="t-drag"><circle cx="215" cy="120" r="9" fill="#fff" opacity=".85"/><path d="M200 120 h-14 m5 -5 l-5 5 l5 5" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/></g>`) },
+      bump: { title: 'Yeni: Blok', text: 'Işık hep düz gider, bloğun üzerinden kendiliğinden geçemez. Bloğa çarpan ışık orada durur.',
+        svg: svg(ground + hump(160) + lantern(36, 98, YE) + beam('M50 98 H137', YE, 't-s1') + spark(137, 98, YE, 't-blink1')) },
+      pipe: { title: 'Yeni: İçi aynalı boru', text: 'Boru ışığı bir ağzından alır, iç duvarlarından yansıta yansıta öbür ağzından çıkarır. Işık ağzın baktığı yönden gelmeli.',
+        svg: svg(ground + hump(130) + `<path d="M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98" stroke="#bfe3ff" stroke-width="20" opacity=".35" fill="none"/><path d="M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98" stroke="#e9f7ff" stroke-width="20" opacity=".5" fill="none" stroke-dasharray="2 14"/><circle cx="64" cy="98" r="9" fill="none" stroke="#ffc6dd" stroke-width="4"/><circle cx="196" cy="98" r="9" fill="none" stroke="#ffc6dd" stroke-width="4"/>` + lantern(26, 98, '#4ee89a') + beam('M40 98 H64', '#4ee89a', 't-s1') + beam('M64 98 Q84 98 84 78 C84 14 176 14 176 78 Q176 98 196 98', '#4ee89a', 't-s2') + beam('M196 98 H222', '#4ee89a', 't-s3') + target(236, 98, '#4ee89a', 't-show3')) },
+    };
+    const SEN = '#ff9a52';
+    const sensorI = (x, y) => `<g transform="translate(${x} ${y})"><rect x="-15" y="2" width="30" height="10" rx="4" fill="#f6f8ff"/><rect x="-15" y="9" width="30" height="3" fill="#ff9a52"/><path d="M-11 3 A11 11 0 0 1 11 3 Z" fill="#dff1ff" opacity=".55" stroke="#ffffff" stroke-width="1"/><rect class="t-glow1" x="-4" y="-2" width="8" height="4" rx="1" fill="#23306b"/><circle class="t-led" cx="12" cy="-2" r="3" fill="#ff5d73"/></g>`;
+    const doorI = (x, y, cls) => `<g transform="translate(${x} ${y})"><g class="${cls}"><rect x="-16" y="-16" width="32" height="32" rx="7" fill="${SEN}"/><rect x="-16" y="-3" width="32" height="6" fill="#ffc08a"/></g></g>`;
+    const flowerI = (x, y) => `<g transform="translate(${x} ${y})">${[...Array(8)].map((_, i) => `<g style="transform: rotate(${i * 45}deg)"><ellipse class="t-bloom" cx="10" cy="0" rx="7" ry="4" fill="#ffd166"/></g>`).join('')}<circle r="6" fill="#8a5a2b"/></g>`;
+    const motorBar = `<rect x="-22" y="-3.5" width="44" height="7" rx="3.5" fill="#ffe7a8" stroke="#ffb22e" stroke-width="2"/>`;
+    CARDS.sensor = { title: 'Yeni: Fotosel ve kapı', text: 'Fotosel bir ışık sensörüdür, otomatik kapılardaki gibi. Merceği tek yöne bakar: ışık o yönden gelmeli. Dokununca ayna gibi döner. Işığı algılayınca lambası yeşil yanar, kapının motoru çalışır ve turuncu kapı yere iner.',
+      svg: svg(tiles([80, 120], 40) + tiles([80, 160], 108) + tile(120, 108) + lantern(36, 40, YE) + beam('M50 40 H150', YE, 't-s1') + sensorI(162, 40) + lantern(36, 108, BL) + doorI(120, 108, 't-sink') + beam('M50 108 H103', BL, 't-s1') + beam('M103 108 H212', BL, 't-s2') + target(224, 108, BL, 't-show2')) };
+    const sensorG = (x, y) => `<g transform="translate(${x} ${y})"><rect x="-15" y="2" width="30" height="10" rx="4" fill="#f6f8ff"/><rect x="-15" y="9" width="30" height="3" fill="#ffb22e"/><path d="M-11 3 A11 11 0 0 1 11 3 Z" fill="#dff1ff" opacity=".55" stroke="#ffffff" stroke-width="1"/><rect class="t-glow1" x="-4" y="-2" width="8" height="4" rx="1" fill="#23306b"/><circle class="t-led" cx="12" cy="-2" r="3" fill="#ff5d73"/></g>`;
+    CARDS.flower = { title: 'Yeni: Fotosel ve motorlu ayna', text: 'Sarı şeritli fotosel ışığı algılayınca, sarı çerçeveli motorlu aynanın motorunu çalıştırır ve ayna 90° döner. Motorlu aynayı sen çeviremezsin; fotoseli ise ışığa doğru çevirebilirsin.',
+      svg: svg(tiles([80, 120], 40) + tiles([80, 120, 160], 108) + lantern(36, 40, YE) + beam('M50 40 H146', YE, 't-s1') + sensorG(160, 40) + tile(200, 108) + `<g transform="translate(200 108)"><g class="t-rot2" style="transform: rotate(45deg)">${motorBar}</g><circle cx="13" cy="-13" r="4" fill="#ffb22e"/></g>` + lantern(36, 108, '#4ee89a') + beam('M50 108 H200', '#4ee89a', 't-s2') + beam('M200 108 V60', '#4ee89a', 't-s3') + target(200, 52, '#4ee89a', 't-show3')) };
+    CARDS.hole = { title: 'Yeni: Delik ve eğik ayna', text: 'Delik küpün içinden karşı yüze uzanır. Ağzındaki 45° eğik ayna ışığı aşağı, deliğin içine yollar; karşı uçtaki eğik ayna dışarı çıkarır. Periskop gibi. Eğik aynaya dokununca 4 yönden birine döner.',
+      svg: svg(`<rect x="60" y="34" width="150" height="82" rx="8" fill="#26306b"/><rect x="60" y="30" width="150" height="6" rx="3" fill="#34418b"/><rect x="60" y="114" width="150" height="6" rx="3" fill="#34418b"/><rect x="121" y="30" width="18" height="90" fill="#05081a"/>`
+        + `<g transform="translate(130 22) rotate(45)"><rect x="-15" y="-2.5" width="30" height="5" rx="2.5" fill="#e9f7ff" stroke="#5ee0d0" stroke-width="1.5"/></g>`
+        + `<g transform="translate(130 128) rotate(45)"><rect x="-15" y="-2.5" width="30" height="5" rx="2.5" fill="#e9f7ff" stroke="#5ee0d0" stroke-width="1.5"/></g>`
+        + lantern(30, 22, BL) + beam('M44 22 H130', BL, 't-s1') + beam('M130 22 V128', BL, 't-s2') + beam('M130 128 H210', BL, 't-s3') + target(222, 128, BL, 't-show3')) };
+    CARDS.ypipe = { title: 'Yeni: Y boru', text: 'İki girişli borunun iki ağzına gelen ışıklar tek çıkışta birleşir. Işık renkleri toplanarak karışır: kırmızı + mavi = mor, kırmızı + yeşil = sarı, yeşil + mavi = turkuaz.',
+      svg: svg(`<path d="M76 40 C130 40 120 75 160 75 M76 110 C130 110 120 75 160 75 H186" stroke="#e2d4ff" stroke-width="18" opacity=".35" fill="none" stroke-linecap="round"/><circle cx="76" cy="40" r="8" fill="none" stroke="#ffcf86" stroke-width="3.5"/><circle cx="76" cy="110" r="8" fill="none" stroke="#ffcf86" stroke-width="3.5"/><circle cx="186" cy="75" r="9" fill="none" stroke="#ffcf86" stroke-width="3.5"/>`
+        + lantern(30, 40, RD) + lantern(30, 110, BL) + beam('M44 40 H76', RD, 't-s1') + beam('M44 110 H76', BL, 't-s1') + beam('M76 40 C130 40 120 75 160 75', RD, 't-s2') + beam('M76 110 C130 110 120 75 160 75', BL, 't-s2') + beam('M160 75 H212', PU, 't-s3') + target(226, 75, PU, 't-show3')) };
+    CARDS.tower = { title: 'Yeni: Periskop kulesi', text: 'Kuledeki alttaki eğik ayna ışığı yukarı yollar, üstteki onu yeniden yatay çevirir (ya da tersi). Yüksekte giden ışık alçak blokların üzerinden geçer, blok tepesindeki aynalara ve hedeflere ulaşır. Kuledeki iki aynaya ayrı ayrı dokunup çevir.',
+      svg: svg(ground + `<rect x="98" y="34" width="4" height="74" fill="#ffa8d8"/><g transform="translate(100 98) rotate(-45)"><rect x="-13" y="-2.5" width="26" height="5" rx="2.5" fill="#e9f7ff" stroke="#ffa8d8" stroke-width="1.5"/></g><g transform="translate(100 46) rotate(-45)"><rect x="-13" y="-2.5" width="26" height="5" rx="2.5" fill="#e9f7ff" stroke="#ffa8d8" stroke-width="1.5"/></g>`
+        + `<rect x="138" y="66" width="40" height="42" rx="8" fill="#6fd3a0"/><rect x="146" y="72" width="24" height="7" rx="3.5" fill="#9ae9bf"/><rect x="198" y="62" width="40" height="46" rx="8" fill="#52bd8a"/>`
+        + lantern(30, 98, YE) + beam('M44 98 H100', YE, 't-s1') + beam('M100 98 V46', YE, 't-s2') + beam('M100 46 H206', YE, 't-s3') + target(218, 46, YE, 't-show3')) };
+    return { CARDS };
+  })();
+  function tutSeen() { try { return JSON.parse(localStorage.getItem(TUT_KEY) || '{}'); } catch (e) { return {}; } }
+  let tutQueue = [];
+  function openCard(id) {
+    const card = TUT.CARDS[id];
+    $('tutTitle').textContent = card.title; $('tutText').textContent = card.text; $('tutArt').innerHTML = card.svg;
+    $('tutOk').textContent = tutQueue.length ? 'Devam' : 'Anladım';
+    $('tutDlg').classList.add('show'); $('tutOk').focus();
+  }
+  // ids: list of card ids; unseen ones are shown one after another (all of them when force)
+  function showTutorials(ids, force) {
+    const seen = tutSeen();
+    tutQueue = ids.filter(id => TUT.CARDS[id] && (force || !seen[id]));
+    tutQueue.forEach(id => seen[id] = 1);
+    try { localStorage.setItem(TUT_KEY, JSON.stringify(seen)); } catch (e) {}
+    if (tutQueue.length) openCard(tutQueue.shift());
+  }
+  function tutorialFor(i) { let k = i; while (k >= 0 && !(k in LEVEL_TUT)) k--; return k >= 0 ? LEVEL_TUT[k] : null; }
+  $('tutOk').onclick = () => { if (tutQueue.length) openCard(tutQueue.shift()); else $('tutDlg').classList.remove('show'); };
+  $('helpBtn').onclick = () => { const ids = tutorialFor(lvl); if (ids) showTutorials(ids, true); };
+  $('soundBtn').onclick = () => { soundOn = !soundOn; save(); soundIcon(); };
+  $('levelsBtn').onclick = () => {
+    const wrap = $('levelGrid'); wrap.innerHTML = '';
+    LEVELS.forEach((_, i) => {
+      const b = document.createElement('button'); b.innerHTML = `${i + 1}<small>${'★'.repeat(progress[i] || 0)}</small>`;
+      if (i === lvl) b.classList.add('cur'); b.disabled = !unlocked(i);
+      b.onclick = () => { $('levelsDlg').classList.remove('show'); load(i); }; wrap.appendChild(b);
+    });
+    $('levelsDlg').classList.add('show');
+  };
+  $('levelsClose').onclick = () => $('levelsDlg').classList.remove('show');
+  $('levelsDlg').onclick = e => { if (e.target === $('levelsDlg')) $('levelsDlg').classList.remove('show'); };
+  soundIcon();
+
+  /* ---------- background stars ---------- */
+  const sc = $('stars'), sg = sc.getContext('2d');
+  let starList = [];   // (clouds)
+  function starsResize() {
+    const d = Math.min(2, devicePixelRatio || 1); sc.width = innerWidth * d; sc.height = innerHeight * d; sg.setTransform(d, 0, 0, d, 0, 0);
+    starList = Array.from({ length: Math.max(4, Math.round(innerWidth / 160)) }, (_, i) => ({ x: Math.random() * innerWidth, y: 40 + Math.random() * innerHeight * .32, s: .6 + Math.random() * .9, v: 4 + Math.random() * 8 }));
+  }
+  addEventListener('resize', starsResize); starsResize();
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- loop ---------- */
+  function frameLoop(now) {
+    sg.clearRect(0, 0, innerWidth, innerHeight); sg.fillStyle = '#fff';
+    for (const c of starList) {
+      const x = ((c.x + (reduce ? 0 : now / 1000 * c.v)) % (innerWidth + 260)) - 130, y = c.y, k = c.s;
+      sg.globalAlpha = .75;
+      sg.beginPath(); sg.ellipse(x, y, 60 * k, 22 * k, 0, 0, 7); sg.fill();
+      sg.beginPath(); sg.arc(x - 22 * k, y - 10 * k, 24 * k, 0, 7); sg.fill();
+      sg.beginPath(); sg.arc(x + 14 * k, y - 18 * k, 30 * k, 0, 7); sg.fill();
+    }
+    sg.globalAlpha = 1;
+    Object.values(mirrors).forEach(m => {
+      const u = m.userData;
+      if (u.t0) { const k = Math.min(1, (now - u.t0) / 260), e = 1 - Math.pow(1 - k, 3); m.quaternion.slerpQuaternions(u.fromQ, u.targetQ, e); if (k >= 1) u.t0 = 0; }
+      if (u.shake) { const k = (now - u.shake) / 300; m.rotateY(k < 1 ? Math.sin(k * 20) * .05 : 0); if (k >= 1) { u.shake = 0; m.quaternion.copy(u.targetQ); } }
+    });
+    lanternSprites.forEach((sp, i) => { const b = lightOn && !reduce ? Math.sin(now / 300 + i) * .03 : 0; sp.scale.set(sp.userData.base + b, sp.userData.base + b, 1); });
+    animateCamera(now); updateBeams(now);
+    Object.values(doors).forEach(g => { const to = g.userData.to ?? 1; g.scale.y += (to - g.scale.y) * .15; });
+    Object.values(flowerObjs).forEach(o => { o.open += (o.to - o.open) * .12; o.petals.forEach((pv, i) => { pv.children[0].rotation.z = (1 - o.open) * 1.25; pv.children[0].position.x = .1 + .07 * o.open; }); });
+    renderer.render(scene, camera);
+    requestAnimationFrame(frameLoop);
+  }
+  resize();
+  let start = START_LEVEL; while (progress[start] && start < LEVELS.length - 1) start++;
+  load(start);
+  requestAnimationFrame(frameLoop);
+})();
+</script>
+</body>
+</html>
