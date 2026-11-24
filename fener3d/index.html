@@ -581,6 +581,8 @@
   // periscope parts: a pivot that turns around the face normal; local +X = the side it faces, +Y = up
   const periBodyMat = new THREE.MeshStandardMaterial({ color: 0xeef4ff, roughness: .15, metalness: .15, envMap: envTex, transparent: true, opacity: .4, depthWrite: false, side: THREE.DoubleSide });
   const PERI_R = .23;
+  const periHitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+  let periHits = [];
   const periDiscGeo = (() => { const g = new THREE.CircleGeometry(PERI_R - .012, 48); g.scale(1, Math.SQRT2, 1); return g; })();
   const periRimGeo = (() => { const g = new THREE.TorusGeometry(PERI_R - .012, .01, 8, 48); g.scale(1, Math.SQRT2, 1); return g; })();
   const periShineGeo = (() => { const a = new THREE.Shape(); a.moveTo(-.1, -.16); a.lineTo(-.05, -.16); a.lineTo(.03, .16); a.lineTo(-.02, .16); a.closePath(); return new THREE.ShapeGeometry(a); })();
@@ -658,7 +660,7 @@
     (L.sensors || []).forEach(x => cells[x.k] = { t: 'S' });
     (L.flowers || []).forEach(x => cells[x.k] = { t: 'F' });
     (L.ypipes || []).forEach(y => { cells[y.a] = { t: 'Y', o: y.oa, to: y.out }; cells[y.b] = { t: 'Y', o: y.ob, to: y.out }; cells[y.out] = { t: 'Q', o: y.oo }; });
-    doors = {}; sensorObjs = {}; flowerObjs = {}; holeRings = {};
+    doors = {}; sensorObjs = {}; flowerObjs = {}; holeRings = {}; periHits = [];
     const add = m => { world.add(m); objs.push(m); return m; };
     Object.entries(cells).forEach(([k, c]) => {
       const { f, p } = cellP(k);
@@ -682,6 +684,9 @@
         const wall = new THREE.Mesh(new THREE.CylinderGeometry(PERI_R, PERI_R, bodyH, 40, 1, true), periBodyMat); wall.position.y = bodyH / 2; tube.add(wall);
         const lid = new THREE.Mesh(new THREE.CircleGeometry(PERI_R, 40), periBodyMat); lid.rotation.x = -Math.PI / 2; lid.position.y = bodyH; tube.add(lid);
         [0.02, bodyH].forEach(y => { const rim = new THREE.Mesh(new THREE.TorusGeometry(PERI_R, .01, 8, 48), periCapMat); rim.rotation.x = Math.PI / 2; rim.position.y = y; tube.add(rim); });
+        // invisible, slightly fatter touch area over the whole tube: lower half turns the bottom mirror, upper half the top one
+        const hit = new THREE.Mesh(new THREE.CylinderGeometry(.38, .38, bodyH + .15, 16), periHitMat); hit.position.y = bodyH / 2;
+        hit.userData = { peri: k, splitY: BEAM_H + c.h * LVL / 2 }; tube.add(hit); periHits.push(hit);
         [['lo', 0, c.lo, true], ['hi', c.h, c.hi, false]].forEach(([part, lv, fi]) => {
           const mk = k + '#' + part, pv = makePeriMirror(mk, part === 'lo');
           pv.position.copy(V(worldOf(f, p, BEAM_H + lv * LVL))); pv.quaternion.copy(periQuat(k, fi)); pv.userData.targetQ = pv.quaternion.clone();
@@ -970,8 +975,18 @@
     const r = renderer.domElement.getBoundingClientRect();
     ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObjects([body, ...Object.values(tiles), ...Object.values(mirrors)], true)[0];
-    if (hit && hit.object.userData.key && mirrors[hit.object.userData.key]) rotateMirror(hit.object.userData.key);
+    const hit = ray.intersectObjects([body, ...Object.values(tiles), ...Object.values(mirrors), ...periHits], true)[0];
+    if (!hit) return;
+    if (hit.object.userData.peri) {
+      // height on the tube's own axis that is closest to the finger's line of sight (not where the ray grazes the surface)
+      const g = hit.object.parent, inv = new THREE.Matrix4().copy(g.matrixWorld).invert();
+      const o = ray.ray.origin.clone().applyMatrix4(inv), d = ray.ray.direction.clone().transformDirection(inv);
+      const bb = d.y, cc = d.dot(d), dd = o.y, ee = d.dot(o), den = cc - bb * bb;
+      const yAxis = Math.abs(den) < 1e-6 ? hit.object.parent.worldToLocal(hit.point.clone()).y : (cc * dd - bb * ee) / den;
+      rotateMirror(hit.object.userData.peri + (yAxis < hit.object.userData.splitY ? '#lo' : '#hi'));
+      return;
+    }
+    if (hit.object.userData.key && mirrors[hit.object.userData.key]) rotateMirror(hit.object.userData.key);
   }
   const FLIP = { '/': '\\', '\\': '/' };
   function rotateMirror(k) {
