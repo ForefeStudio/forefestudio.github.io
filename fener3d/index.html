@@ -195,9 +195,11 @@
   // cells: key -> { t: '/' | '\\' (rotatable mirror), 'a' | 'b' (locked), 'H' bump, 'L' lantern, 'T' target,
   //                 'P' pipe mouth { o: direction the mouth faces, to: other mouth key },
   //                 'Y' input mouth of a Y pipe { o, to: output key }, 'Q' Y pipe output { o } (two inputs, one output: the colours add up),
+  //                 'H' block { h: storeys (1 or 2), top: item on its roof ('/', '\\', 'a', 'b' mirror or 'T' target) },
+  //                 'K' periscope tower { lo, hi: facing of the bottom / top tilt mirror, h: storey of the top mirror },
   //                 'O' hole mouth (open), 'U' hole mouth with a 45° tilt mirror { fi: which of the 4 surface directions it faces },
   //                 'S' sensor, 'D' door (closed blocks light), 'F' sun flower, 'c' / 'e' motor mirror ('/' / '\\', turned by a flower) }
-  var SN = 4, BEAM_H = .2;
+  var SN = 4, BEAM_H = .2, LVL = .56;   // LVL: height of one block storey
   var AX = { x: 0, y: 1, z: 2 };
   function faceInfo(f) { const a = AX[f[0]], s = f[1] === '+' ? 1 : -1, o = [0,1,2].filter(b => b !== a); return { a, s, u: o[0], v: o[1] }; }
   function cellP(key) { const [f, uv] = key.split(':'), [u, v] = uv.split(',').map(Number), F = faceInfo(f), p = [0,0,0]; p[F.a] = F.s < 0 ? -1 : SN; p[F.u] = u; p[F.v] = v; return { f, F, p }; }
@@ -247,18 +249,43 @@
   function traceS(cells, lanterns) {
     const paths = [], ends = {}, endD = {}, hits = [], sparks = [];
     lanterns.forEach(l => {
-      let { f, p } = cellP(l.k), d = l.d.slice(), dist = 0;
+      let { f, p } = cellP(l.k), d = l.d.slice(), dist = 0, z = 0;   // z: storey the light travels at
+      const Hz = () => BEAM_H + z * LVL;
       const pts = [worldOf(f, p, BEAM_H)], seen = new Set();
       const add = (pt) => { const q = pts[pts.length - 1]; dist += Math.hypot(pt[0] - q[0], pt[1] - q[1], pt[2] - q[2]); pts.push(pt); };
       for (let k = 0; k < 400; k++) {
-        const c0 = worldOf(f, p, BEAM_H);
+        const c0 = worldOf(f, p, Hz());
         const s = stepS(f, p, d);
+        if (s.wrapped && z > 0) { add(add3(c0, d, 2.2)); break; }      // high light runs off the edge into space
         if (s.wrapped) add([c0[0] + d[0] * (.5 + BEAM_H), c0[1] + d[1] * (.5 + BEAM_H), c0[2] + d[2] * (.5 + BEAM_H)]);
         ({ f, p, d } = s);
-        const key = keyFromP(f, p), cell = cells[key], c = worldOf(f, p, BEAM_H);
-        const sk = key + '|' + d.join(',');
+        const key = keyFromP(f, p), cell = cells[key], c = worldOf(f, p, Hz());
+        const sk = key + '|' + d.join(',') + '|' + z;
         if (seen.has(sk)) { add(c); break; } seen.add(sk);
         if (!cell || cell.t === 'O') continue;
+        const blockHere = () => { add([c[0] - d[0] * .42, c[1] - d[1] * .42, c[2] - d[2] * .42]); hits.push({ k: key, c: l.c, d: dist }); sparks.push({ p: pts[pts.length - 1], c: l.c, d: dist }); };
+        if (cell.t === 'K' && (z === 0 || z === cell.h)) {
+          // periscope tower: the tilt mirror at this storey lifts / lowers the light to the other mirror
+          const fd = tangentDirsS(f)[z === 0 ? cell.lo : cell.hi];
+          if (d[0] === -fd[0] && d[1] === -fd[1] && d[2] === -fd[2]) {
+            add(c); hits.push({ k: key + (z === 0 ? '#lo' : '#hi'), c: l.c, d: dist });
+            z = z === 0 ? cell.h : 0;
+            add(worldOf(f, p, Hz())); hits.push({ k: key + (z === 0 ? '#lo' : '#hi'), c: l.c, d: dist });
+            d = tangentDirsS(f)[z === 0 ? cell.lo : cell.hi].slice();
+            continue;
+          }
+          blockHere(); break;
+        }
+        if (z > 0) {                                                   // up high only blocks (and what stands on them) matter
+          if (cell.t !== 'H') continue;
+          const hh = cell.h || 1;
+          if (z < hh) { blockHere(); break; }
+          if (z > hh || !cell.top) continue;
+          if (cell.top === 'T') { add(c); ends[key] = (ends[key] || 0) | l.c; endD[key] = Math.max(endD[key] || 0, dist); break; }
+          add(c); hits.push({ k: key + '#top', c: l.c, d: dist });
+          d = reflect(f, cell.top, d);
+          continue;
+        }
         if (cell.t === 'U') {
           const fd = tangentDirsS(f)[cell.fi];
           if (d[0] === -fd[0] && d[1] === -fd[1] && d[2] === -fd[2]) {
@@ -320,7 +347,7 @@
     4: { name: 'mavi', hex: '#4c9dff' }, 5: { name: 'mor', hex: '#d27bff' }, 6: { name: 'turkuaz', hex: '#3ef0d8' }, 7: { name: 'beyaz', hex: '#ffffff' },
   };
   const hex = c => COLORS[c].hex;
-  const LEVELS = [{"lanterns": [{"k": "x+:0,2", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z+:0,0", "c": 4}], "pipes": [], "cells": [["y-:3,2", "\\"], ["z+:3,0", "/"]]}, {"lanterns": [{"k": "y+:2,1", "d": [-1, 0, 0], "c": 3}], "targets": [{"k": "z+:3,2", "c": 3}], "pipes": [], "cells": [["y+:0,1", "\\"], ["y+:0,2", "/"], ["x-:2,2", "/"], ["z+:0,1", "H"], ["x-:1,2", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x-:2,2", "d": [0, 1, 0], "c": 2}], "targets": [{"k": "x+:3,2", "c": 2}], "pipes": [{"a": "y+:1,2", "oa": [-1, 0, 0], "b": "y+:3,2", "ob": [0, 0, 1]}], "cells": [["y+:2,2", "H"], ["y+:3,3", "\\"], ["x+:3,3", "\\"], ["x-:3,3", "H"]]}, {"lanterns": [{"k": "y+:3,1", "d": [0, 0, -1], "c": 1}], "targets": [{"k": "x-:0,0", "c": 1}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "y-:3,3", "ob": [0, 0, -1]}], "cells": [["y+:3,0", "\\"], ["y+:2,0", "/"], ["y-:3,2", "/"], ["x+:0,2", "b"], ["z+:2,2", "H"], ["z+:3,0", "H"], ["x+:2,0", "H"]]}, {"lanterns": [{"k": "z-:2,2", "d": [-1, 0, 0], "c": 4}, {"k": "x+:2,2", "d": [0, 0, -1], "c": 3}], "targets": [{"k": "y+:1,1", "c": 4}, {"k": "y-:2,0", "c": 3}], "pipes": [{"a": "x-:1,0", "oa": [0, 0, -1], "b": "x-:3,2", "ob": [0, 1, 0]}], "cells": [["z-:0,2", "/"], ["z-:0,1", "\\"], ["x-:2,1", "H"], ["y+:1,2", "/"], ["x+:2,0", "\\"], ["x+:1,1", "H"], ["z+:1,1", "H"], ["y+:0,0", "H"]]}, {"lanterns": [{"k": "y+:0,1", "d": [0, 0, -1], "c": 5}], "targets": [{"k": "y-:0,1", "c": 5}], "pipes": [{"a": "y+:1,0", "oa": [-1, 0, 0], "b": "x+:0,3", "ob": [0, 0, -1]}, {"a": "y-:3,1", "oa": [1, 0, 0], "b": "z+:2,2", "ob": [1, 0, 0]}], "cells": [["y+:0,0", "\\"], ["x+:0,1", "\\"], ["z+:3,2", "/"], ["z+:3,1", "\\"], ["z+:2,1", "a"], ["y-:2,1", "/"], ["x-:2,1", "H"], ["x+:0,0", "H"], ["z-:2,2", "H"], ["z+:1,3", "H"]]}, {"lanterns": [{"k": "x-:3,0", "d": [0, 1, 0], "c": 6}, {"k": "z+:0,1", "d": [0, 1, 0], "c": 1}], "targets": [{"k": "x+:1,1", "c": 6}, {"k": "x+:2,1", "c": 1}], "pipes": [{"a": "z+:3,2", "oa": [0, 1, 0], "b": "z+:3,0", "ob": [1, 0, 0]}, {"a": "y+:0,3", "oa": [0, 0, 1], "b": "x-:2,1", "ob": [0, -1, 0]}], "cells": [["y+:1,0", "a"], ["z+:1,3", "/"], ["z+:3,3", "\\"], ["z+:3,1", "H"], ["x+:0,1", "\\"], ["x-:1,1", "\\"], ["z-:1,1", "\\"], ["z-:1,2", "\\"], ["y-:2,3", "H"], ["y-:1,3", "H"], ["z-:2,0", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x+:0,3", "d": [0, 0, 1], "c": 1}, {"k": "y+:2,2", "d": [0, 0, -1], "c": 2}, {"k": "z-:2,1", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z-:1,0", "c": 1}, {"k": "z+:3,3", "c": 2}, {"k": "y+:0,1", "c": 4}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "z-:0,0", "ob": [0, 1, 0]}, {"a": "z-:0,1", "oa": [0, -1, 0], "b": "z-:3,3", "ob": [0, 1, 0]}, {"a": "y-:2,1", "oa": [0, 0, -1], "b": "y-:0,1", "ob": [-1, 0, 0]}], "cells": [["z+:1,0", "/"], ["z-:1,2", "H"], ["z-:2,2", "H"], ["y+:3,1", "\\"], ["x+:3,1", "b"], ["x+:3,3", "a"], ["y+:3,3", "/"], ["x-:0,1", "\\"], ["x-:0,2", "\\"], ["x-:2,2", "\\"], ["x-:2,1", "/"], ["x+:3,0", "H"], ["x+:1,1", "H"], ["x+:2,2", "H"], ["y+:2,3", "H"], ["x+:0,0", "H"]]}, {"lanterns": [{"k": "z+:1,2", "d": [-1, 0, 0], "c": 3}, {"k": "x+:3,3", "d": [0, 0, -1], "c": 4}], "targets": [{"k": "z-:0,3", "c": 4}], "pipes": [], "sensors": [{"k": "z+:1,0", "door": "x+:3,1"}], "flowers": [], "cells": [["x-:2,3", "\\"], ["x-:0,3", "/"], ["x+:3,1", "D"]]}, {"lanterns": [{"k": "z+:2,0", "d": [0, 1, 0], "c": 1}, {"k": "x+:3,2", "d": [0, 1, 0], "c": 6}], "targets": [{"k": "y-:2,0", "c": 6}], "pipes": [], "sensors": [{"k": "x-:0,3", "door": "y+:2,1"}], "flowers": [], "cells": [["z+:2,3", "/"], ["z+:0,3", "\\"], ["z+:0,1", "\\"], ["x-:1,3", "a"], ["y+:2,2", "/"], ["y+:2,1", "D"], ["x-:2,3", "H"], ["y+:3,1", "H"], ["y-:0,2", "H"]]}, {"lanterns": [{"k": "y-:3,3", "d": [0, 0, 1], "c": 3}, {"k": "y-:3,2", "d": [0, 0, -1], "c": 2}], "targets": [{"k": "x+:2,0", "c": 2}], "pipes": [], "sensors": [], "flowers": [{"k": "z+:0,1", "m": "z-:3,1"}], "cells": [["z+:3,1", "/"], ["z-:3,1", "e"], ["x+:1,0", "\\"]]}, {"lanterns": [{"k": "z-:0,0", "d": [0, 1, 0], "c": 3}, {"k": "y+:3,0", "d": [0, 0, -1], "c": 5}, {"k": "y-:0,0", "d": [-1, 0, 0], "c": 4}], "targets": [{"k": "z+:0,3", "c": 4}], "pipes": [], "sensors": [{"k": "y-:3,1", "door": "x-:0,2"}], "flowers": [{"k": "y+:0,2", "m": "x-:0,0"}], "cells": [["x-:0,0", "e"], ["x-:0,2", "D"], ["z+:0,0", "\\"], ["z+:0,1", "\\"], ["x-:1,3", "/"], ["x-:3,3", "\\"], ["y+:1,3", "H"], ["x+:3,2", "H"], ["x-:1,0", "H"]]}, {"lanterns": [{"k": "z-:1,3", "d": [1, 0, 0], "c": 4}], "targets": [{"k": "x-:1,2", "c": 4}], "pipes": [], "sensors": [], "flowers": [], "cells": [["z-:2,3", "U", 3], ["z+:2,3", "U", 2], ["z+:2,1", "/"]]}, {"lanterns": [{"k": "x+:1,2", "d": [0, 0, 1], "c": 3}], "targets": [{"k": "x+:2,0", "c": 3}], "pipes": [], "sensors": [], "flowers": [], "cells": [["x+:1,3", "U", 3], ["x-:1,3", "U", 0], ["x-:1,2", "\\"], ["y-:3,2", "/"], ["y-:3,0", "\\"], ["y-:2,2", "O"], ["y+:2,2", "O"], ["z+:3,3", "H"], ["y+:0,0", "H"]]}, {"lanterns": [{"k": "z+:3,3", "d": [-1, 0, 0], "c": 1}, {"k": "x-:2,0", "d": [0, 0, 1], "c": 2}], "targets": [{"k": "z-:1,0", "c": 1}, {"k": "z+:0,0", "c": 2}], "pipes": [], "sensors": [], "flowers": [], "cells": [["z+:0,3", "\\"], ["z+:0,2", "/"], ["z+:1,2", "U", 2], ["z-:1,2", "U", 2], ["x-:2,2", "U", 3], ["x+:2,2", "U", 2], ["x+:0,2", "\\"], ["z+:1,3", "O"], ["z-:1,3", "O"], ["x-:1,3", "H"], ["z-:2,2", "H"]]}, {"lanterns": [{"k": "y-:0,3", "d": [0, 0, -1], "c": 5}, {"k": "z-:3,0", "d": [1, 0, 0], "c": 6}], "targets": [{"k": "z+:3,3", "c": 6}], "pipes": [], "sensors": [{"k": "z-:1,2", "door": "y+:3,3"}], "flowers": [], "cells": [["z-:0,0", "/"], ["z-:1,0", "\\"], ["x+:0,1", "\\"], ["y-:3,1", "U", 1], ["y+:3,1", "U", 3], ["y+:3,3", "D"], ["y-:1,1", "H"], ["z+:3,2", "H"]]}, {"lanterns": [{"k": "x-:2,3", "d": [0, -1, 0], "c": 1}, {"k": "y+:1,3", "d": [1, 0, 0], "c": 4}], "targets": [{"k": "y-:3,1", "c": 5}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [{"a": "y-:2,2", "oa": [-1, 0, 0], "b": "x+:2,3", "ob": [0, 1, 0], "out": "z-:3,2", "oo": [0, -1, 0]}], "cells": [["x-:1,3", "\\"], ["x-:1,2", "/"]]}, {"lanterns": [{"k": "x-:3,3", "d": [0, 1, 0], "c": 1}, {"k": "z-:1,1", "d": [-1, 0, 0], "c": 2}], "targets": [{"k": "x+:3,3", "c": 3}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [{"a": "x-:3,2", "oa": [0, 1, 0], "b": "y+:1,0", "ob": [-1, 0, 0], "out": "z+:3,3", "oo": [0, -1, 0]}], "cells": [["y+:1,3", "\\"], ["y+:1,2", "\\"], ["x-:1,0", "\\"], ["y-:3,3", "/"], ["z-:3,0", "H"], ["y+:3,1", "H"], ["z-:1,2", "H"]]}, {"lanterns": [{"k": "x+:0,3", "d": [0, 1, 0], "c": 2}, {"k": "y+:2,2", "d": [-1, 0, 0], "c": 4}], "targets": [{"k": "x+:1,1", "c": 6}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [{"a": "x+:2,1", "oa": [0, 1, 0], "b": "x-:3,2", "ob": [0, 1, 0], "out": "y+:0,0", "oo": [1, 0, 0]}], "cells": [["x+:3,3", "/"], ["x+:3,1", "/"], ["y+:1,0", "U", 3], ["y-:1,0", "U", 1], ["y-:1,1", "/"], ["y+:2,1", "H"], ["x-:0,1", "H"]]}, {"lanterns": [{"k": "y+:3,3", "d": [0, 0, 1], "c": 1}, {"k": "y+:2,2", "d": [0, 0, -1], "c": 4}, {"k": "y+:0,2", "d": [0, 0, -1], "c": 3}], "targets": [{"k": "x+:0,1", "c": 5}, {"k": "x-:2,2", "c": 3}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [{"a": "x+:3,0", "oa": [0, -1, 0], "b": "z-:2,1", "ob": [0, 1, 0], "out": "x+:1,1", "oo": [0, 0, 1]}], "cells": [["z+:3,2", "/"], ["x+:2,0", "\\"], ["x+:1,3", "/"], ["y-:3,3", "/"], ["y-:3,1", "b"], ["z-:0,2", "\\"], ["x+:0,0", "H"], ["y+:1,3", "H"], ["z+:1,0", "H"]]}];
+  const LEVELS = [{"lanterns": [{"k": "x+:0,2", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z+:0,0", "c": 4}], "pipes": [], "cells": [["y-:3,2", "\\"], ["z+:3,0", "/"]]}, {"lanterns": [{"k": "y+:2,1", "d": [-1, 0, 0], "c": 3}], "targets": [{"k": "z+:3,2", "c": 3}], "pipes": [], "cells": [["y+:0,1", "\\"], ["y+:0,2", "/"], ["x-:2,2", "/"], ["z+:0,1", "H"], ["x-:1,2", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x-:2,2", "d": [0, 1, 0], "c": 2}], "targets": [{"k": "x+:3,2", "c": 2}], "pipes": [{"a": "y+:1,2", "oa": [-1, 0, 0], "b": "y+:3,2", "ob": [0, 0, 1]}], "cells": [["y+:2,2", "H"], ["y+:3,3", "\\"], ["x+:3,3", "\\"], ["x-:3,3", "H"]]}, {"lanterns": [{"k": "y+:3,1", "d": [0, 0, -1], "c": 1}], "targets": [{"k": "x-:0,0", "c": 1}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "y-:3,3", "ob": [0, 0, -1]}], "cells": [["y+:3,0", "\\"], ["y+:2,0", "/"], ["y-:3,2", "/"], ["x+:0,2", "b"], ["z+:2,2", "H"], ["z+:3,0", "H"], ["x+:2,0", "H"]]}, {"lanterns": [{"k": "z-:2,2", "d": [-1, 0, 0], "c": 4}, {"k": "x+:2,2", "d": [0, 0, -1], "c": 3}], "targets": [{"k": "y+:1,1", "c": 4}, {"k": "y-:2,0", "c": 3}], "pipes": [{"a": "x-:1,0", "oa": [0, 0, -1], "b": "x-:3,2", "ob": [0, 1, 0]}], "cells": [["z-:0,2", "/"], ["z-:0,1", "\\"], ["x-:2,1", "H"], ["y+:1,2", "/"], ["x+:2,0", "\\"], ["x+:1,1", "H"], ["z+:1,1", "H"], ["y+:0,0", "H"]]}, {"lanterns": [{"k": "y+:0,1", "d": [0, 0, -1], "c": 5}], "targets": [{"k": "y-:0,1", "c": 5}], "pipes": [{"a": "y+:1,0", "oa": [-1, 0, 0], "b": "x+:0,3", "ob": [0, 0, -1]}, {"a": "y-:3,1", "oa": [1, 0, 0], "b": "z+:2,2", "ob": [1, 0, 0]}], "cells": [["y+:0,0", "\\"], ["x+:0,1", "\\"], ["z+:3,2", "/"], ["z+:3,1", "\\"], ["z+:2,1", "a"], ["y-:2,1", "/"], ["x-:2,1", "H"], ["x+:0,0", "H"], ["z-:2,2", "H"], ["z+:1,3", "H"]]}, {"lanterns": [{"k": "x-:3,0", "d": [0, 1, 0], "c": 6}, {"k": "z+:0,1", "d": [0, 1, 0], "c": 1}], "targets": [{"k": "x+:1,1", "c": 6}, {"k": "x+:2,1", "c": 1}], "pipes": [{"a": "z+:3,2", "oa": [0, 1, 0], "b": "z+:3,0", "ob": [1, 0, 0]}, {"a": "y+:0,3", "oa": [0, 0, 1], "b": "x-:2,1", "ob": [0, -1, 0]}], "cells": [["y+:1,0", "a"], ["z+:1,3", "/"], ["z+:3,3", "\\"], ["z+:3,1", "H"], ["x+:0,1", "\\"], ["x-:1,1", "\\"], ["z-:1,1", "\\"], ["z-:1,2", "\\"], ["y-:2,3", "H"], ["y-:1,3", "H"], ["z-:2,0", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x+:0,3", "d": [0, 0, 1], "c": 1}, {"k": "y+:2,2", "d": [0, 0, -1], "c": 2}, {"k": "z-:2,1", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z-:1,0", "c": 1}, {"k": "z+:3,3", "c": 2}, {"k": "y+:0,1", "c": 4}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "z-:0,0", "ob": [0, 1, 0]}, {"a": "z-:0,1", "oa": [0, -1, 0], "b": "z-:3,3", "ob": [0, 1, 0]}, {"a": "y-:2,1", "oa": [0, 0, -1], "b": "y-:0,1", "ob": [-1, 0, 0]}], "cells": [["z+:1,0", "/"], ["z-:1,2", "H"], ["z-:2,2", "H"], ["y+:3,1", "\\"], ["x+:3,1", "b"], ["x+:3,3", "a"], ["y+:3,3", "/"], ["x-:0,1", "\\"], ["x-:0,2", "\\"], ["x-:2,2", "\\"], ["x-:2,1", "/"], ["x+:3,0", "H"], ["x+:1,1", "H"], ["x+:2,2", "H"], ["y+:2,3", "H"], ["x+:0,0", "H"]]}, {"lanterns": [{"k": "z+:1,2", "d": [-1, 0, 0], "c": 3}, {"k": "x+:3,3", "d": [0, 0, -1], "c": 4}], "targets": [{"k": "z-:0,3", "c": 4}], "pipes": [], "sensors": [{"k": "z+:1,0", "door": "x+:3,1"}], "flowers": [], "cells": [["x-:2,3", "\\"], ["x-:0,3", "/"], ["x+:3,1", "D"]]}, {"lanterns": [{"k": "z+:2,0", "d": [0, 1, 0], "c": 1}, {"k": "x+:3,2", "d": [0, 1, 0], "c": 6}], "targets": [{"k": "y-:2,0", "c": 6}], "pipes": [], "sensors": [{"k": "x-:0,3", "door": "y+:2,1"}], "flowers": [], "cells": [["z+:2,3", "/"], ["z+:0,3", "\\"], ["z+:0,1", "\\"], ["x-:1,3", "a"], ["y+:2,2", "/"], ["y+:2,1", "D"], ["x-:2,3", "H"], ["y+:3,1", "H"], ["y-:0,2", "H"]]}, {"lanterns": [{"k": "y-:3,3", "d": [0, 0, 1], "c": 3}, {"k": "y-:3,2", "d": [0, 0, -1], "c": 2}], "targets": [{"k": "x+:2,0", "c": 2}], "pipes": [], "sensors": [], "flowers": [{"k": "z+:0,1", "m": "z-:3,1"}], "cells": [["z+:3,1", "/"], ["z-:3,1", "e"], ["x+:1,0", "\\"]]}, {"lanterns": [{"k": "z-:0,0", "d": [0, 1, 0], "c": 3}, {"k": "y+:3,0", "d": [0, 0, -1], "c": 5}, {"k": "y-:0,0", "d": [-1, 0, 0], "c": 4}], "targets": [{"k": "z+:0,3", "c": 4}], "pipes": [], "sensors": [{"k": "y-:3,1", "door": "x-:0,2"}], "flowers": [{"k": "y+:0,2", "m": "x-:0,0"}], "cells": [["x-:0,0", "e"], ["x-:0,2", "D"], ["z+:0,0", "\\"], ["z+:0,1", "\\"], ["x-:1,3", "/"], ["x-:3,3", "\\"], ["y+:1,3", "H"], ["x+:3,2", "H"], ["x-:1,0", "H"]]}, {"lanterns": [{"k": "z-:1,3", "d": [1, 0, 0], "c": 4}], "targets": [{"k": "x-:1,2", "c": 4}], "pipes": [], "sensors": [], "flowers": [], "cells": [["z-:2,3", "U", 3], ["z+:2,3", "U", 2], ["z+:2,1", "/"]]}, {"lanterns": [{"k": "x+:1,2", "d": [0, 0, 1], "c": 3}], "targets": [{"k": "x+:2,0", "c": 3}], "pipes": [], "sensors": [], "flowers": [], "cells": [["x+:1,3", "U", 3], ["x-:1,3", "U", 0], ["x-:1,2", "\\"], ["y-:3,2", "/"], ["y-:3,0", "\\"], ["y-:2,2", "O"], ["y+:2,2", "O"], ["z+:3,3", "H"], ["y+:0,0", "H"]]}, {"lanterns": [{"k": "z+:3,3", "d": [-1, 0, 0], "c": 1}, {"k": "x-:2,0", "d": [0, 0, 1], "c": 2}], "targets": [{"k": "z-:1,0", "c": 1}, {"k": "z+:0,0", "c": 2}], "pipes": [], "sensors": [], "flowers": [], "cells": [["z+:0,3", "\\"], ["z+:0,2", "/"], ["z+:1,2", "U", 2], ["z-:1,2", "U", 2], ["x-:2,2", "U", 3], ["x+:2,2", "U", 2], ["x+:0,2", "\\"], ["z+:1,3", "O"], ["z-:1,3", "O"], ["x-:1,3", "H"], ["z-:2,2", "H"]]}, {"lanterns": [{"k": "y-:0,3", "d": [0, 0, -1], "c": 5}, {"k": "z-:3,0", "d": [1, 0, 0], "c": 6}], "targets": [{"k": "z+:3,3", "c": 6}], "pipes": [], "sensors": [{"k": "z-:1,2", "door": "y+:3,3"}], "flowers": [], "cells": [["z-:0,0", "/"], ["z-:1,0", "\\"], ["x+:0,1", "\\"], ["y-:3,1", "U", 1], ["y+:3,1", "U", 3], ["y+:3,3", "D"], ["y-:1,1", "H"], ["z+:3,2", "H"]]}, {"lanterns": [{"k": "x-:2,3", "d": [0, -1, 0], "c": 1}, {"k": "y+:1,3", "d": [1, 0, 0], "c": 4}], "targets": [{"k": "y-:3,1", "c": 5}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [{"a": "y-:2,2", "oa": [-1, 0, 0], "b": "x+:2,3", "ob": [0, 1, 0], "out": "z-:3,2", "oo": [0, -1, 0]}], "cells": [["x-:1,3", "\\"], ["x-:1,2", "/"]]}, {"lanterns": [{"k": "x-:3,3", "d": [0, 1, 0], "c": 1}, {"k": "z-:1,1", "d": [-1, 0, 0], "c": 2}], "targets": [{"k": "x+:3,3", "c": 3}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [{"a": "x-:3,2", "oa": [0, 1, 0], "b": "y+:1,0", "ob": [-1, 0, 0], "out": "z+:3,3", "oo": [0, -1, 0]}], "cells": [["y+:1,3", "\\"], ["y+:1,2", "\\"], ["x-:1,0", "\\"], ["y-:3,3", "/"], ["z-:3,0", "H"], ["y+:3,1", "H"], ["z-:1,2", "H"]]}, {"lanterns": [{"k": "x+:0,3", "d": [0, 1, 0], "c": 2}, {"k": "y+:2,2", "d": [-1, 0, 0], "c": 4}], "targets": [{"k": "x+:1,1", "c": 6}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [{"a": "x+:2,1", "oa": [0, 1, 0], "b": "x-:3,2", "ob": [0, 1, 0], "out": "y+:0,0", "oo": [1, 0, 0]}], "cells": [["x+:3,3", "/"], ["x+:3,1", "/"], ["y+:1,0", "U", 3], ["y-:1,0", "U", 1], ["y-:1,1", "/"], ["y+:2,1", "H"], ["x-:0,1", "H"]]}, {"lanterns": [{"k": "y+:3,3", "d": [0, 0, 1], "c": 1}, {"k": "y+:2,2", "d": [0, 0, -1], "c": 4}, {"k": "y+:0,2", "d": [0, 0, -1], "c": 3}], "targets": [{"k": "x+:0,1", "c": 5}, {"k": "x-:2,2", "c": 3}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [{"a": "x+:3,0", "oa": [0, -1, 0], "b": "z-:2,1", "ob": [0, 1, 0], "out": "x+:1,1", "oo": [0, 0, 1]}], "cells": [["z+:3,2", "/"], ["x+:2,0", "\\"], ["x+:1,3", "/"], ["y-:3,3", "/"], ["y-:3,1", "b"], ["z-:0,2", "\\"], ["x+:0,0", "H"], ["y+:1,3", "H"], ["z+:1,0", "H"]]}, {"lanterns": [{"k": "y-:1,3", "d": [0, 0, 1], "c": 4}], "targets": [{"k": "z+:0,0", "c": 4}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [], "cells": [["z+:1,2", {"t": "K", "h": 1, "lo": 2, "hi": 1}], ["z+:0,2", {"t": "H", "h": 1, "top": "\\"}], ["z+:0,0", {"t": "H", "h": 1, "top": "T"}], ["z+:0,1", {"t": "H", "h": 1}], ["y-:2,0", {"t": "H", "h": 1}], ["x-:1,2", {"t": "H", "h": 1}]]}, {"lanterns": [{"k": "x+:0,1", "d": [0, 0, -1], "c": 3}], "targets": [{"k": "y-:3,3", "c": 3}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [], "cells": [["x+:0,0", "/"], ["y-:1,0", {"t": "K", "h": 1, "lo": 3, "hi": 0}], ["y-:0,0", {"t": "H", "h": 1, "top": "\\"}], ["y-:0,1", {"t": "H", "h": 1, "top": "\\"}], ["y-:3,1", {"t": "K", "h": 1, "hi": 3, "lo": 3}], ["z+:3,3", {"t": "H", "h": 1}], ["z-:0,1", {"t": "H", "h": 1}], ["x+:1,3", {"t": "H", "h": 1}], ["y-:2,1", {"t": "H", "h": 1}]]}, {"lanterns": [{"k": "y-:1,1", "d": [-1, 0, 0], "c": 2}], "targets": [{"k": "x-:3,2", "c": 2}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [], "cells": [["x-:1,1", {"t": "K", "h": 2, "lo": 2, "hi": 3}], ["x-:1,3", {"t": "H", "h": 2, "top": "/"}], ["x-:3,3", {"t": "H", "h": 2, "top": "/"}], ["x-:3,2", {"t": "H", "h": 2, "top": "T"}], ["x-:1,2", {"t": "H", "h": 1}], ["z-:3,2", {"t": "H", "h": 1}], ["y+:3,3", {"t": "H", "h": 1}], ["x+:0,2", {"t": "H", "h": 1}], ["y-:3,0", {"t": "H", "h": 1}]]}, {"lanterns": [{"k": "z-:0,3", "d": [0, -1, 0], "c": 1}, {"k": "y-:2,3", "d": [1, 0, 0], "c": 4}], "targets": [{"k": "y+:3,1", "c": 1}, {"k": "x+:2,1", "c": 4}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [], "cells": [["z-:0,2", {"t": "K", "h": 2, "lo": 1, "hi": 3}], ["z-:2,2", {"t": "H", "h": 2, "top": "\\"}], ["z-:2,1", {"t": "H", "h": 2, "top": "/"}], ["z-:3,1", {"t": "K", "h": 2, "hi": 0, "lo": 1}], ["y-:3,3", "/"], ["z+:3,2", "/"], ["z-:1,2", {"t": "H", "h": 1}], ["z-:0,0", {"t": "H", "h": 1}], ["y+:1,3", {"t": "H", "h": 1}], ["y+:1,2", {"t": "H", "h": 1}]]}];
   const HINTS = {
     0: 'Aynalara dokunup çevir, sonra düğmeye bas. Işık kenara gelince <b>yandaki yüze geçer</b>: küpü çevirip takip et.',
     1: '<b>Bloklar</b> ışığı keser. Işık düz gider, bloğun üzerinden kendiliğinden geçemez.',
@@ -338,6 +365,10 @@
     17: 'Kırmızı + yeşil = sarı. İki ışığı da borunun girişlerine ulaştır.',
     18: 'Yeşil + mavi = turkuaz. Borunun çıkışından sonra ışık bir delikten geçmeli.',
     19: 'Bir Y boru ve ayrı bir sarı fener. Her hedef kendi rengini bekliyor.',
+    20: '<b>Periskop kulesi</b> ışığı bir blok yüksekliğine çıkarır. Yüksekteki ışık alçak blokların üzerinden geçer, blok tepesindeki aynaya ve hedefe ulaşır.',
+    21: 'Işığı kuleyle yukarı çıkar, ikinci kuleyle yeniden aşağı indir.',
+    22: 'İki katlı bloklar! Kule ışığı ikinci kata çıkarır; bir katlı blokların üzerinden geçer.',
+    23: 'İki fener, iki kule. Hangi ışığın hangi katta gittiğini takip et.',
   };
   const $ = id => document.getElementById(id);
   const stage = $('stage');
@@ -347,7 +378,7 @@
   let progress = {}, soundOn = true;
   try { progress = JSON.parse(localStorage.getItem('fenerkup-progress') || '{}'); soundOn = localStorage.getItem('fener-sound') !== '0'; } catch (e) {}
   const save = () => { try { localStorage.setItem('fenerkup-progress', JSON.stringify(progress)); localStorage.setItem('fener-sound', soundOn ? '1' : '0'); } catch (e) {} };
-  const START_LEVEL = 16;  // the game opens at level 17; levels 1-17 are always open
+  const START_LEVEL = 20;  // the game opens at level 21; levels 1-21 are always open
   const unlocked = i => i <= START_LEVEL || !!progress[i - 1] || !!progress[i];
 
   /* ---------- sound ---------- */
@@ -547,6 +578,12 @@
     const x = new THREE.Vector3().crossVectors(n, fd), y = fd.clone().add(n).normalize(), z = fd.clone().sub(n).normalize();
     return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
   }
+  // tilt mirror that sends light coming from its facing side up (up = true) or down
+  function tiltQuatGen(key, fi, up) {
+    const { f } = cellP(key), n = V(normalOf(f)), fd = V(tangentDirsS(f)[fi]);
+    const x = new THREE.Vector3().crossVectors(n, fd), z = fd.clone().add(up ? n : n.clone().negate()).normalize(), y = new THREE.Vector3().crossVectors(z, x);
+    return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+  }
   function makeTiltMirror(key) {
     const g = new THREE.Group();
     const frameMat = new THREE.MeshStandardMaterial({ color: 0x5ee0d0, roughness: .35, metalness: .15, emissive: 0 });
@@ -573,6 +610,8 @@
   const blockGeo = (() => { const g = new THREE.ExtrudeGeometry(rrShape(.58, .58, .1), { depth: BLOCK_H - .08, bevelEnabled: true, bevelThickness: .04, bevelSize: .04, bevelSegments: 3, curveSegments: 6 });
     g.rotateX(-Math.PI / 2); g.translate(0, .04, 0); return g; })();
   const blockMat = new THREE.MeshStandardMaterial({ color: 0x6fd3a0, roughness: .6 });
+  const blockMat2 = new THREE.MeshStandardMaterial({ color: 0x52bd8a, roughness: .6 });
+  const towerMat = new THREE.MeshStandardMaterial({ color: 0xffa8d8, roughness: .5 });
   const blockTopGeo = (() => { const g = new THREE.ShapeGeometry(rrShape(.4, .4, .08), 6); g.rotateX(-Math.PI / 2); return g; })();
   const blockTopMat = new THREE.MeshStandardMaterial({ color: 0x9ae9bf, roughness: .5 });
   function build() {
@@ -580,9 +619,9 @@
     Object.values(tiles).forEach(t => t.material.color.setHex(0x2b3778));
     clearBeams();
     cells = {};
-    L.cells.forEach(([k, t, fi]) => cells[k] = { t, fi });
+    L.cells.forEach(([k, t, fi]) => cells[k] = typeof t === 'object' ? JSON.parse(JSON.stringify(t)) : { t, fi });
     L.lanterns.forEach(l => cells[l.k] = { t: 'L' });
-    L.targets.forEach(t => cells[t.k] = { t: 'T' });
+    L.targets.forEach(t => { if (!cells[t.k]) cells[t.k] = { t: 'T' }; });
     L.pipes.forEach(p => { cells[p.a] = { t: 'P', o: p.oa, to: p.b }; cells[p.b] = { t: 'P', o: p.ob, to: p.a }; });
     (L.sensors || []).forEach(x => cells[x.k] = { t: 'S' });
     (L.flowers || []).forEach(x => cells[x.k] = { t: 'F' });
@@ -591,12 +630,32 @@
     const add = m => { world.add(m); objs.push(m); return m; };
     Object.entries(cells).forEach(([k, c]) => {
       const { f, p } = cellP(k);
-      if (c.t === 'H') {                                   // block: a small rounded cube sitting on the tile
-        const g = new THREE.Mesh(blockGeo, blockMat);
+      if (c.t === 'H') {                                   // block: 1 or 2 storeys, maybe a mirror / target on its roof
+        const hh = c.h || 1;
+        const g = new THREE.Mesh(blockGeo, hh > 1 ? blockMat2 : blockMat); g.scale.y = hh;
         g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(upQuat(f)); add(g);
         const top = new THREE.Mesh(blockTopGeo, blockTopMat);
-        top.position.copy(V(worldOf(f, p, BLOCK_H + .012))); top.quaternion.copy(upQuat(f)); add(top);
+        top.position.copy(V(worldOf(f, p, hh * BLOCK_H + .012))); top.quaternion.copy(upQuat(f)); add(top);
+        if (hh > 1) { const line = new THREE.Mesh(new THREE.BoxGeometry(.66, .025, .66), blockTopMat); line.position.copy(V(worldOf(f, p, BLOCK_H))); line.quaternion.copy(upQuat(f)); add(line); }
+        if (c.top === '/' || c.top === '\\') {
+          const mk = k + '#top', mg = makeMirror(mk, false);
+          mg.position.copy(V(worldOf(f, p, hh * BLOCK_H))); mg.quaternion.copy(mirrorQuat(k, c.top)); mg.userData.targetQ = mg.quaternion.clone();
+          add(mg); mirrors[mk] = mg;
+        }
         tiles[k].material.color.setHex(0x3e8a68);
+      } else if (c.t === 'K') {                            // periscope tower: two tilt mirrors on a thin post
+        const n = V(normalOf(f)), base = V(worldOf(f, p, 0));
+        const postH = c.h * LVL + BEAM_H + .3;
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(.035, .045, postH, 10), towerMat);
+        post.position.copy(base).addScaledVector(n, postH / 2); post.quaternion.copy(upQuat(f)); add(post);
+        const foot = new THREE.Mesh(new THREE.CylinderGeometry(.22, .25, .05, 24), towerMat); foot.position.copy(base).addScaledVector(n, .025); foot.quaternion.copy(upQuat(f)); add(foot);
+        [['lo', 0, c.lo, true], ['hi', c.h, c.hi, false]].forEach(([part, lv, fi, up]) => {
+          const mk = k + '#' + part, mg = makeTiltMirror(mk);
+          mg.position.copy(V(worldOf(f, p, BEAM_H + lv * LVL))); mg.quaternion.copy(tiltQuatGen(k, fi, up)); mg.userData.targetQ = mg.quaternion.clone();
+          mg.userData.frame.material.color.setHex(0xffa8d8);
+          add(mg); mirrors[mk] = mg;
+        });
+        tiles[k].material.color.setHex(0x5a4f9a);
       } else if (c.t === 'O' || c.t === 'U') {              // hole mouth (+ tilt mirror)
         const n = V(normalOf(f)), q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
         const disc = new THREE.Mesh(holeDiscGeo, holeDiscMat); disc.position.copy(V(worldOf(f, p, .008))); disc.quaternion.copy(q); add(disc);
@@ -702,9 +761,9 @@
       add(sp); lanternSprites.push(sp);
     });
     L.targets.forEach(t => {
-      const { f, p } = cellP(t.k);
+      const { f, p } = cellP(t.k), tc = cells[t.k], lift = tc.t === 'H' ? (tc.h || 1) * BLOCK_H : 0;
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteTex('target', hex(t.c), 'idle'), transparent: true }));
-      sp.position.copy(V(worldOf(f, p, .45))); sp.scale.set(.74, .74, 1); sp.userData = { col: hex(t.c) };
+      sp.position.copy(V(worldOf(f, p, .45 + lift))); sp.scale.set(.74, .74, 1); sp.userData = { col: hex(t.c) };
       add(sp); targetSprites[t.k] = sp;
     });
   }
@@ -870,6 +929,15 @@
   const FLIP = { '/': '\\', '\\': '/' };
   function rotateMirror(k) {
     if (solved) return;
+    if (k.includes('#')) {
+      const [ck, part] = k.split('#'), c = cells[ck], m = mirrors[k];
+      m.userData.fromQ = m.quaternion.clone(); m.userData.t0 = performance.now();
+      if (part === 'top') { c.top = FLIP[c.top]; m.userData.targetQ = mirrorQuat(ck, c.top); }
+      else { c[part] = (c[part] + 1) % 4; m.userData.targetQ = tiltQuatGen(ck, c[part], part === 'lo'); }
+      moves++; updateMoves(); sfx.rotate();
+      if (lightOn) drawBeams(false);
+      return;
+    }
     const c = cells[k], m = mirrors[k];
     if (c.t === 'a' || c.t === 'b' || c.t === 'c' || c.t === 'e') { sfx.locked(); m.userData.shake = performance.now(); return; }
     if (c.t === 'U') { c.fi = (c.fi + 1) % 4; m.userData.fromQ = m.quaternion.clone(); m.userData.targetQ = tiltQuat(k, c.fi); m.userData.t0 = performance.now(); }
@@ -895,15 +963,20 @@
 
   /* ---------- level flow ---------- */
   function computeOptimal() {
-    const rot = Object.keys(cells).filter(k => cells[k].t in FLIP || cells[k].t === 'U');
-    const tmp = {}; Object.entries(cells).forEach(([k, c]) => tmp[k] = { ...c });
-    const radix = rot.map(k => cells[k].t === 'U' ? 4 : 2);
-    const st = rot.map(k => cells[k].t === 'U' ? cells[k].fi : (cells[k].t === '/' ? 0 : 1));
-    const total = radix.reduce((x, y) => x * y, 1);
+    const tmp = {}; Object.entries(cells).forEach(([k, c]) => tmp[k] = JSON.parse(JSON.stringify(c)));
+    const P = [];
+    for (const k in tmp) {
+      const c = tmp[k];
+      if (c.t === '/' || c.t === '\\') P.push([2, () => c.t === '/' ? 0 : 1, v => c.t = v ? '\\' : '/']);
+      else if (c.t === 'U') P.push([4, () => c.fi, v => c.fi = v]);
+      else if (c.t === 'K') { P.push([4, () => c.lo, v => c.lo = v]); P.push([4, () => c.hi, v => c.hi = v]); }
+      else if (c.t === 'H' && (c.top === '/' || c.top === '\\')) P.push([2, () => c.top === '/' ? 0 : 1, v => c.top = v ? '\\' : '/']);
+    }
+    const st = P.map(q => q[1]()), total = P.reduce((x, q) => x * q[0], 1);
     let best = Infinity;
     for (let m = 0; m < total; m++) {
       let mm = m, cost = 0;
-      rot.forEach((k, j) => { const v = mm % radix[j]; mm = Math.floor(mm / radix[j]); cost += (v - st[j] + radix[j]) % radix[j]; if (tmp[k].t === 'U') tmp[k].fi = v; else tmp[k].t = v ? '\\' : '/'; });
+      P.forEach((q, j) => { const v = mm % q[0]; mm = Math.floor(mm / q[0]); cost += (v - st[j] + q[0]) % q[0]; q[2](v); });
       if (cost < best && isWinS(tmp, L)) best = cost;
     }
     return best;
@@ -940,7 +1013,7 @@
   $('prevBtn').onclick = () => lvl > 0 && load(lvl - 1);
   $('nextBtn').onclick = () => lvl < LEVELS.length - 1 && unlocked(lvl + 1) && load(lvl + 1);
   const TUT_KEY = 'fenerkup-tut-seen';
-  const LEVEL_TUT = { 0: ['wrap', 'basics'], 1: ['bump'], 2: ['pipe'], 3: ['locked'], 4: ['two'], 8: ['sensor'], 10: ['flower'], 12: ['hole'], 16: ['ypipe'] };
+  const LEVEL_TUT = { 0: ['wrap', 'basics'], 1: ['bump'], 2: ['pipe'], 3: ['locked'], 4: ['two'], 8: ['sensor'], 10: ['flower'], 12: ['hole'], 16: ['ypipe'], 20: ['tower'] };
   /* ---------- animated tutorials: shown the first time a new piece appears ---------- */
   const TUT = (() => {
     const BL = '#4c9dff', RD = '#ff5d73', PU = '#d27bff', YE = '#ffc93d';
@@ -1011,6 +1084,10 @@
     CARDS.ypipe = { title: 'Yeni: Y boru', text: 'İki girişli borunun iki ağzına gelen ışıklar tek çıkışta birleşir. Işık renkleri toplanarak karışır: kırmızı + mavi = mor, kırmızı + yeşil = sarı, yeşil + mavi = turkuaz.',
       svg: svg(`<path d="M76 40 C130 40 120 75 160 75 M76 110 C130 110 120 75 160 75 H186" stroke="#e2d4ff" stroke-width="18" opacity=".35" fill="none" stroke-linecap="round"/><circle cx="76" cy="40" r="8" fill="none" stroke="#ffcf86" stroke-width="3.5"/><circle cx="76" cy="110" r="8" fill="none" stroke="#ffcf86" stroke-width="3.5"/><circle cx="186" cy="75" r="9" fill="none" stroke="#ffcf86" stroke-width="3.5"/>`
         + lantern(30, 40, RD) + lantern(30, 110, BL) + beam('M44 40 H76', RD, 't-s1') + beam('M44 110 H76', BL, 't-s1') + beam('M76 40 C130 40 120 75 160 75', RD, 't-s2') + beam('M76 110 C130 110 120 75 160 75', BL, 't-s2') + beam('M160 75 H212', PU, 't-s3') + target(226, 75, PU, 't-show3')) };
+    CARDS.tower = { title: 'Yeni: Periskop kulesi', text: 'Kuledeki alttaki eğik ayna ışığı yukarı yollar, üstteki onu yeniden yatay çevirir (ya da tersi). Yüksekte giden ışık alçak blokların üzerinden geçer, blok tepesindeki aynalara ve hedeflere ulaşır. Kuledeki iki aynaya ayrı ayrı dokunup çevir.',
+      svg: svg(ground + `<rect x="98" y="34" width="4" height="74" fill="#ffa8d8"/><g transform="translate(100 98) rotate(-45)"><rect x="-13" y="-2.5" width="26" height="5" rx="2.5" fill="#e9f7ff" stroke="#ffa8d8" stroke-width="1.5"/></g><g transform="translate(100 46) rotate(-45)"><rect x="-13" y="-2.5" width="26" height="5" rx="2.5" fill="#e9f7ff" stroke="#ffa8d8" stroke-width="1.5"/></g>`
+        + `<rect x="138" y="66" width="40" height="42" rx="8" fill="#6fd3a0"/><rect x="146" y="72" width="24" height="7" rx="3.5" fill="#9ae9bf"/><rect x="198" y="62" width="40" height="46" rx="8" fill="#52bd8a"/>`
+        + lantern(30, 98, YE) + beam('M44 98 H100', YE, 't-s1') + beam('M100 98 V46', YE, 't-s2') + beam('M100 46 H206', YE, 't-s3') + target(218, 46, YE, 't-show3')) };
     return { CARDS };
   })();
   function tutSeen() { try { return JSON.parse(localStorage.getItem(TUT_KEY) || '{}'); } catch (e) { return {}; } }
