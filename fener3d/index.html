@@ -10,42 +10,44 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@600;700;800&display=swap">
 <style>
-  /* Layout: same cute night look as the 2D game; a full-height 3D stage under a compact top bar */
+  /* Layout: bright pastel day sky with drifting clouds; a full-height 3D stage under a compact top bar */
   :root {
-    color-scheme: dark;
-    --sky-0: #0b1230;
-    --sky-1: #1a2458;
-    --ink: #f4f6ff;
-    --muted: #a9b3e0;
-    --sun: #ffd166;
+    color-scheme: light;
+    --sky-0: #bfe6ff;
+    --sky-1: #ffffff;
+    --ink: #2e3466;
+    --muted: #6b74a8;
+    --sun: #ff9f43;
+    --chip: rgba(255,255,255,.72);
+    --chip-line: rgba(80,90,160,.12);
     --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
     --body: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; }
   body {
-    background: linear-gradient(180deg, #0b1230, #1d2a66) fixed, var(--sky-0);
+    background: linear-gradient(180deg, #a9dcff 0%, #d6ecff 45%, #ffe1ef 100%) fixed, var(--sky-0);
     color: var(--ink); font-family: var(--body);
     user-select: none; -webkit-user-select: none;
     display: flex; flex-direction: column; overflow: hidden;
     padding-block: 10px 0;
   }
   button { font-family: inherit; }
-  button:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+  button:focus-visible { outline: 3px solid #4c9dff; outline-offset: 2px; }
   .top { padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: max(14px, env(safe-area-inset-right, 0px)); width: 100%; max-width: 640px; margin: 0 auto; flex: none; }
   header { display: flex; align-items: center; gap: 8px; }
   h1 { flex: 1; margin: 0; font-family: var(--display); font-weight: 800; font-size: clamp(20px, 6vw, 26px); line-height: 1; color: var(--sun); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   h1 small { font-size: .55em; color: var(--muted); font-weight: 700; margin-left: 4px; }
-  .iconbtn { width: 40px; height: 40px; border-radius: 14px; border: none; cursor: pointer; flex: none; background: rgba(255,255,255,.09); color: var(--ink); display: grid; place-items: center; }
+  .iconbtn { width: 40px; height: 40px; border-radius: 14px; border: 1px solid var(--chip-line); cursor: pointer; flex: none; background: var(--chip); color: var(--ink); box-shadow: 0 3px 0 rgba(80,90,160,.12); display: grid; place-items: center; }
   .iconbtn svg { width: 20px; height: 20px; }
   .iconbtn:active { transform: scale(.92); }
   .bar { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
-  .step { width: 34px; height: 34px; border-radius: 12px; border: none; background: rgba(255,255,255,.09); color: var(--ink); font-size: 20px; font-weight: 800; cursor: pointer; display: grid; place-items: center; padding: 0; line-height: 1; }
+  .step { width: 34px; height: 34px; border-radius: 12px; border: 1px solid var(--chip-line); background: var(--chip); color: var(--ink); font-size: 20px; font-weight: 800; cursor: pointer; display: grid; place-items: center; padding: 0; line-height: 1; }
   .step:disabled { opacity: .3; cursor: default; }
   #levelTitle { font-family: var(--display); font-weight: 800; font-size: 19px; line-height: 1; white-space: nowrap; }
   #levelLights { display: flex; gap: 4px; flex: 1; }
   #levelLights i { width: 12px; height: 12px; border-radius: 50%; display: block; background: currentColor; }
-  #moves { font-family: var(--display); font-weight: 700; font-size: 15px; line-height: 1; padding: 9px 12px 7px; border-radius: 999px; background: rgba(255,255,255,.09); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  #moves { font-family: var(--display); font-weight: 700; font-size: 15px; line-height: 1; padding: 9px 12px 7px; border-radius: 999px; background: var(--chip); border: 1px solid var(--chip-line); white-space: nowrap; font-variant-numeric: tabular-nums; }
   #hint { font-size: 14px; font-weight: 700; color: var(--muted); margin: 10px 0 0; text-align: center; min-height: 19px; text-wrap: balance; }
   #hint b { color: var(--ink); }
 
@@ -70,13 +72,13 @@
   #power.on { background: #39d98a; box-shadow: 0 5px 0 #1f9e5f; }
   #power.nudge { animation: nudge 1.2s ease-in-out infinite; }
   @keyframes nudge { 50% { transform: scale(1.1); } }
-  .findbtn { position: absolute; left: max(14px, env(safe-area-inset-left, 0px)); bottom: calc(26px + env(safe-area-inset-bottom, 0px)); height: 40px; padding: 0 14px; border-radius: 14px; border: none; background: rgba(255,255,255,.1); color: var(--ink); font-family: var(--display); font-weight: 800; font-size: 15px; cursor: pointer; z-index: 2; }
-  #dragHint { position: absolute; left: 50%; top: 10px; translate: -50% 0; font-size: 13px; font-weight: 800; color: var(--muted); background: rgba(10,15,40,.6); padding: 6px 12px; border-radius: 99px; pointer-events: none; transition: opacity .5s; white-space: nowrap; }
+  .findbtn { position: absolute; left: max(14px, env(safe-area-inset-left, 0px)); bottom: calc(26px + env(safe-area-inset-bottom, 0px)); height: 40px; padding: 0 14px; border-radius: 14px; border: 1px solid var(--chip-line); background: var(--chip); color: var(--ink); font-family: var(--display); font-weight: 800; font-size: 15px; cursor: pointer; z-index: 2; box-shadow: 0 3px 0 rgba(80,90,160,.12); }
+  #dragHint { position: absolute; left: 50%; top: 10px; translate: -50% 0; font-size: 13px; font-weight: 800; color: var(--ink); background: rgba(255,255,255,.75); padding: 6px 12px; border-radius: 99px; pointer-events: none; transition: opacity .5s; white-space: nowrap; }
 
-  .overlay { position: fixed; inset: 0; display: none; place-items: center; z-index: 10; background: rgba(6, 9, 26, .6); padding: 16px; }
+  .overlay { position: fixed; inset: 0; display: none; place-items: center; z-index: 10; background: rgba(70, 80, 140, .35); padding: 16px; }
   .overlay.show { display: grid; animation: fade .25s; }
   @keyframes fade { from { opacity: 0; } }
-  .card { max-height: calc(100dvh - 32px); overflow-y: auto; background: var(--sky-1); border-radius: 26px; padding: 24px 22px 22px; text-align: center; width: min(340px, 100%); animation: pop .4s cubic-bezier(.3,1.6,.5,1); }
+  .card { max-height: calc(100dvh - 32px); overflow-y: auto; background: var(--sky-1); box-shadow: 0 18px 50px rgba(60,70,140,.25); border-radius: 26px; padding: 24px 22px 22px; text-align: center; width: min(340px, 100%); animation: pop .4s cubic-bezier(.3,1.6,.5,1); }
   @keyframes pop { from { transform: scale(.8); } }
   .card h2 { font-family: var(--display); margin: 0 0 4px; font-size: 28px; line-height: 1.1; color: var(--sun); }
   .card p { margin: 0 0 14px; color: var(--muted); font-size: 15px; font-weight: 700; }
@@ -84,12 +86,12 @@
   .stars span { display: inline-block; animation: starIn .45s cubic-bezier(.3,1.8,.5,1) backwards; }
   .stars span:nth-child(2) { animation-delay: .15s; } .stars span:nth-child(3) { animation-delay: .3s; }
   @keyframes starIn { from { transform: scale(0) rotate(-90deg); } }
-  .stars .off { color: #3a4580; } .stars .on { color: var(--sun); }
+  .stars .off { color: #dfe3f5; } .stars .on { color: var(--sun); }
   .btn { font-family: var(--display); font-weight: 800; font-size: 17px; line-height: 1; border: none; border-radius: 16px; padding: 13px 22px 11px; cursor: pointer; background: var(--sun); color: #3a2500; box-shadow: 0 4px 0 #d49a1e; }
   .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #d49a1e; }
   #levelGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 6px 0 16px; }
-  #levelGrid button { aspect-ratio: 1; border-radius: 14px; border: none; cursor: pointer; padding: 0; background: rgba(255,255,255,.09); color: var(--ink); font-family: var(--display); font-weight: 800; font-size: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; line-height: 1; }
-  #levelGrid button small { font-size: 10px; color: var(--sun); letter-spacing: -1px; min-height: 10px; }
+  #levelGrid button { aspect-ratio: 1; border-radius: 14px; border: none; cursor: pointer; padding: 0; background: #eef1ff; color: var(--ink); font-family: var(--display); font-weight: 800; font-size: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; line-height: 1; }
+  #levelGrid button small { font-size: 10px; color: #f5a623; letter-spacing: -1px; min-height: 10px; }
   #levelGrid button.cur { background: var(--sun); color: #3a2500; }
   #levelGrid button.cur small { color: #3a2500; }
   #levelGrid button:disabled { opacity: .3; cursor: default; }
@@ -97,7 +99,7 @@
   #err { display: none; position: absolute; inset: 0; place-items: center; text-align: center; padding: 20px; color: var(--muted); font-weight: 700; }
   /* tutorial cards */
   .eyebrow { font-size: 12px; font-weight: 800; letter-spacing: 1.2px; color: var(--muted); text-transform: uppercase; margin-bottom: 2px; }
-  .tutart { background: #141c45; border-radius: 18px; padding: 8px; margin: 12px 0 12px; }
+  .tutart { background: #2f3b80; border-radius: 18px; padding: 8px; margin: 12px 0 12px; }
   .tutart svg { width: 100%; height: auto; display: block; }
   #tutText { text-wrap: pretty; }
   .t-s1, .t-s2, .t-s3 { stroke-dasharray: 1 1; }
@@ -416,13 +418,14 @@
   stage.prepend(renderer.domElement);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(40, 1, .1, 100);
-  scene.add(new THREE.AmbientLight(0xffffff, .75));
-  const sun = new THREE.DirectionalLight(0xffffff, .7); sun.position.set(5, 9, 7); scene.add(sun);
+  scene.add(new THREE.AmbientLight(0xffffff, .58)); scene.add(new THREE.HemisphereLight(0xffffff, 0xdfe6ff, .3));
+  const sun = new THREE.DirectionalLight(0xffffff, .32); sun.position.set(5, 9, 7); scene.add(sun);
+  const fillL = new THREE.DirectionalLight(0xffffff, .22); fillL.position.set(-6, -4, -5); scene.add(fillL);
   const world = new THREE.Group(); scene.add(world);
 
   /* ---------- the cube ---------- */
   const V = a => new THREE.Vector3(a[0], a[1], a[2]);
-  const body = new THREE.Mesh(new THREE.BoxGeometry(N, N, N), new THREE.MeshStandardMaterial({ color: 0x141c45, roughness: .9 }));
+  const body = new THREE.Mesh(new THREE.BoxGeometry(N, N, N), new THREE.MeshStandardMaterial({ color: 0x8d9cec, roughness: .8 }));
   world.add(body);
   const roundRect = (w, r) => { const s = new THREE.Shape(), h = w / 2; s.moveTo(-h + r, -h); s.lineTo(h - r, -h); s.quadraticCurveTo(h, -h, h, -h + r); s.lineTo(h, h - r); s.quadraticCurveTo(h, h, h - r, h); s.lineTo(-h + r, h); s.quadraticCurveTo(-h, h, -h, h - r); s.lineTo(-h, -h + r); s.quadraticCurveTo(-h, -h, -h + r, -h); return new THREE.ShapeGeometry(s, 4); };
   const tileGeo = roundRect(.88, .16);
@@ -433,7 +436,7 @@
     const n = V(normalOf(f));
     for (let u = 0; u < N; u++) for (let v = 0; v < N; v++) {
       const key = f + ':' + u + ',' + v, { p } = cellP(key);
-      const m = new THREE.Mesh(tileGeo, new THREE.MeshStandardMaterial({ color: 0x2b3778, roughness: .8 }));
+      const m = new THREE.Mesh(tileGeo, new THREE.MeshStandardMaterial({ color: 0xc3cfff, roughness: .75 }));
       m.position.copy(V(worldOf(f, p, .004))); m.quaternion.setFromUnitVectors(zUp, n);
       m.userData.key = key; world.add(m); tiles[key] = m;
     }
@@ -478,7 +481,7 @@
   /* ---------- reflective environment for the mirrors ---------- */
   const envTex = (() => {
     const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256; const g = cv.getContext('2d');
-    const gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, '#cfe8ff'); gr.addColorStop(.45, '#5b6fc4'); gr.addColorStop(.55, '#26306b'); gr.addColorStop(1, '#0b1230');
+    const gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, '#ffffff'); gr.addColorStop(.45, '#b8e2ff'); gr.addColorStop(.55, '#9fb3ff'); gr.addColorStop(1, '#e6d6ff');
     g.fillStyle = gr; g.fillRect(0, 0, 512, 256);
     g.fillStyle = '#ffffff'; [[80, 40, 40], [300, 30, 60], [430, 60, 30]].forEach(([x, y, w]) => { g.globalAlpha = .9; g.fillRect(x, y, w, 14); });
     g.globalAlpha = 1; g.fillStyle = '#ffe9a8'; g.beginPath(); g.arc(200, 50, 16, 0, 7); g.fill();
@@ -679,7 +682,7 @@
   const blockTopMat = new THREE.MeshStandardMaterial({ color: 0x9ae9bf, roughness: .5 });
   function build() {
     objs.forEach(o => world.remove(o)); objs = []; mirrors = {}; lanternSprites = []; lanternLens = []; targetSprites = {}; pipeMeshes = [];
-    Object.values(tiles).forEach(t => t.material.color.setHex(0x2b3778));
+    Object.values(tiles).forEach(t => t.material.color.setHex(0xc3cfff));
     clearBeams();
     cells = {};
     L.cells.forEach(([k, t, fi]) => cells[k] = typeof t === 'object' ? JSON.parse(JSON.stringify(t)) : { t, fi });
@@ -705,7 +708,7 @@
           mg.position.copy(V(worldOf(f, p, hh * BLOCK_H))); mg.quaternion.copy(mirrorQuat(k, c.top)); mg.userData.targetQ = mg.quaternion.clone();
           add(mg); mirrors[mk] = mg;
         }
-        tiles[k].material.color.setHex(0x3e8a68);
+        tiles[k].material.color.setHex(0xa6e6c4);
       } else if (c.t === 'K') {                            // periscope: translucent body, two mirrors inside, a window at each mirror
         const n = V(normalOf(f)), base = V(worldOf(f, p, 0));
         const bodyH = c.h * LVL + BEAM_H + .26;
@@ -721,14 +724,14 @@
           pv.position.copy(V(worldOf(f, p, BEAM_H + lv * LVL))); pv.quaternion.copy(periQuat(k, fi)); pv.userData.targetQ = pv.quaternion.clone();
           add(pv); mirrors[mk] = pv;
         });
-        tiles[k].material.color.setHex(0x5a4f9a);
+        tiles[k].material.color.setHex(0xcfc6ff);
       } else if (c.t === 'O' || c.t === 'U') {              // hole mouth (+ tilt mirror)
         const n = V(normalOf(f)), q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
         const disc = new THREE.Mesh(holeDiscGeo, holeDiscMat); disc.position.copy(V(worldOf(f, p, .008))); disc.quaternion.copy(q); add(disc);
         const ringMat = new THREE.MeshStandardMaterial({ color: 0x9d8cff, roughness: .4, emissive: 0 });
         const ring = new THREE.Mesh(holeRingGeo, ringMat); ring.position.copy(disc.position); ring.quaternion.copy(q); add(ring); holeRings[k] = ringMat;
         const tube = new THREE.Mesh(holeTubeGeo, holeTubeMat); tube.position.copy(V(worldOf(f, p, -.2))); tube.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n); add(tube);
-        tiles[k].material.color.setHex(0x3a3470);
+        tiles[k].material.color.setHex(0xc2b8ff);
         if (c.t === 'U') {
           const g = makeTiltMirror(k);
           g.position.copy(V(worldOf(f, p, BEAM_H))); g.quaternion.copy(tiltQuat(k, c.fi)); g.userData.targetQ = g.quaternion.clone(); g.userData.tilt = true;
@@ -740,19 +743,19 @@
         const top = new THREE.Mesh(blockTopGeo, doorTopMat); top.position.y = BLOCK_H + .012; g.add(top);
         const bar = new THREE.Mesh(new THREE.BoxGeometry(.62, .07, .62), doorTopMat); bar.position.y = BLOCK_H * .45; g.add(bar);
         g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(upQuat(f)); add(g); doors[k] = g;
-        tiles[k].material.color.setHex(0x8a5530);
+        tiles[k].material.color.setHex(0xffcaa3);
       } else if (c.t === 'S' || c.t === 'F') {             // photocell: lens on one side; orange ones open doors, gold ones run motor mirrors
         const pv = makePhotocell(k, c.t === 'S' ? 0xff9a52 : 0xffb22e);
         pv.position.copy(V(worldOf(f, p, 0))); pv.quaternion.copy(periQuat(k, c.fi)); pv.userData.targetQ = pv.quaternion.clone();
         add(pv); mirrors[k] = pv; sensorObjs[k] = { lensMat: pv.userData.lensMat, ledMat: pv.userData.ledMat };
-        tiles[k].material.color.setHex(c.t === 'S' ? 0x8a5530 : 0x6b6326);
+        tiles[k].material.color.setHex(c.t === 'S' ? 0xffcaa3 : 0xffe58f);
       } else if ('/\\abce'.includes(c.t)) {
         const locked = c.t === 'a' || c.t === 'b', motor = c.t === 'c' || c.t === 'e';
         const g = makeMirror(k, locked, motor);
-        if (motor) { g.userData.motor = true; tiles[k].material.color.setHex(0x6b6326); }
+        if (motor) { g.userData.motor = true; tiles[k].material.color.setHex(0xffe58f); }
         g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(mirrorQuat(k, c.t)); g.userData.targetQ = g.quaternion.clone();
         add(g); mirrors[k] = g;
-        if (locked) tiles[k].material.color.setHex(0x3d3b6e);
+        if (locked) tiles[k].material.color.setHex(0xc8bfff);
       }
     });
     // mirrored pipes: shiny tube following the light's own curve
@@ -767,7 +770,7 @@
         const ring = new THREE.Mesh(new THREE.TorusGeometry(.15, .04, 10, 24), new THREE.MeshStandardMaterial({ color: 0xf6f8ff, roughness: .4 }));
         ring.position.copy(V(worldOf(f, p, BEAM_H))).addScaledVector(V(o), .46);
         ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), V(o)); add(ring);
-        tiles[k].material.color.setHex(0x4a5aa8);
+        tiles[k].material.color.setHex(0xb9d3ff);
       });
     });
     // Y pipes: two arms merge above the output mouth; the light of both arms comes out mixed
@@ -782,7 +785,7 @@
         const ring = new THREE.Mesh(new THREE.TorusGeometry(r, .045, 10, 24), new THREE.MeshStandardMaterial({ color: 0xffcf86, roughness: .35, metalness: .2 }));
         ring.position.copy(V(worldOf(f, p, BEAM_H))).addScaledVector(V(o), .46);
         ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), V(o)); add(ring);
-        tiles[k].material.color.setHex(0x5a4f9a);
+        tiles[k].material.color.setHex(0xcfc6ff);
       });
     });
     // lanterns: a little torch lying on its tile, pointing where the light will go, plus an arrow on the tile
@@ -896,8 +899,8 @@
     });
     segs.forEach(sg => {
       const dir = sg.b.clone().sub(sg.a).normalize(), col = new THREE.Color(hex(sg.c));
-      const core = new THREE.Mesh(cyl, new THREE.MeshBasicMaterial({ color: col.clone().lerp(new THREE.Color(0xffffff), .45) }));
-      const glow = new THREE.Mesh(cyl, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: .45, blending: THREE.AdditiveBlending, depthWrite: false }));
+      const core = new THREE.Mesh(cyl, new THREE.MeshBasicMaterial({ color: col.clone().lerp(new THREE.Color(0xffffff), .15) }));
+      const glow = new THREE.Mesh(cyl, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: .32, depthWrite: false }));
       [core, glow].forEach((m, j) => { m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); m.userData.r = j ? .11 : .04; beamGroup.add(m); });
       beams.push({ core, glow, a: sg.a, dir, len: sg.len, start: sg.start });
       const eid = edgeId(sg.end), strip = eid.split(',').filter(v => v !== '0').length === 2 && edgeStrips[eid];
@@ -905,7 +908,7 @@
     });
     tr.hits.forEach(h => pendingHits.push({ at: h.d, fn: () => { const m = mirrors[h.k]; if (m) m.userData.frame.material.emissive.set(hex(h.c)).multiplyScalar(.45); const r = holeRings[h.k]; if (r) r.emissive.set(hex(h.c)).multiplyScalar(.8); } }));
     tr.sparks.forEach(s => {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(.13, 12, 8), new THREE.MeshBasicMaterial({ color: hex(s.c), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+      const m = new THREE.Mesh(new THREE.SphereGeometry(.13, 12, 8), new THREE.MeshBasicMaterial({ color: hex(s.c), transparent: true, opacity: 0, depthWrite: false }));
       m.position.copy(V(s.p)); beamGroup.add(m); sparkMeshes.push(m);
       pendingHits.push({ at: s.d, fn: () => m.userData.on = true });
     });
@@ -1200,10 +1203,10 @@
 
   /* ---------- background stars ---------- */
   const sc = $('stars'), sg = sc.getContext('2d');
-  let starList = [];
+  let starList = [];   // (clouds)
   function starsResize() {
     const d = Math.min(2, devicePixelRatio || 1); sc.width = innerWidth * d; sc.height = innerHeight * d; sg.setTransform(d, 0, 0, d, 0, 0);
-    starList = Array.from({ length: Math.round(innerWidth * innerHeight / 4500) }, () => ({ x: Math.random() * innerWidth, y: Math.random() * innerHeight, r: Math.random() * 1.2 + .4, p: Math.random() * 7, s: .5 + Math.random() * 1.5 }));
+    starList = Array.from({ length: Math.max(4, Math.round(innerWidth / 160)) }, (_, i) => ({ x: Math.random() * innerWidth, y: 40 + Math.random() * innerHeight * .8, s: .6 + Math.random() * .9, v: 4 + Math.random() * 8 }));
   }
   addEventListener('resize', starsResize); starsResize();
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1211,7 +1214,13 @@
   /* ---------- loop ---------- */
   function frameLoop(now) {
     sg.clearRect(0, 0, innerWidth, innerHeight); sg.fillStyle = '#fff';
-    for (const s of starList) { sg.globalAlpha = reduce ? .7 : .45 + .45 * Math.sin(now / 1000 * s.s + s.p); sg.beginPath(); sg.arc(s.x, s.y, s.r, 0, 7); sg.fill(); }
+    for (const c of starList) {
+      const x = ((c.x + (reduce ? 0 : now / 1000 * c.v)) % (innerWidth + 260)) - 130, y = c.y, k = c.s;
+      sg.globalAlpha = .75;
+      sg.beginPath(); sg.ellipse(x, y, 60 * k, 22 * k, 0, 0, 7); sg.fill();
+      sg.beginPath(); sg.arc(x - 22 * k, y - 10 * k, 24 * k, 0, 7); sg.fill();
+      sg.beginPath(); sg.arc(x + 14 * k, y - 18 * k, 30 * k, 0, 7); sg.fill();
+    }
     sg.globalAlpha = 1;
     Object.values(mirrors).forEach(m => {
       const u = m.userData;
