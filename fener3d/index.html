@@ -432,10 +432,20 @@
     const g = new THREE.ExtrudeGeometry(sh, { depth: w, bevelEnabled: true, bevelThickness: R, bevelSize: R, bevelSegments: 8, curveSegments: 10 });
     g.translate(0, 0, -w / 2); g.computeVertexNormals(); return g;
   })();
-  const body = new THREE.Mesh(bodyGeo, new THREE.MeshStandardMaterial({ color: 0x8d9cec, roughness: .8 }));
+  const body = new THREE.Mesh(bodyGeo, new THREE.MeshStandardMaterial({ color: 0x7d8ad6, roughness: .5 }));
   world.add(body);
+  const shadow = (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 128; const g = cv.getContext('2d');
+    const gr = g.createRadialGradient(64, 64, 4, 64, 64, 62); gr.addColorStop(0, 'rgba(40,90,70,.35)'); gr.addColorStop(1, 'rgba(40,90,70,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(7.5, 7.5), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2; m.position.y = -4.3; m.renderOrder = -1; return m; })();
+  scene.add(shadow);
   const roundRect = (w, r) => { const s = new THREE.Shape(), h = w / 2; s.moveTo(-h + r, -h); s.lineTo(h - r, -h); s.quadraticCurveTo(h, -h, h, -h + r); s.lineTo(h, h - r); s.quadraticCurveTo(h, h, h - r, h); s.lineTo(-h + r, h); s.quadraticCurveTo(-h, h, -h, h - r); s.lineTo(-h, -h + r); s.quadraticCurveTo(-h, -h, -h + r, -h); return new THREE.ShapeGeometry(s, 4); };
-  const tileGeo = roundRect(.88, .16);
+  // raised, softly bevelled tiles (a little pillow on every square)
+  const tileGeo = (() => { const s2 = new THREE.Shape(), h = .38, r = .13; s2.moveTo(-h + r, -h); s2.lineTo(h - r, -h); s2.quadraticCurveTo(h, -h, h, -h + r); s2.lineTo(h, h - r); s2.quadraticCurveTo(h, h, h - r, h); s2.lineTo(-h + r, h); s2.quadraticCurveTo(-h, h, -h, h - r); s2.lineTo(-h, -h + r); s2.quadraticCurveTo(-h, -h, -h + r, -h);
+    const g = new THREE.ExtrudeGeometry(s2, { depth: .015, bevelEnabled: true, bevelThickness: .03, bevelSize: .04, bevelSegments: 4, curveSegments: 8 }); g.computeVertexNormals(); return g; })();
+  // every face gets its own soft pastel, like a toy cube
+  const FACE_COL = { 'x-': 0x8fe3b8, 'x+': 0xffb3c8, 'y-': 0xc4b3ff, 'y+': 0x9fd0ff, 'z-': 0xffc98f, 'z+': 0xffe680 };
+  const tileBase = k => FACE_COL[k.split(':')[0]];
   const FACE_LIST = ['x-', 'x+', 'y-', 'y+', 'z-', 'z+'];
   const tiles = {};
   const zUp = new THREE.Vector3(0, 0, 1);
@@ -443,8 +453,8 @@
     const n = V(normalOf(f));
     for (let u = 0; u < N; u++) for (let v = 0; v < N; v++) {
       const key = f + ':' + u + ',' + v, { p } = cellP(key);
-      const m = new THREE.Mesh(tileGeo, new THREE.MeshStandardMaterial({ color: 0xc3cfff, roughness: .75 }));
-      m.position.copy(V(worldOf(f, p, .004))); m.quaternion.setFromUnitVectors(zUp, n);
+      const m = new THREE.Mesh(tileGeo, new THREE.MeshStandardMaterial({ color: FACE_COL[f], roughness: .55 }));
+      m.position.copy(V(worldOf(f, p, .03))); m.quaternion.setFromUnitVectors(zUp, n);
       m.userData.key = key; world.add(m); tiles[key] = m;
     }
   });
@@ -689,7 +699,7 @@
   const blockTopMat = new THREE.MeshStandardMaterial({ color: 0x9ae9bf, roughness: .5 });
   function build() {
     objs.forEach(o => world.remove(o)); objs = []; mirrors = {}; lanternSprites = []; lanternLens = []; targetSprites = {}; pipeMeshes = [];
-    Object.values(tiles).forEach(t => t.material.color.setHex(0xc3cfff));
+    Object.entries(tiles).forEach(([k, t]) => t.material.color.setHex(tileBase(k)));
     clearBeams();
     cells = {};
     L.cells.forEach(([k, t, fi]) => cells[k] = typeof t === 'object' ? JSON.parse(JSON.stringify(t)) : { t, fi });
@@ -734,7 +744,7 @@
         tiles[k].material.color.setHex(0xcfc6ff);
       } else if (c.t === 'O' || c.t === 'U') {              // hole mouth (+ tilt mirror)
         const n = V(normalOf(f)), q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
-        const disc = new THREE.Mesh(holeDiscGeo, holeDiscMat); disc.position.copy(V(worldOf(f, p, .008))); disc.quaternion.copy(q); add(disc);
+        const disc = new THREE.Mesh(holeDiscGeo, holeDiscMat); disc.position.copy(V(worldOf(f, p, .09))); disc.quaternion.copy(q); add(disc);
         const ringMat = new THREE.MeshStandardMaterial({ color: 0x9d8cff, roughness: .4, emissive: 0 });
         const ring = new THREE.Mesh(holeRingGeo, ringMat); ring.position.copy(disc.position); ring.quaternion.copy(q); add(ring); holeRings[k] = ringMat;
         const tube = new THREE.Mesh(holeTubeGeo, holeTubeMat); tube.position.copy(V(worldOf(f, p, -.2))); tube.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n); add(tube);
@@ -812,7 +822,7 @@
       const arrow = new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color: col }));
       const side = new THREE.Vector3().crossVectors(d, n);
       arrow.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side, d, n));
-      arrow.position.copy(V(worldOf(f, p, .012))).addScaledVector(d, .66); add(arrow);
+      arrow.position.copy(V(worldOf(f, p, .09))).addScaledVector(d, .66); add(arrow);
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteTex('lantern', hex(l.c), 'off'), transparent: true }));
       sp.position.copy(base).addScaledVector(d, -.12).addScaledVector(n, .38); sp.scale.set(.46, .46, 1); sp.userData = { col: hex(l.c), base: .46 };
       add(sp); lanternSprites.push(sp);
