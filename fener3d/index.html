@@ -26,7 +26,7 @@
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; }
   body {
-    background: linear-gradient(180deg, #a9dcff 0%, #d6ecff 45%, #ffe1ef 100%) fixed, var(--sky-0);
+    background: linear-gradient(180deg, #a9dcff 0%, #d8f0ff 45%, #c4f0d2 100%) fixed, var(--sky-0);
     color: var(--ink); font-family: var(--body);
     user-select: none; -webkit-user-select: none;
     display: flex; flex-direction: column; overflow: hidden;
@@ -425,7 +425,14 @@
 
   /* ---------- the cube ---------- */
   const V = a => new THREE.Vector3(a[0], a[1], a[2]);
-  const body = new THREE.Mesh(new THREE.BoxGeometry(N, N, N), new THREE.MeshStandardMaterial({ color: 0x8d9cec, roughness: .8 }));
+  // cube body with softly rounded edges (a rounded square extruded with a round bevel)
+  const bodyGeo = (() => {
+    const R = .13, w = N - 2 * R, c = .04, sh = new THREE.Shape(), h = w / 2;
+    sh.moveTo(-h + c, -h); sh.lineTo(h - c, -h); sh.quadraticCurveTo(h, -h, h, -h + c); sh.lineTo(h, h - c); sh.quadraticCurveTo(h, h, h - c, h); sh.lineTo(-h + c, h); sh.quadraticCurveTo(-h, h, -h, h - c); sh.lineTo(-h, -h + c); sh.quadraticCurveTo(-h, -h, -h + c, -h);
+    const g = new THREE.ExtrudeGeometry(sh, { depth: w, bevelEnabled: true, bevelThickness: R, bevelSize: R, bevelSegments: 8, curveSegments: 10 });
+    g.translate(0, 0, -w / 2); g.computeVertexNormals(); return g;
+  })();
+  const body = new THREE.Mesh(bodyGeo, new THREE.MeshStandardMaterial({ color: 0x8d9cec, roughness: .8 }));
   world.add(body);
   const roundRect = (w, r) => { const s = new THREE.Shape(), h = w / 2; s.moveTo(-h + r, -h); s.lineTo(h - r, -h); s.quadraticCurveTo(h, -h, h, -h + r); s.lineTo(h, h - r); s.quadraticCurveTo(h, h, h - r, h); s.lineTo(-h + r, h); s.quadraticCurveTo(-h, h, -h, h - r); s.lineTo(-h, -h + r); s.quadraticCurveTo(-h, -h, -h + r, -h); return new THREE.ShapeGeometry(s, 4); };
   const tileGeo = roundRect(.88, .16);
