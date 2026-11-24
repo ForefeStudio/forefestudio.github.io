@@ -578,6 +578,28 @@
     const x = new THREE.Vector3().crossVectors(n, fd), y = fd.clone().add(n).normalize(), z = fd.clone().sub(n).normalize();
     return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
   }
+  // periscope parts: a pivot that turns around the face normal; local +X = the side it faces, +Y = up
+  const periBodyMat = new THREE.MeshStandardMaterial({ color: 0xffc6e4, roughness: .2, metalness: .1, envMap: envTex, transparent: true, opacity: .32, depthWrite: false, side: THREE.DoubleSide });
+  const periEdgeMat = new THREE.LineBasicMaterial({ color: 0xffa8d8, transparent: true, opacity: .8 });
+  const periCapMat = new THREE.MeshStandardMaterial({ color: 0xffa8d8, roughness: .5 });
+  function periQuat(key, fi) {
+    const { f } = cellP(key), n = V(normalOf(f)), fd = V(tangentDirsS(f)[fi]);
+    return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(fd, n, new THREE.Vector3().crossVectors(fd, n)));
+  }
+  function makePeriMirror(key, up) {
+    const pv = new THREE.Group();
+    // the mirror, tilted 45° inside the body: bottom one sends side light up, top one sends rising light out of the side
+    const m = makeTiltMirror(key); m.scale.setScalar(.52);
+    const zz = new THREE.Vector3(1, up ? 1 : -1, 0).normalize(), xx = new THREE.Vector3(0, 0, 1), yy = new THREE.Vector3().crossVectors(zz, xx);
+    m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xx, yy, zz));
+    pv.add(m);
+    // window: a short open sleeve on the facing side with a ring around the opening
+    const sleeve = new THREE.Mesh(new THREE.BoxGeometry(.2, .26, .3), periBodyMat); sleeve.position.x = .33; pv.add(sleeve);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(.11, .025, 8, 20), periCapMat); ring.position.x = .43; ring.rotation.y = Math.PI / 2; pv.add(ring);
+    pv.traverse(o => { if (o.isMesh) o.userData.key = key; });
+    pv.userData = { key, frame: m.userData.frame };
+    return pv;
+  }
   // tilt mirror that sends light coming from its facing side up (up = true) or down
   function tiltQuatGen(key, fi, up) {
     const { f } = cellP(key), n = V(normalOf(f)), fd = V(tangentDirsS(f)[fi]);
@@ -643,17 +665,18 @@
           add(mg); mirrors[mk] = mg;
         }
         tiles[k].material.color.setHex(0x3e8a68);
-      } else if (c.t === 'K') {                            // periscope tower: two tilt mirrors on a thin post
+      } else if (c.t === 'K') {                            // periscope: translucent body, two mirrors inside, a window at each mirror
         const n = V(normalOf(f)), base = V(worldOf(f, p, 0));
-        const postH = c.h * LVL + BEAM_H + .3;
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(.035, .045, postH, 10), towerMat);
-        post.position.copy(base).addScaledVector(n, postH / 2); post.quaternion.copy(upQuat(f)); add(post);
-        const foot = new THREE.Mesh(new THREE.CylinderGeometry(.22, .25, .05, 24), towerMat); foot.position.copy(base).addScaledVector(n, .025); foot.quaternion.copy(upQuat(f)); add(foot);
-        [['lo', 0, c.lo, true], ['hi', c.h, c.hi, false]].forEach(([part, lv, fi, up]) => {
-          const mk = k + '#' + part, mg = makeTiltMirror(mk);
-          mg.position.copy(V(worldOf(f, p, BEAM_H + lv * LVL))); mg.quaternion.copy(tiltQuatGen(k, fi, up)); mg.userData.targetQ = mg.quaternion.clone();
-          mg.userData.frame.material.color.setHex(0xffa8d8);
-          add(mg); mirrors[mk] = mg;
+        const bodyH = c.h * LVL + BEAM_H + .26;
+        const body = new THREE.Mesh(new THREE.BoxGeometry(.46, bodyH, .46), periBodyMat);
+        body.position.copy(base).addScaledVector(n, bodyH / 2); body.quaternion.copy(upQuat(f)); add(body);
+        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(body.geometry), periEdgeMat); edges.position.copy(body.position); edges.quaternion.copy(body.quaternion); add(edges);
+        const cap = new THREE.Mesh(new THREE.CylinderGeometry(.27, .27, .05, 4, 1), periCapMat); cap.rotation.y = Math.PI / 4;
+        const capG = new THREE.Group(); capG.add(cap); capG.position.copy(base).addScaledVector(n, bodyH + .025); capG.quaternion.copy(upQuat(f)); add(capG);
+        [['lo', 0, c.lo, true], ['hi', c.h, c.hi, false]].forEach(([part, lv, fi]) => {
+          const mk = k + '#' + part, pv = makePeriMirror(mk, part === 'lo');
+          pv.position.copy(V(worldOf(f, p, BEAM_H + lv * LVL))); pv.quaternion.copy(periQuat(k, fi)); pv.userData.targetQ = pv.quaternion.clone();
+          add(pv); mirrors[mk] = pv;
         });
         tiles[k].material.color.setHex(0x5a4f9a);
       } else if (c.t === 'O' || c.t === 'U') {              // hole mouth (+ tilt mirror)
@@ -879,7 +902,7 @@
   }
 
   /* ---------- camera orbit ---------- */
-  let theta = .7, phi = 1.05, radius = 12.5, spin = 0;
+  let theta = 0, phi = 1.22, radius = 12.5, spin = 0;   // the camera stays put; dragging turns the cube itself
   function placeCamera() {
     camera.position.set(radius * Math.sin(phi) * Math.sin(theta), radius * Math.cos(phi), radius * Math.sin(phi) * Math.cos(theta));
     camera.lookAt(0, 0, 0);
@@ -906,7 +929,13 @@
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size === 2) { const [a, b] = [...pointers.values()]; radius = Math.max(8, Math.min(20, r0 * pinch0 / Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)))); placeCamera(); moved = 99; return; }
     moved += Math.abs(dx) + Math.abs(dy);
-    if (moved > 6) { camAnim = null; stage.classList.add('dragging'); theta -= dx * .008; phi = Math.max(.15, Math.min(2.99, phi - dy * .008)); placeCamera(); hideDragHint(); }
+    if (moved > 6) {
+      camAnim = null; stage.classList.add('dragging'); hideDragHint();
+      // rotate around the screen's own axes, so the cube always follows the finger
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0), upv = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+      const q = new THREE.Quaternion().setFromAxisAngle(upv, dx * .009).multiply(new THREE.Quaternion().setFromAxisAngle(right, dy * .009));
+      world.quaternion.premultiply(q);
+    }
   });
   const up = e => {
     if (!pointers.has(e.pointerId)) return;
@@ -933,7 +962,7 @@
       const [ck, part] = k.split('#'), c = cells[ck], m = mirrors[k];
       m.userData.fromQ = m.quaternion.clone(); m.userData.t0 = performance.now();
       if (part === 'top') { c.top = FLIP[c.top]; m.userData.targetQ = mirrorQuat(ck, c.top); }
-      else { c[part] = (c[part] + 1) % 4; m.userData.targetQ = tiltQuatGen(ck, c[part], part === 'lo'); }
+      else { c[part] = (c[part] + 1) % 4; m.userData.targetQ = periQuat(ck, c[part]); }
       moves++; updateMoves(); sfx.rotate();
       if (lightOn) drawBeams(false);
       return;
@@ -947,16 +976,17 @@
   }
   // turn the cube so a given face looks at the viewer
   let camAnim = null;
+  // turn the cube so that face f looks at the viewer (slightly from above-right, so the neighbours show too)
   function lookAtFace(f) {
-    const n = V(normalOf(f)), dir = n.clone().multiplyScalar(1).add(new THREE.Vector3(.45, .55, .5).multiplyScalar(n.y ? .6 : 1)).normalize();
-    const toPhi = Math.acos(Math.max(-.99, Math.min(.99, dir.y))), toTheta = Math.atan2(dir.x, dir.z);
-    let dT = toTheta - theta; dT = Math.atan2(Math.sin(dT), Math.cos(dT));
-    camAnim = { t0: performance.now(), th0: theta, ph0: phi, dT, dP: toPhi - phi };
+    const n = V(normalOf(f)).applyQuaternion(world.quaternion);
+    const view = camera.position.clone().normalize().add(new THREE.Vector3(.35, .45, 0)).normalize();
+    const delta = new THREE.Quaternion().setFromUnitVectors(n, view);
+    camAnim = { t0: performance.now(), from: world.quaternion.clone(), to: delta.multiply(world.quaternion.clone()) };
   }
   function animateCamera(now) {
     if (!camAnim) return;
     const k = Math.min(1, (now - camAnim.t0) / 600), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-    theta = camAnim.th0 + camAnim.dT * e; phi = camAnim.ph0 + camAnim.dP * e; placeCamera();
+    world.quaternion.slerpQuaternions(camAnim.from, camAnim.to, e);
     if (k >= 1) camAnim = null;
   }
   $('findBtn').onclick = () => lookAtFace(L.lanterns[0].k.split(':')[0]);
