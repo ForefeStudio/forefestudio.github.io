@@ -614,7 +614,7 @@
   const periRimGeo = (() => { const g = new THREE.TorusGeometry(PERI_R - .012, .01, 8, 48); g.scale(1, Math.SQRT2, 1); return g; })();
   const periShineGeo = (() => { const a = new THREE.Shape(); a.moveTo(-.1, -.16); a.lineTo(-.05, -.16); a.lineTo(.03, .16); a.lineTo(-.02, .16); a.closePath(); return new THREE.ShapeGeometry(a); })();
   const periGlassMat = new THREE.MeshStandardMaterial({ color: 0xcfe6ff, metalness: .9, roughness: .08, envMap: envTex, envMapIntensity: 1.2, side: THREE.DoubleSide, transparent: true, opacity: .85 });
-  const periCapMat = new THREE.MeshStandardMaterial({ color: 0xf6f8ff, roughness: .4 });
+  const periCapMat = new THREE.MeshStandardMaterial({ color: 0xffcf86, roughness: .35, metalness: .15 });
   function periQuat(key, fi) {
     const { f } = cellP(key), n = V(normalOf(f)), fd = V(tangentDirsS(f)[fi]);
     return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(fd, n, new THREE.Vector3().crossVectors(fd, n)));
@@ -645,7 +645,7 @@
     // the mirror: a 45° slice of the tube, i.e. an ellipse that fills the whole cross-section
     const m = new THREE.Group();
     const disc = new THREE.Mesh(periDiscGeo, periGlassMat); m.add(disc);
-    const rimMat = new THREE.MeshStandardMaterial({ color: 0xf6f8ff, roughness: .35, metalness: .2, emissive: 0 });
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0xffcf86, roughness: .35, metalness: .15, emissive: 0 });
     const rim = new THREE.Mesh(periRimGeo, rimMat); m.add(rim);
     const shine = new THREE.Mesh(periShineGeo, streakMat); shine.position.z = .004; m.add(shine);
     const shineB = new THREE.Mesh(periShineGeo, streakMat); shineB.position.z = -.004; shineB.rotation.y = Math.PI; m.add(shineB);
