@@ -925,18 +925,27 @@
   }
   new ResizeObserver(resize).observe(stage);
 
-  const pointers = new Map(); let downAt = null, moved = 0, pinch0 = 0, r0 = 0;
+  const pointers = new Map(); let downAt = null, moved = 0, pinch0 = 0, r0 = 0, twist0 = 0;
   stage.addEventListener('pointerdown', e => {
     if (e.target.closest('button')) return;
-    stage.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { stage.setPointerCapture(e.pointerId); } catch (err) {} pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size === 1) { downAt = { x: e.clientX, y: e.clientY }; moved = 0; }
-    if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); r0 = radius; }
+    if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); r0 = radius; twist0 = Math.atan2(b.y - a.y, b.x - a.x); camAnim = null; }
   });
   stage.addEventListener('pointermove', e => {
     if (!pointers.has(e.pointerId)) return;
     const prev = pointers.get(e.pointerId); const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.size === 2) { const [a, b] = [...pointers.values()]; radius = Math.max(8, Math.min(20, r0 * pinch0 / Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)))); placeCamera(); moved = 99; return; }
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      // pinch: zoom in / out
+      radius = Math.max(8, Math.min(20, r0 * pinch0 / Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)))); placeCamera();
+      // twist (one finger up, the other down): roll the cube around the line of sight, the same way the fingers turn
+      const ang = Math.atan2(b.y - a.y, b.x - a.x); let dAng = ang - twist0; dAng = Math.atan2(Math.sin(dAng), Math.cos(dAng)); twist0 = ang;
+      const toViewer = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 2);
+      world.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(toViewer, -dAng));
+      moved = 99; hideDragHint(); return;
+    }
     moved += Math.abs(dx) + Math.abs(dy);
     if (moved > 6) {
       camAnim = null; stage.classList.add('dragging'); hideDragHint();
