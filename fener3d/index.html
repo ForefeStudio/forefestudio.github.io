@@ -198,6 +198,7 @@
   //                 'H' block { h: storeys (1 or 2), top: item on its roof ('/', '\\', 'a', 'b' mirror or 'T' target) },
   //                 'K' periscope tower { lo, hi: facing of the bottom / top tilt mirror, h: storey of the top mirror },
   //                 'O' hole mouth (open), 'U' hole mouth with a 45° tilt mirror { fi: which of the 4 surface directions it faces },
+  //                 'S' photocell that opens a door, 'F' photocell that turns a motor mirror (both { fi: the side the lens faces }),
   //                 'S' sensor, 'D' door (closed blocks light), 'F' sun flower, 'c' / 'e' motor mirror ('/' / '\\', turned by a flower) }
   var SN = 4, BEAM_H = .2, LVL = .56;   // LVL: height of one block storey
   var AX = { x: 0, y: 1, z: 2 };
@@ -247,7 +248,7 @@
   }
   // lanterns: [{ k: key, d: [dx,dy,dz], c }]
   function traceS(cells, lanterns) {
-    const paths = [], ends = {}, endD = {}, hits = [], sparks = [];
+    const paths = [], ends = {}, endD = {}, endDir = {}, hits = [], sparks = [];
     lanterns.forEach(l => {
       let { f, p } = cellP(l.k), d = l.d.slice(), dist = 0, z = 0;   // z: storey the light travels at
       const Hz = () => BEAM_H + z * LVL;
@@ -299,7 +300,12 @@
           }
           add([c[0] - d[0] * .42, c[1] - d[1] * .42, c[2] - d[2] * .42]); hits.push({ k: key, c: l.c, d: dist }); sparks.push({ p: pts[pts.length - 1], c: l.c, d: dist }); break;
         }
-        if (cell.t === 'T' || cell.t === 'S' || cell.t === 'F') { add(c); ends[key] = (ends[key] || 0) | l.c; endD[key] = Math.max(endD[key] || 0, dist); break; }
+        if ((cell.t === 'S' || cell.t === 'F') && cell.fi !== undefined) {
+          // photocell: only light that comes in through its lens (from the side it faces) is detected
+          const fd = tangentDirsS(f)[cell.fi];
+          if (!(d[0] === -fd[0] && d[1] === -fd[1] && d[2] === -fd[2])) { blockHere(); break; }
+        }
+        if (cell.t === 'T' || cell.t === 'S' || cell.t === 'F') { add(c); ends[key] = (ends[key] || 0) | l.c; endD[key] = Math.max(endD[key] || 0, dist); endDir[key] = d.slice(); break; }
         if (cell.t === 'P' && d[0] === -cell.o[0] && d[1] === -cell.o[1] && d[2] === -cell.o[2]) {
           const peer = cells[cell.to];
           pipeCurve(key, cell.o, cell.to, peer.o).forEach(add);
@@ -322,7 +328,7 @@
       }
       paths.push({ pts, c: l.c });
     });
-    return { paths, ends, endD, hits, sparks };
+    return { paths, ends, endD, endDir, hits, sparks };
   }
   // sensors open doors and flowers turn motor mirrors; once triggered they stay triggered while the light is on
   var MOTOR_FLIP = { c: 'e', e: 'c' };
@@ -347,7 +353,7 @@
     4: { name: 'mavi', hex: '#4c9dff' }, 5: { name: 'mor', hex: '#d27bff' }, 6: { name: 'turkuaz', hex: '#3ef0d8' }, 7: { name: 'beyaz', hex: '#ffffff' },
   };
   const hex = c => COLORS[c].hex;
-  const LEVELS = [{"lanterns": [{"k": "x+:0,2", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z+:0,0", "c": 4}], "pipes": [], "cells": [["y-:3,2", "\\"], ["z+:3,0", "/"]]}, {"lanterns": [{"k": "y+:2,1", "d": [-1, 0, 0], "c": 3}], "targets": [{"k": "z+:3,2", "c": 3}], "pipes": [], "cells": [["y+:0,1", "\\"], ["y+:0,2", "/"], ["x-:2,2", "/"], ["z+:0,1", "H"], ["x-:1,2", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x-:2,2", "d": [0, 1, 0], "c": 2}], "targets": [{"k": "x+:3,2", "c": 2}], "pipes": [{"a": "y+:1,2", "oa": [-1, 0, 0], "b": "y+:3,2", "ob": [0, 0, 1]}], "cells": [["y+:2,2", "H"], ["y+:3,3", "\\"], ["x+:3,3", "\\"], ["x-:3,3", "H"]]}, {"lanterns": [{"k": "y+:3,1", "d": [0, 0, -1], "c": 1}], "targets": [{"k": "x-:0,0", "c": 1}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "y-:3,3", "ob": [0, 0, -1]}], "cells": [["y+:3,0", "\\"], ["y+:2,0", "/"], ["y-:3,2", "/"], ["x+:0,2", "b"], ["z+:2,2", "H"], ["z+:3,0", "H"], ["x+:2,0", "H"]]}, {"lanterns": [{"k": "z-:2,2", "d": [-1, 0, 0], "c": 4}, {"k": "x+:2,2", "d": [0, 0, -1], "c": 3}], "targets": [{"k": "y+:1,1", "c": 4}, {"k": "y-:2,0", "c": 3}], "pipes": [{"a": "x-:1,0", "oa": [0, 0, -1], "b": "x-:3,2", "ob": [0, 1, 0]}], "cells": [["z-:0,2", "/"], ["z-:0,1", "\\"], ["x-:2,1", "H"], ["y+:1,2", "/"], ["x+:2,0", "\\"], ["x+:1,1", "H"], ["z+:1,1", "H"], ["y+:0,0", "H"]]}, {"lanterns": [{"k": "y+:0,1", "d": [0, 0, -1], "c": 5}], "targets": [{"k": "y-:0,1", "c": 5}], "pipes": [{"a": "y+:1,0", "oa": [-1, 0, 0], "b": "x+:0,3", "ob": [0, 0, -1]}, {"a": "y-:3,1", "oa": [1, 0, 0], "b": "z+:2,2", "ob": [1, 0, 0]}], "cells": [["y+:0,0", "\\"], ["x+:0,1", "\\"], ["z+:3,2", "/"], ["z+:3,1", "\\"], ["z+:2,1", "a"], ["y-:2,1", "/"], ["x-:2,1", "H"], ["x+:0,0", "H"], ["z-:2,2", "H"], ["z+:1,3", "H"]]}, {"lanterns": [{"k": "x-:3,0", "d": [0, 1, 0], "c": 6}, {"k": "z+:0,1", "d": [0, 1, 0], "c": 1}], "targets": [{"k": "x+:1,1", "c": 6}, {"k": "x+:2,1", "c": 1}], "pipes": [{"a": "z+:3,2", "oa": [0, 1, 0], "b": "z+:3,0", "ob": [1, 0, 0]}, {"a": "y+:0,3", "oa": [0, 0, 1], "b": "x-:2,1", "ob": [0, -1, 0]}], "cells": [["y+:1,0", "a"], ["z+:1,3", "/"], ["z+:3,3", "\\"], ["z+:3,1", "H"], ["x+:0,1", "\\"], ["x-:1,1", "\\"], ["z-:1,1", "\\"], ["z-:1,2", "\\"], ["y-:2,3", "H"], ["y-:1,3", "H"], ["z-:2,0", "H"], ["z+:2,0", "H"]]}, {"lanterns": [{"k": "x+:0,3", "d": [0, 0, 1], "c": 1}, {"k": "y+:2,2", "d": [0, 0, -1], "c": 2}, {"k": "z-:2,1", "d": [0, -1, 0], "c": 4}], "targets": [{"k": "z-:1,0", "c": 1}, {"k": "z+:3,3", "c": 2}, {"k": "y+:0,1", "c": 4}], "pipes": [{"a": "z-:2,3", "oa": [0, 1, 0], "b": "z-:0,0", "ob": [0, 1, 0]}, {"a": "z-:0,1", "oa": [0, -1, 0], "b": "z-:3,3", "ob": [0, 1, 0]}, {"a": "y-:2,1", "oa": [0, 0, -1], "b": "y-:0,1", "ob": [-1, 0, 0]}], "cells": [["z+:1,0", "/"], ["z-:1,2", "H"], ["z-:2,2", "H"], ["y+:3,1", "\\"], ["x+:3,1", "b"], ["x+:3,3", "a"], ["y+:3,3", "/"], ["x-:0,1", "\\"], ["x-:0,2", "\\"], ["x-:2,2", "\\"], ["x-:2,1", "/"], ["x+:3,0", "H"], ["x+:1,1", "H"], ["x+:2,2", "H"], ["y+:2,3", "H"], ["x+:0,0", "H"]]}, {"lanterns": [{"k": "z+:1,2", "d": [-1, 0, 0], "c": 3}, {"k": "x+:3,3", "d": [0, 0, -1], "c": 4}], "targets": [{"k": "z-:0,3", "c": 4}], "pipes": [], "sensors": [{"k": "z+:1,0", "door": "x+:3,1"}], "flowers": [], "cells": [["x-:2,3", "\\"], ["x-:0,3", "/"], ["x+:3,1", "D"]]}, {"lanterns": [{"k": "z+:2,0", "d": [0, 1, 0], "c": 1}, {"k": "x+:3,2", "d": [0, 1, 0], "c": 6}], "targets": [{"k": "y-:2,0", "c": 6}], "pipes": [], "sensors": [{"k": "x-:0,3", "door": "y+:2,1"}], "flowers": [], "cells": [["z+:2,3", "/"], ["z+:0,3", "\\"], ["z+:0,1", "\\"], ["x-:1,3", "a"], ["y+:2,2", "/"], ["y+:2,1", "D"], ["x-:2,3", "H"], ["y+:3,1", "H"], ["y-:0,2", "H"]]}, {"lanterns": [{"k": "y-:3,3", "d": [0, 0, 1], "c": 3}, {"k": "y-:3,2", "d": [0, 0, -1], "c": 2}], "targets": [{"k": "x+:2,0", "c": 2}], "pipes": [], "sensors": [], "flowers": [{"k": "z+:0,1", "m": "z-:3,1"}], "cells": [["z+:3,1", "/"], ["z-:3,1", "e"], ["x+:1,0", "\\"]]}, {"lanterns": [{"k": "z-:0,0", "d": [0, 1, 0], "c": 3}, {"k": "y+:3,0", "d": [0, 0, -1], "c": 5}, {"k": "y-:0,0", "d": [-1, 0, 0], "c": 4}], "targets": [{"k": "z+:0,3", "c": 4}], "pipes": [], "sensors": [{"k": "y-:3,1", "door": "x-:0,2"}], "flowers": [{"k": "y+:0,2", "m": "x-:0,0"}], "cells": [["x-:0,0", "e"], ["x-:0,2", "D"], ["z+:0,0", "\\"], ["z+:0,1", "\\"], ["x-:1,3", "/"], ["x-:3,3", "\\"], ["y+:1,3", "H"], ["x+:3,2", "H"], ["x-:1,0", "H"]]}, {"lanterns": [{"k": "z-:1,3", "d": [1, 0, 0], "c": 4}], "targets": [{"k": "x-:1,2", "c": 4}], "pipes": [], "sensors": [], "flowers": [], "cells": [["z-:2,3", "U", 3], ["z+:2,3", "U", 2], ["z+:2,1", "/"]]}, {"lanterns": [{"k": "x+:1,2", "d": [0, 0, 1], "c": 3}], "targets": [{"k": "x+:2,0", "c": 3}], "pipes": [], "sensors": [], "flowers": [], "cells": [["x+:1,3", "U", 3], ["x-:1,3", "U", 0], ["x-:1,2", "\\"], ["y-:3,2", "/"], ["y-:3,0", "\\"], ["y-:2,2", "O"], ["y+:2,2", "O"], ["z+:3,3", "H"], ["y+:0,0", "H"]]}, {"lanterns": [{"k": "z+:3,3", "d": [-1, 0, 0], "c": 1}, {"k": "x-:2,0", "d": [0, 0, 1], "c": 2}], "targets": [{"k": "z-:1,0", "c": 1}, {"k": "z+:0,0", "c": 2}], "pipes": [], "sensors": [], "flowers": [], "cells": [["z+:0,3", "\\"], ["z+:0,2", "/"], ["z+:1,2", "U", 2], ["z-:1,2", "U", 2], ["x-:2,2", "U", 3], ["x+:2,2", "U", 2], ["x+:0,2", "\\"], ["z+:1,3", "O"], ["z-:1,3", "O"], ["x-:1,3", "H"], ["z-:2,2", "H"]]}, {"lanterns": [{"k": "y-:0,3", "d": [0, 0, -1], "c": 5}, {"k": "z-:3,0", "d": [1, 0, 0], "c": 6}], "targets": [{"k": "z+:3,3", "c": 6}], "pipes": [], "sensors": [{"k": "z-:1,2", "door": "y+:3,3"}], "flowers": [], "cells": [["z-:0,0", "/"], ["z-:1,0", "\\"], ["x+:0,1", "\\"], ["y-:3,1", "U", 1], ["y+:3,1", "U", 3], ["y+:3,3", "D"], ["y-:1,1", "H"], ["z+:3,2", "H"]]}, {"lanterns": [{"k": "x-:2,3", "d": [0, -1, 0], "c": 1}, {"k": "y+:1,3", "d": [1, 0, 0], "c": 4}], "targets": [{"k": "y-:3,1", "c": 5}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [{"a": "y-:2,2", "oa": [-1, 0, 0], "b": "x+:2,3", "ob": [0, 1, 0], "out": "z-:3,2", "oo": [0, -1, 0]}], "cells": [["x-:1,3", "\\"], ["x-:1,2", "/"]]}, {"lanterns": [{"k": "x-:3,3", "d": [0, 1, 0], "c": 1}, {"k": "z-:1,1", "d": [-1, 0, 0], "c": 2}], "targets": [{"k": "x+:3,3", "c": 3}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [{"a": "x-:3,2", "oa": [0, 1, 0], "b": "y+:1,0", "ob": [-1, 0, 0], "out": "z+:3,3", "oo": [0, -1, 0]}], "cells": [["y+:1,3", "\\"], ["y+:1,2", "\\"], ["x-:1,0", "\\"], ["y-:3,3", "/"], ["z-:3,0", "H"], ["y+:3,1", "H"], ["z-:1,2", "H"]]}, {"lanterns": [{"k": "x+:0,3", "d": [0, 1, 0], "c": 2}, {"k": "y+:2,2", "d": [-1, 0, 0], "c": 4}], "targets": [{"k": "x+:1,1", "c": 6}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [{"a": "x+:2,1", "oa": [0, 1, 0], "b": "x-:3,2", "ob": [0, 1, 0], "out": "y+:0,0", "oo": [1, 0, 0]}], "cells": [["x+:3,3", "/"], ["x+:3,1", "/"], ["y+:1,0", "U", 3], ["y-:1,0", "U", 1], ["y-:1,1", "/"], ["y+:2,1", "H"], ["x-:0,1", "H"]]}, {"lanterns": [{"k": "y+:3,3", "d": [0, 0, 1], "c": 1}, {"k": "y+:2,2", "d": [0, 0, -1], "c": 4}, {"k": "y+:0,2", "d": [0, 0, -1], "c": 3}], "targets": [{"k": "x+:0,1", "c": 5}, {"k": "x-:2,2", "c": 3}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [{"a": "x+:3,0", "oa": [0, -1, 0], "b": "z-:2,1", "ob": [0, 1, 0], "out": "x+:1,1", "oo": [0, 0, 1]}], "cells": [["z+:3,2", "/"], ["x+:2,0", "\\"], ["x+:1,3", "/"], ["y-:3,3", "/"], ["y-:3,1", "b"], ["z-:0,2", "\\"], ["x+:0,0", "H"], ["y+:1,3", "H"], ["z+:1,0", "H"]]}, {"lanterns": [{"k": "y-:1,3", "d": [0, 0, 1], "c": 4}], "targets": [{"k": "z+:0,0", "c": 4}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [], "cells": [["z+:1,2", {"t": "K", "h": 1, "lo": 2, "hi": 1}], ["z+:0,2", {"t": "H", "h": 1, "top": "\\"}], ["z+:0,0", {"t": "H", "h": 1, "top": "T"}], ["z+:0,1", {"t": "H", "h": 1}], ["y-:2,0", {"t": "H", "h": 1}], ["x-:1,2", {"t": "H", "h": 1}]]}, {"lanterns": [{"k": "x+:0,1", "d": [0, 0, -1], "c": 3}], "targets": [{"k": "y-:3,3", "c": 3}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [], "cells": [["x+:0,0", "/"], ["y-:1,0", {"t": "K", "h": 1, "lo": 3, "hi": 0}], ["y-:0,0", {"t": "H", "h": 1, "top": "\\"}], ["y-:0,1", {"t": "H", "h": 1, "top": "\\"}], ["y-:3,1", {"t": "K", "h": 1, "hi": 3, "lo": 3}], ["z+:3,3", {"t": "H", "h": 1}], ["z-:0,1", {"t": "H", "h": 1}], ["x+:1,3", {"t": "H", "h": 1}], ["y-:2,1", {"t": "H", "h": 1}]]}, {"lanterns": [{"k": "y-:1,1", "d": [-1, 0, 0], "c": 2}], "targets": [{"k": "x-:3,2", "c": 2}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [], "cells": [["x-:1,1", {"t": "K", "h": 2, "lo": 2, "hi": 3}], ["x-:1,3", {"t": "H", "h": 2, "top": "/"}], ["x-:3,3", {"t": "H", "h": 2, "top": "/"}], ["x-:3,2", {"t": "H", "h": 2, "top": "T"}], ["x-:1,2", {"t": "H", "h": 1}], ["z-:3,2", {"t": "H", "h": 1}], ["y+:3,3", {"t": "H", "h": 1}], ["x+:0,2", {"t": "H", "h": 1}], ["y-:3,0", {"t": "H", "h": 1}]]}, {"lanterns": [{"k": "z-:0,3", "d": [0, -1, 0], "c": 1}, {"k": "y-:2,3", "d": [1, 0, 0], "c": 4}], "targets": [{"k": "y+:3,1", "c": 1}, {"k": "x+:2,1", "c": 4}], "pipes": [], "sensors": [], "flowers": [], "ypipes": [], "cells": [["z-:0,2", {"t": "K", "h": 2, "lo": 1, "hi": 3}], ["z-:2,2", {"t": "H", "h": 2, "top": "\\"}], ["z-:2,1", {"t": "H", "h": 2, "top": "/"}], ["z-:3,1", {"t": "K", "h": 2, "hi": 0, "lo": 1}], ["y-:3,3", "/"], ["z+:3,2", "/"], ["z-:1,2", {"t": "H", "h": 1}], ["z-:0,0", {"t": "H", "h": 1}], ["y+:1,3", {"t": "H", "h": 1}], ["y+:1,2", {"t": "H", "h": 1}]]}];
+  const LEVELS = [{"lanterns":[{"k":"x+:0,2","d":[0,-1,0],"c":4}],"targets":[{"k":"z+:0,0","c":4}],"pipes":[],"cells":[["y-:3,2","\\"],["z+:3,0","/"]]},{"lanterns":[{"k":"y+:2,1","d":[-1,0,0],"c":3}],"targets":[{"k":"z+:3,2","c":3}],"pipes":[],"cells":[["y+:0,1","\\"],["y+:0,2","/"],["x-:2,2","/"],["z+:0,1","H"],["x-:1,2","H"],["z+:2,0","H"]]},{"lanterns":[{"k":"x-:2,2","d":[0,1,0],"c":2}],"targets":[{"k":"x+:3,2","c":2}],"pipes":[{"a":"y+:1,2","oa":[-1,0,0],"b":"y+:3,2","ob":[0,0,1]}],"cells":[["y+:2,2","H"],["y+:3,3","\\"],["x+:3,3","\\"],["x-:3,3","H"]]},{"lanterns":[{"k":"y+:3,1","d":[0,0,-1],"c":1}],"targets":[{"k":"x-:0,0","c":1}],"pipes":[{"a":"z-:2,3","oa":[0,1,0],"b":"y-:3,3","ob":[0,0,-1]}],"cells":[["y+:3,0","\\"],["y+:2,0","/"],["y-:3,2","/"],["x+:0,2","b"],["z+:2,2","H"],["z+:3,0","H"],["x+:2,0","H"]]},{"lanterns":[{"k":"z-:2,2","d":[-1,0,0],"c":4},{"k":"x+:2,2","d":[0,0,-1],"c":3}],"targets":[{"k":"y+:1,1","c":4},{"k":"y-:2,0","c":3}],"pipes":[{"a":"x-:1,0","oa":[0,0,-1],"b":"x-:3,2","ob":[0,1,0]}],"cells":[["z-:0,2","/"],["z-:0,1","\\"],["x-:2,1","H"],["y+:1,2","/"],["x+:2,0","\\"],["x+:1,1","H"],["z+:1,1","H"],["y+:0,0","H"]]},{"lanterns":[{"k":"y+:0,1","d":[0,0,-1],"c":5}],"targets":[{"k":"y-:0,1","c":5}],"pipes":[{"a":"y+:1,0","oa":[-1,0,0],"b":"x+:0,3","ob":[0,0,-1]},{"a":"y-:3,1","oa":[1,0,0],"b":"z+:2,2","ob":[1,0,0]}],"cells":[["y+:0,0","\\"],["x+:0,1","\\"],["z+:3,2","/"],["z+:3,1","\\"],["z+:2,1","a"],["y-:2,1","/"],["x-:2,1","H"],["x+:0,0","H"],["z-:2,2","H"],["z+:1,3","H"]]},{"lanterns":[{"k":"x-:3,0","d":[0,1,0],"c":6},{"k":"z+:0,1","d":[0,1,0],"c":1}],"targets":[{"k":"x+:1,1","c":6},{"k":"x+:2,1","c":1}],"pipes":[{"a":"z+:3,2","oa":[0,1,0],"b":"z+:3,0","ob":[1,0,0]},{"a":"y+:0,3","oa":[0,0,1],"b":"x-:2,1","ob":[0,-1,0]}],"cells":[["y+:1,0","a"],["z+:1,3","/"],["z+:3,3","\\"],["z+:3,1","H"],["x+:0,1","\\"],["x-:1,1","\\"],["z-:1,1","\\"],["z-:1,2","\\"],["y-:2,3","H"],["y-:1,3","H"],["z-:2,0","H"],["z+:2,0","H"]]},{"lanterns":[{"k":"x+:0,3","d":[0,0,1],"c":1},{"k":"y+:2,2","d":[0,0,-1],"c":2},{"k":"z-:2,1","d":[0,-1,0],"c":4}],"targets":[{"k":"z-:1,0","c":1},{"k":"z+:3,3","c":2},{"k":"y+:0,1","c":4}],"pipes":[{"a":"z-:2,3","oa":[0,1,0],"b":"z-:0,0","ob":[0,1,0]},{"a":"z-:0,1","oa":[0,-1,0],"b":"z-:3,3","ob":[0,1,0]},{"a":"y-:2,1","oa":[0,0,-1],"b":"y-:0,1","ob":[-1,0,0]}],"cells":[["z+:1,0","/"],["z-:1,2","H"],["z-:2,2","H"],["y+:3,1","\\"],["x+:3,1","b"],["x+:3,3","a"],["y+:3,3","/"],["x-:0,1","\\"],["x-:0,2","\\"],["x-:2,2","\\"],["x-:2,1","/"],["x+:3,0","H"],["x+:1,1","H"],["x+:2,2","H"],["y+:2,3","H"],["x+:0,0","H"]]},{"lanterns":[{"k":"z+:1,2","d":[-1,0,0],"c":3},{"k":"x+:3,3","d":[0,0,-1],"c":4}],"targets":[{"k":"z-:0,3","c":4}],"pipes":[],"sensors":[{"k":"z+:1,0","door":"x+:3,1","fi":1}],"flowers":[],"cells":[["x-:2,3","\\"],["x-:0,3","/"],["x+:3,1","D"]]},{"lanterns":[{"k":"z+:2,0","d":[0,1,0],"c":1},{"k":"x+:3,2","d":[0,1,0],"c":6}],"targets":[{"k":"y-:2,0","c":6}],"pipes":[],"sensors":[{"k":"x-:0,3","door":"y+:2,1","fi":3}],"flowers":[],"cells":[["z+:2,3","/"],["z+:0,3","\\"],["z+:0,1","\\"],["x-:1,3","a"],["y+:2,2","/"],["y+:2,1","D"],["x-:2,3","H"],["y+:3,1","H"],["y-:0,2","H"]]},{"lanterns":[{"k":"y-:3,3","d":[0,0,1],"c":3},{"k":"y-:3,2","d":[0,0,-1],"c":2}],"targets":[{"k":"x+:2,0","c":2}],"pipes":[],"sensors":[],"flowers":[{"k":"z+:0,1","m":"z-:3,1","fi":1}],"cells":[["z+:3,1","/"],["z-:3,1","e"],["x+:1,0","\\"]]},{"lanterns":[{"k":"z-:0,0","d":[0,1,0],"c":3},{"k":"y+:3,0","d":[0,0,-1],"c":5},{"k":"y-:0,0","d":[-1,0,0],"c":4}],"targets":[{"k":"z+:0,3","c":4}],"pipes":[],"sensors":[{"k":"y-:3,1","door":"x-:0,2","fi":0}],"flowers":[{"k":"y+:0,2","m":"x-:0,0","fi":2}],"cells":[["x-:0,0","e"],["x-:0,2","D"],["z+:0,0","\\"],["z+:0,1","\\"],["x-:1,3","/"],["x-:3,3","\\"],["y+:1,3","H"],["x+:3,2","H"],["x-:1,0","H"]]},{"lanterns":[{"k":"z-:1,3","d":[1,0,0],"c":4}],"targets":[{"k":"x-:1,2","c":4}],"pipes":[],"sensors":[],"flowers":[],"cells":[["z-:2,3","U",3],["z+:2,3","U",2],["z+:2,1","/"]]},{"lanterns":[{"k":"x+:1,2","d":[0,0,1],"c":3}],"targets":[{"k":"x+:2,0","c":3}],"pipes":[],"sensors":[],"flowers":[],"cells":[["x+:1,3","U",3],["x-:1,3","U",0],["x-:1,2","\\"],["y-:3,2","/"],["y-:3,0","\\"],["y-:2,2","O"],["y+:2,2","O"],["z+:3,3","H"],["y+:0,0","H"]]},{"lanterns":[{"k":"z+:3,3","d":[-1,0,0],"c":1},{"k":"x-:2,0","d":[0,0,1],"c":2}],"targets":[{"k":"z-:1,0","c":1},{"k":"z+:0,0","c":2}],"pipes":[],"sensors":[],"flowers":[],"cells":[["z+:0,3","\\"],["z+:0,2","/"],["z+:1,2","U",2],["z-:1,2","U",2],["x-:2,2","U",3],["x+:2,2","U",2],["x+:0,2","\\"],["z+:1,3","O"],["z-:1,3","O"],["x-:1,3","H"],["z-:2,2","H"]]},{"lanterns":[{"k":"y-:0,3","d":[0,0,-1],"c":5},{"k":"z-:3,0","d":[1,0,0],"c":6}],"targets":[{"k":"z+:3,3","c":6}],"pipes":[],"sensors":[{"k":"z-:1,2","door":"y+:3,3","fi":1}],"flowers":[],"cells":[["z-:0,0","/"],["z-:1,0","\\"],["x+:0,1","\\"],["y-:3,1","U",1],["y+:3,1","U",3],["y+:3,3","D"],["y-:1,1","H"],["z+:3,2","H"]]},{"lanterns":[{"k":"x-:2,3","d":[0,-1,0],"c":1},{"k":"y+:1,3","d":[1,0,0],"c":4}],"targets":[{"k":"y-:3,1","c":5}],"pipes":[],"sensors":[],"flowers":[],"ypipes":[{"a":"y-:2,2","oa":[-1,0,0],"b":"x+:2,3","ob":[0,1,0],"out":"z-:3,2","oo":[0,-1,0]}],"cells":[["x-:1,3","\\"],["x-:1,2","/"]]},{"lanterns":[{"k":"x-:3,3","d":[0,1,0],"c":1},{"k":"z-:1,1","d":[-1,0,0],"c":2}],"targets":[{"k":"x+:3,3","c":3}],"pipes":[],"sensors":[],"flowers":[],"ypipes":[{"a":"x-:3,2","oa":[0,1,0],"b":"y+:1,0","ob":[-1,0,0],"out":"z+:3,3","oo":[0,-1,0]}],"cells":[["y+:1,3","\\"],["y+:1,2","\\"],["x-:1,0","\\"],["y-:3,3","/"],["z-:3,0","H"],["y+:3,1","H"],["z-:1,2","H"]]},{"lanterns":[{"k":"x+:0,3","d":[0,1,0],"c":2},{"k":"y+:2,2","d":[-1,0,0],"c":4}],"targets":[{"k":"x+:1,1","c":6}],"pipes":[],"sensors":[],"flowers":[],"ypipes":[{"a":"x+:2,1","oa":[0,1,0],"b":"x-:3,2","ob":[0,1,0],"out":"y+:0,0","oo":[1,0,0]}],"cells":[["x+:3,3","/"],["x+:3,1","/"],["y+:1,0","U",3],["y-:1,0","U",1],["y-:1,1","/"],["y+:2,1","H"],["x-:0,1","H"]]},{"lanterns":[{"k":"y+:3,3","d":[0,0,1],"c":1},{"k":"y+:2,2","d":[0,0,-1],"c":4},{"k":"y+:0,2","d":[0,0,-1],"c":3}],"targets":[{"k":"x+:0,1","c":5},{"k":"x-:2,2","c":3}],"pipes":[],"sensors":[],"flowers":[],"ypipes":[{"a":"x+:3,0","oa":[0,-1,0],"b":"z-:2,1","ob":[0,1,0],"out":"x+:1,1","oo":[0,0,1]}],"cells":[["z+:3,2","/"],["x+:2,0","\\"],["x+:1,3","/"],["y-:3,3","/"],["y-:3,1","b"],["z-:0,2","\\"],["x+:0,0","H"],["y+:1,3","H"],["z+:1,0","H"]]},{"lanterns":[{"k":"y-:1,3","d":[0,0,1],"c":4}],"targets":[{"k":"z+:0,0","c":4}],"pipes":[],"sensors":[],"flowers":[],"ypipes":[],"cells":[["z+:1,2",{"t":"K","h":1,"lo":2,"hi":1}],["z+:0,2",{"t":"H","h":1,"top":"\\"}],["z+:0,0",{"t":"H","h":1,"top":"T"}],["z+:0,1",{"t":"H","h":1}],["y-:2,0",{"t":"H","h":1}],["x-:1,2",{"t":"H","h":1}]]},{"lanterns":[{"k":"x+:0,1","d":[0,0,-1],"c":3}],"targets":[{"k":"y-:3,3","c":3}],"pipes":[],"sensors":[],"flowers":[],"ypipes":[],"cells":[["x+:0,0","/"],["y-:1,0",{"t":"K","h":1,"lo":3,"hi":0}],["y-:0,0",{"t":"H","h":1,"top":"\\"}],["y-:0,1",{"t":"H","h":1,"top":"\\"}],["y-:3,1",{"t":"K","h":1,"hi":3,"lo":3}],["z+:3,3",{"t":"H","h":1}],["z-:0,1",{"t":"H","h":1}],["x+:1,3",{"t":"H","h":1}],["y-:2,1",{"t":"H","h":1}]]},{"lanterns":[{"k":"y-:1,1","d":[-1,0,0],"c":2}],"targets":[{"k":"x-:3,2","c":2}],"pipes":[],"sensors":[],"flowers":[],"ypipes":[],"cells":[["x-:1,1",{"t":"K","h":2,"lo":2,"hi":3}],["x-:1,3",{"t":"H","h":2,"top":"/"}],["x-:3,3",{"t":"H","h":2,"top":"/"}],["x-:3,2",{"t":"H","h":2,"top":"T"}],["x-:1,2",{"t":"H","h":1}],["z-:3,2",{"t":"H","h":1}],["y+:3,3",{"t":"H","h":1}],["x+:0,2",{"t":"H","h":1}],["y-:3,0",{"t":"H","h":1}]]},{"lanterns":[{"k":"z-:0,3","d":[0,-1,0],"c":1},{"k":"y-:2,3","d":[1,0,0],"c":4}],"targets":[{"k":"y+:3,1","c":1},{"k":"x+:2,1","c":4}],"pipes":[],"sensors":[],"flowers":[],"ypipes":[],"cells":[["z-:0,2",{"t":"K","h":2,"lo":1,"hi":3}],["z-:2,2",{"t":"H","h":2,"top":"\\"}],["z-:2,1",{"t":"H","h":2,"top":"/"}],["z-:3,1",{"t":"K","h":2,"hi":0,"lo":1}],["y-:3,3","/"],["z+:3,2","/"],["z-:1,2",{"t":"H","h":1}],["z-:0,0",{"t":"H","h":1}],["y+:1,3",{"t":"H","h":1}],["y+:1,2",{"t":"H","h":1}]]}];
   const HINTS = {
     0: 'Aynalara dokunup çevir, sonra düğmeye bas. Işık kenara gelince <b>yandaki yüze geçer</b>: küpü çevirip takip et.',
     1: '<b>Bloklar</b> ışığı keser. Işık düz gider, bloğun üzerinden kendiliğinden geçemez.',
@@ -355,8 +361,8 @@
     3: 'Kilitli (mor çerçeveli) aynalar dönmez. Boru ışığı yandaki yüze de taşıyabilir.',
     4: 'İki fener! Her ışık kendi rengindeki hedefe gitmeli.',
     8: 'Işık <b>fotosele</b> ulaşınca turuncu <b>kapının</b> motoru çalışır, kapı yere iner ve oradan ışık geçebilir.',
-    10: 'Işık <b>güneş çiçeğine</b> ulaşınca çiçek açar ve sarı çerçeveli <b>motorlu aynayı</b> çevirir.',
-    11: 'Fotosel, çiçek ve kapı bir arada. Hangi ışığın neyi tetiklediğini takip et.',
+    10: 'Sarı şeritli <b>fotosel</b> ışığı algılayınca sarı çerçeveli <b>motorlu aynanın</b> motoru çalışır ve ayna döner.',
+    11: 'İki fotosel ve bir kapı bir arada. Hangi ışığın neyi tetiklediğini takip et.',
     12: 'Deliğin ağzındaki <b>eğik ayna</b> ışığı küpün içine yollar, karşı yüzdeki eğik ayna dışarı çıkarır. Eğik aynaya dokununca 4 yönden birine döner.',
     13: 'Ağzında ayna olmayan deliğin üzerinden ışık düz geçer.',
     14: 'İki fener, iki delik. Küpü çevirip deliğin öbür ucunu bul.',
@@ -592,6 +598,27 @@
     const { f } = cellP(key), n = V(normalOf(f)), fd = V(tangentDirsS(f)[fi]);
     return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(fd, n, new THREE.Vector3().crossVectors(fd, n)));
   }
+  // photocell: a small white housing with a hooded lens on its +X side, a status lamp on top, on a turntable
+  const photoHouseGeo = (() => { const g = new THREE.ExtrudeGeometry(rrShape(.3, .26, .08), { depth: .26, bevelEnabled: true, bevelThickness: .025, bevelSize: .025, bevelSegments: 3, curveSegments: 8 }); g.translate(0, 0, -.13); return g; })();
+  function makePhotocell(key, bandCol) {
+    const pv = new THREE.Group();
+    const white = photoBaseMat, band = new THREE.MeshStandardMaterial({ color: bandCol, roughness: .4, emissive: 0 });
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(.27, .29, .05, 32), white); base.position.y = .025; pv.add(base);
+    const baseRing = new THREE.Mesh(new THREE.TorusGeometry(.28, .012, 8, 40), band); baseRing.rotation.x = Math.PI / 2; baseRing.position.y = .05; pv.add(baseRing);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(.05, .06, .05, 16), white); neck.position.y = .07; pv.add(neck);
+    const house = new THREE.Mesh(photoHouseGeo, white); house.position.y = BEAM_H; pv.add(house);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(.03, .22, .24), band); back.position.set(-.18, BEAM_H, 0); pv.add(back);
+    const lensMat = new THREE.MeshStandardMaterial({ color: 0x1b2a5a, roughness: .08, metalness: .5, envMap: envTex, emissive: 0x000000 });
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(.08, 32), lensMat); lens.rotation.y = Math.PI / 2; lens.position.set(.177, BEAM_H, 0); pv.add(lens);
+    const glint = new THREE.Mesh(new THREE.CircleGeometry(.022, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .8 })); glint.rotation.y = Math.PI / 2; glint.position.set(.179, BEAM_H + .035, -.03); pv.add(glint);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(.088, .014, 8, 32), band); ring.rotation.y = Math.PI / 2; ring.position.set(.178, BEAM_H, 0); pv.add(ring);
+    const hood = new THREE.Mesh(new THREE.CylinderGeometry(.115, .115, .07, 24, 1, true, -Math.PI / 2, Math.PI), white); hood.rotation.z = Math.PI / 2; hood.position.set(.2, BEAM_H, 0); pv.add(hood);
+    const ledMat = new THREE.MeshStandardMaterial({ color: 0xff5d73, roughness: .3, emissive: 0x7a1020 });
+    const led = new THREE.Mesh(new THREE.SphereGeometry(.03, 12, 8), ledMat); led.position.set(-.07, BEAM_H + .165, 0); pv.add(led);
+    pv.traverse(o => { if (o.isMesh) o.userData.key = key; });
+    pv.userData = { key, frame: back, lensMat, ledMat };
+    return pv;
+  }
   function makePeriMirror(key, up) {
     const pv = new THREE.Group();
     // the mirror: a 45° slice of the tube, i.e. an ellipse that fills the whole cross-section
@@ -659,8 +686,8 @@
     L.lanterns.forEach(l => cells[l.k] = { t: 'L' });
     L.targets.forEach(t => { if (!cells[t.k]) cells[t.k] = { t: 'T' }; });
     L.pipes.forEach(p => { cells[p.a] = { t: 'P', o: p.oa, to: p.b }; cells[p.b] = { t: 'P', o: p.ob, to: p.a }; });
-    (L.sensors || []).forEach(x => cells[x.k] = { t: 'S' });
-    (L.flowers || []).forEach(x => cells[x.k] = { t: 'F' });
+    (L.sensors || []).forEach(x => cells[x.k] = { t: 'S', fi: x.fi });
+    (L.flowers || []).forEach(x => cells[x.k] = { t: 'F', fi: x.fi });
     (L.ypipes || []).forEach(y => { cells[y.a] = { t: 'Y', o: y.oa, to: y.out }; cells[y.b] = { t: 'Y', o: y.ob, to: y.out }; cells[y.out] = { t: 'Q', o: y.oo }; });
     doors = {}; sensorObjs = {}; flowerObjs = {}; holeRings = {}; periHits = [];
     const add = m => { world.add(m); objs.push(m); return m; };
@@ -714,30 +741,11 @@
         const bar = new THREE.Mesh(new THREE.BoxGeometry(.62, .07, .62), doorTopMat); bar.position.y = BLOCK_H * .45; g.add(bar);
         g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(upQuat(f)); add(g); doors[k] = g;
         tiles[k].material.color.setHex(0x8a5530);
-      } else if (c.t === 'S') {                            // photocell: a light sensor under a clear dome, with a status lamp
-        const g = new THREE.Group();
-        const base = new THREE.Mesh(new THREE.CylinderGeometry(.27, .3, .12, 32), photoBaseMat); base.position.y = .06; g.add(base);
-        const band = new THREE.Mesh(new THREE.CylinderGeometry(.305, .305, .03, 32), doorMat); band.position.y = .03; g.add(band);
-        const chipMat = new THREE.MeshStandardMaterial({ color: 0x23306b, roughness: .3, metalness: .4, emissive: 0x000000 });
-        const chip = new THREE.Mesh(new THREE.BoxGeometry(.14, .03, .14), chipMat); chip.position.y = .135; g.add(chip);
-        const dome = new THREE.Mesh(new THREE.SphereGeometry(.18, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), photoDomeMat); dome.position.y = .12; g.add(dome);
-        const ledMat = new THREE.MeshStandardMaterial({ color: 0xff5d73, roughness: .3, emissive: 0x7a1020 });
-        const led = new THREE.Mesh(new THREE.SphereGeometry(.035, 12, 8), ledMat); led.position.set(.21, .12, .1); g.add(led);
-        g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(upQuat(f)); add(g); sensorObjs[k] = { lensMat: chipMat, ledMat };
-        tiles[k].material.color.setHex(0x8a5530);
-      } else if (c.t === 'F') {                            // sun flower: a bud that opens when light reaches it
-        const g = new THREE.Group(), petals = [];
-        const stem = new THREE.Mesh(new THREE.CylinderGeometry(.035, .045, .24, 8), new THREE.MeshStandardMaterial({ color: 0x4fbf7a })); stem.position.y = .12; g.add(stem);
-        const head = new THREE.Group(); head.position.y = .26; head.scale.setScalar(1.55); g.add(head);
-        const center = new THREE.Mesh(new THREE.SphereGeometry(.1, 16, 10), new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: .8 })); center.scale.y = .55; head.add(center);
-        for (let i = 0; i < 10; i++) {
-          const pivot = new THREE.Group(); pivot.rotation.y = i / 10 * Math.PI * 2; head.add(pivot);
-          const petal = new THREE.Mesh(petalGeo, petalMat); petal.position.x = .17; petal.scale.set(1, .35, .55); pivot.add(petal);
-          petals.push(pivot);
-        }
-        g.position.copy(V(worldOf(f, p, 0))); g.quaternion.copy(upQuat(f)); add(g);
-        flowerObjs[k] = { petals, open: 0, to: 0 };
-        tiles[k].material.color.setHex(0x6b6326);
+      } else if (c.t === 'S' || c.t === 'F') {             // photocell: lens on one side; orange ones open doors, gold ones run motor mirrors
+        const pv = makePhotocell(k, c.t === 'S' ? 0xff9a52 : 0xffb22e);
+        pv.position.copy(V(worldOf(f, p, 0))); pv.quaternion.copy(periQuat(k, c.fi)); pv.userData.targetQ = pv.quaternion.clone();
+        add(pv); mirrors[k] = pv; sensorObjs[k] = { lensMat: pv.userData.lensMat, ledMat: pv.userData.ledMat };
+        tiles[k].material.color.setHex(c.t === 'S' ? 0x8a5530 : 0x6b6326);
       } else if ('/\\abce'.includes(c.t)) {
         const locked = c.t === 'a' || c.t === 'b', motor = c.t === 'c' || c.t === 'e';
         const g = makeMirror(k, locked, motor);
@@ -834,7 +842,7 @@
       const g = doors[a.k]; if (g) { g.userData.to = .04; if (!animated) g.scale.y = .04; }
       if (animated) tone(330, .25, 'square', .03);
     } else {
-      const fo = flowerObjs[a.src]; if (fo) { fo.to = 1; if (!animated) fo.open = 1; }
+      const so = sensorObjs[a.src]; if (so) { so.lensMat.emissive.setHex(0x6fb6ff); so.ledMat.color.setHex(0x5dff9d); so.ledMat.emissive.setHex(0x2bd46a); }
       const m = mirrors[a.k];
       if (m) { const q = mirrorQuat(a.k, MOTOR_FLIP[cells[a.k].t]); if (animated) { m.userData.fromQ = m.quaternion.clone(); m.userData.targetQ = q; m.userData.t0 = performance.now(); } else { m.quaternion.copy(q); m.userData.targetQ = q; } }
       if (animated) { tone(880, .2, 'sine', .05); tone(1175, .3, 'sine', .04, .08); }
@@ -1005,6 +1013,7 @@
     const c = cells[k], m = mirrors[k];
     if (c.t === 'a' || c.t === 'b' || c.t === 'c' || c.t === 'e') { sfx.locked(); m.userData.shake = performance.now(); return; }
     if (c.t === 'U') { c.fi = (c.fi + 1) % 4; m.userData.fromQ = m.quaternion.clone(); m.userData.targetQ = tiltQuat(k, c.fi); m.userData.t0 = performance.now(); }
+    else if (c.t === 'S' || c.t === 'F') { c.fi = (c.fi + 1) % 4; m.userData.fromQ = m.quaternion.clone(); m.userData.targetQ = periQuat(k, c.fi); m.userData.t0 = performance.now(); }
     else { c.t = FLIP[c.t]; m.userData.fromQ = m.quaternion.clone(); m.userData.targetQ = mirrorQuat(k, c.t); m.userData.t0 = performance.now(); }
     moves++; updateMoves(); sfx.rotate();
     if (lightOn) drawBeams(false);
@@ -1033,7 +1042,7 @@
     for (const k in tmp) {
       const c = tmp[k];
       if (c.t === '/' || c.t === '\\') P.push([2, () => c.t === '/' ? 0 : 1, v => c.t = v ? '\\' : '/']);
-      else if (c.t === 'U') P.push([4, () => c.fi, v => c.fi = v]);
+      else if (c.t === 'U' || ((c.t === 'S' || c.t === 'F') && c.fi !== undefined)) P.push([4, () => c.fi, v => c.fi = v]);
       else if (c.t === 'K') { P.push([4, () => c.lo, v => c.lo = v]); P.push([4, () => c.hi, v => c.hi = v]); }
       else if (c.t === 'H' && (c.top === '/' || c.top === '\\')) P.push([2, () => c.top === '/' ? 0 : 1, v => c.top = v ? '\\' : '/']);
     }
@@ -1137,10 +1146,11 @@
     const doorI = (x, y, cls) => `<g transform="translate(${x} ${y})"><g class="${cls}"><rect x="-16" y="-16" width="32" height="32" rx="7" fill="${SEN}"/><rect x="-16" y="-3" width="32" height="6" fill="#ffc08a"/></g></g>`;
     const flowerI = (x, y) => `<g transform="translate(${x} ${y})">${[...Array(8)].map((_, i) => `<g style="transform: rotate(${i * 45}deg)"><ellipse class="t-bloom" cx="10" cy="0" rx="7" ry="4" fill="#ffd166"/></g>`).join('')}<circle r="6" fill="#8a5a2b"/></g>`;
     const motorBar = `<rect x="-22" y="-3.5" width="44" height="7" rx="3.5" fill="#ffe7a8" stroke="#ffb22e" stroke-width="2"/>`;
-    CARDS.sensor = { title: 'Yeni: Fotosel ve kapı', text: 'Fotosel bir ışık sensörüdür, otomatik kapılardaki gibi. Işığı algılayınca lambası yeşil yanar ve kapının motoruna sinyal yollar; turuncu kapı yere iner. Kapıyı ışık değil, kendi motoru açar.',
+    CARDS.sensor = { title: 'Yeni: Fotosel ve kapı', text: 'Fotosel bir ışık sensörüdür, otomatik kapılardaki gibi. Merceği tek yöne bakar: ışık o yönden gelmeli. Dokununca ayna gibi döner. Işığı algılayınca lambası yeşil yanar, kapının motoru çalışır ve turuncu kapı yere iner.',
       svg: svg(tiles([80, 120], 40) + tiles([80, 160], 108) + tile(120, 108) + lantern(36, 40, YE) + beam('M50 40 H150', YE, 't-s1') + sensorI(162, 40) + lantern(36, 108, BL) + doorI(120, 108, 't-sink') + beam('M50 108 H103', BL, 't-s1') + beam('M103 108 H212', BL, 't-s2') + target(224, 108, BL, 't-show2')) };
-    CARDS.flower = { title: 'Yeni: Güneş çiçeği', text: 'Işık güneş çiçeğine ulaşınca çiçek açar ve sarı çerçeveli motorlu aynayı 90° çevirir. Motorlu aynayı sen çeviremezsin.',
-      svg: svg(tiles([80, 120], 40) + tiles([80, 120, 160], 108) + lantern(36, 40, YE) + beam('M50 40 H146', YE, 't-s1') + flowerI(160, 40) + tile(200, 108) + `<g transform="translate(200 108)"><g class="t-rot2" style="transform: rotate(45deg)">${motorBar}</g><circle cx="13" cy="-13" r="4" fill="#ffb22e"/></g>` + lantern(36, 108, '#4ee89a') + beam('M50 108 H200', '#4ee89a', 't-s2') + beam('M200 108 V60', '#4ee89a', 't-s3') + target(200, 52, '#4ee89a', 't-show3')) };
+    const sensorG = (x, y) => `<g transform="translate(${x} ${y})"><rect x="-15" y="2" width="30" height="10" rx="4" fill="#f6f8ff"/><rect x="-15" y="9" width="30" height="3" fill="#ffb22e"/><path d="M-11 3 A11 11 0 0 1 11 3 Z" fill="#dff1ff" opacity=".55" stroke="#ffffff" stroke-width="1"/><rect class="t-glow1" x="-4" y="-2" width="8" height="4" rx="1" fill="#23306b"/><circle class="t-led" cx="12" cy="-2" r="3" fill="#ff5d73"/></g>`;
+    CARDS.flower = { title: 'Yeni: Fotosel ve motorlu ayna', text: 'Sarı şeritli fotosel ışığı algılayınca, sarı çerçeveli motorlu aynanın motorunu çalıştırır ve ayna 90° döner. Motorlu aynayı sen çeviremezsin; fotoseli ise ışığa doğru çevirebilirsin.',
+      svg: svg(tiles([80, 120], 40) + tiles([80, 120, 160], 108) + lantern(36, 40, YE) + beam('M50 40 H146', YE, 't-s1') + sensorG(160, 40) + tile(200, 108) + `<g transform="translate(200 108)"><g class="t-rot2" style="transform: rotate(45deg)">${motorBar}</g><circle cx="13" cy="-13" r="4" fill="#ffb22e"/></g>` + lantern(36, 108, '#4ee89a') + beam('M50 108 H200', '#4ee89a', 't-s2') + beam('M200 108 V60', '#4ee89a', 't-s3') + target(200, 52, '#4ee89a', 't-show3')) };
     CARDS.hole = { title: 'Yeni: Delik ve eğik ayna', text: 'Delik küpün içinden karşı yüze uzanır. Ağzındaki 45° eğik ayna ışığı aşağı, deliğin içine yollar; karşı uçtaki eğik ayna dışarı çıkarır. Periskop gibi. Eğik aynaya dokununca 4 yönden birine döner.',
       svg: svg(`<rect x="60" y="34" width="150" height="82" rx="8" fill="#26306b"/><rect x="60" y="30" width="150" height="6" rx="3" fill="#34418b"/><rect x="60" y="114" width="150" height="6" rx="3" fill="#34418b"/><rect x="121" y="30" width="18" height="90" fill="#05081a"/>`
         + `<g transform="translate(130 22) rotate(45)"><rect x="-15" y="-2.5" width="30" height="5" rx="2.5" fill="#e9f7ff" stroke="#5ee0d0" stroke-width="1.5"/></g>`
