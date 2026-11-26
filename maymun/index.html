@@ -56,20 +56,30 @@
   .new-best { color: var(--accent); font-weight: 800; animation: pulse 0.8s infinite alternate; }
   @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.08); } }
 
-  #touch { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; display: none;
-    justify-content: space-between; align-items: flex-end;
-    padding: 0 14px calc(14px + env(safe-area-inset-bottom)); pointer-events: none; }
-  #touch.show { display: flex; }
-  #touch .grp { display: flex; gap: 12px; pointer-events: auto; }
-  .tbtn {
-    width: 74px; height: 74px; border-radius: 50%;
-    border: 3px solid rgba(255,255,255,0.45); background: rgba(0,0,0,0.25);
-    color: #fff; font-size: 28px; font-weight: 800;
-    display: flex; align-items: center; justify-content: center;
-    touch-action: none;
+  #touch { position: fixed; inset: 0; z-index: 3; display: none; touch-action: none; }
+  #touch.show { display: block; }
+  #touch .zone { position: absolute; top: 0; bottom: 0; width: 50%; touch-action: none; }
+  #zL { left: 0; } #zR { right: 0; }
+  #zL::after { content: ""; position: absolute; top: 20%; bottom: 20%; right: 0; border-right: 2px dashed rgba(255,255,255,0.18); transition: opacity .6s; }
+  #touch.used #zL::after { opacity: 0; }
+  .hint {
+    position: absolute; bottom: calc(22px + env(safe-area-inset-bottom));
+    font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap;
+    background: rgba(0,0,0,0.35); padding: 8px 14px; border-radius: 999px;
+    transition: opacity .6s; pointer-events: none;
   }
-  .tbtn.jump { width: 96px; height: 96px; font-size: 16px; background: rgba(255, 204, 51, 0.35); border-color: rgba(255, 220, 120, 0.8); }
-  .tbtn.on { background: rgba(255,255,255,0.35); }
+  #zL .hint { left: max(14px, env(safe-area-inset-left)); }
+  #zR .hint { right: max(14px, env(safe-area-inset-right)); }
+  #touch.used .hint { opacity: 0; }
+  #stick {
+    position: absolute; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.45); background: rgba(0,0,0,0.2);
+    display: none; pointer-events: none;
+  }
+  #stick::before, #stick::after { position: absolute; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.6); font-size: 14px; }
+  #stick::before { content: "◀"; left: 8px; } #stick::after { content: "▶"; right: 8px; }
+  #stick i { position: absolute; left: 50%; top: 50%; width: 50px; height: 50px; margin: -25px 0 0 -25px; border-radius: 50%; background: rgba(255,255,255,0.6); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+  #jumpRing { position: absolute; width: 80px; height: 80px; margin: -40px 0 0 -40px; border-radius: 50%; border: 3px solid rgba(255,214,80,0.9); display: none; pointer-events: none; }
 
   #topBtns { position: fixed; top: calc(8px + env(safe-area-inset-top)); right: 8px; z-index: 4; display: none; gap: 6px; }
   #topBtns.show { display: flex; }
@@ -88,13 +98,10 @@
 </div>
 
 <div id="touch">
-  <div class="grp">
-    <div class="tbtn" id="tLeft">◀</div>
-    <div class="tbtn" id="tRight">▶</div>
-  </div>
-  <div class="grp">
-    <div class="tbtn jump" id="tJump">ZIPLA</div>
-  </div>
+  <div class="zone" id="zL"><span class="hint">◀ Basılı tut, kaydır ▶</span></div>
+  <div class="zone" id="zR"><span class="hint">Dokun: ZIPLA</span></div>
+  <div id="stick"><i></i></div>
+  <div id="jumpRing"></div>
 </div>
 
 <div class="overlay show" id="menu">
@@ -109,6 +116,7 @@
       <div class="stat"><b id="menuBestFloor">0</b><span>En yüksek dal</span></div>
     </div>
     <button class="btn" id="startBtn">OYNA</button>
+    <p class="keys">Telefon: sol parmağı basılı tutup sağa sola kaydır · sağ tarafa dokununca zıplar</p>
     <p class="keys">Klavye: ← → / A D ile koş · Boşluk / ↑ ile zıpla · P duraklat</p>
   </div>
 </div>
@@ -227,18 +235,62 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { const k = keyMap[e.code]; if (k) input[k] = false; });
 
-function bindTouch(el, key) {
-  const on = e => { e.preventDefault(); el.setPointerCapture && el.setPointerCapture(e.pointerId);
-    if (key === 'jump' && !input.jump) input.jumpQueued = 8; input[key] = true; el.classList.add('on'); };
-  const off = e => { e.preventDefault(); input[key] = false; el.classList.remove('on'); };
-  el.addEventListener('pointerdown', on);
-  el.addEventListener('pointerup', off);
-  el.addEventListener('pointercancel', off);
-  el.addEventListener('lostpointercapture', off);
+// Dokunmatik: sol yarı = kaydırmalı joystick, sağ yarı = zıpla
+const touchEl = $('touch'), zL = $('zL'), zR = $('zR'), stick = $('stick'), knob = stick.firstElementChild, ring = $('jumpRing');
+const DEAD = 8, MAXD = 38;
+let moveId = null, ox = 0;
+const jumpIds = new Set();
+function resetTouch() {
+  moveId = null; jumpIds.clear(); ox = 0;
+  stick.style.display = 'none'; ring.style.display = 'none';
 }
-bindTouch($('tLeft'), 'left');
-bindTouch($('tRight'), 'right');
-bindTouch($('tJump'), 'jump');
+zL.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  if (moveId !== null) return;
+  moveId = e.pointerId;
+  try { zL.setPointerCapture(e.pointerId); } catch (_) {}
+  ox = e.clientX;
+  stick.style.left = ox + 'px'; stick.style.top = e.clientY + 'px';
+  stick.style.display = 'block'; knob.style.transform = '';
+  touchEl.classList.add('used');
+});
+zL.addEventListener('pointermove', e => {
+  if (e.pointerId !== moveId) return;
+  e.preventDefault();
+  let dx = e.clientX - ox;
+  // merkez parmağı takip eder: yön değiştirmek için geri kaydırmak yeterli
+  if (dx > MAXD) { ox = e.clientX - MAXD; dx = MAXD; }
+  else if (dx < -MAXD) { ox = e.clientX + MAXD; dx = -MAXD; }
+  stick.style.left = ox + 'px';
+  knob.style.transform = `translateX(${dx}px)`;
+  input.left = dx < -DEAD; input.right = dx > DEAD;
+});
+const endMove = e => {
+  if (e.pointerId !== moveId) return;
+  moveId = null; input.left = false; input.right = false;
+  stick.style.display = 'none';
+};
+zL.addEventListener('pointerup', endMove);
+zL.addEventListener('pointercancel', endMove);
+zL.addEventListener('lostpointercapture', endMove);
+
+zR.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  try { zR.setPointerCapture(e.pointerId); } catch (_) {}
+  if (jumpIds.size === 0) input.jumpQueued = 8;
+  jumpIds.add(e.pointerId); input.jump = true;
+  ring.style.left = e.clientX + 'px'; ring.style.top = e.clientY + 'px';
+  ring.style.display = 'block';
+  touchEl.classList.add('used');
+});
+const endJump = e => {
+  if (!jumpIds.delete(e.pointerId)) return;
+  input.jump = jumpIds.size > 0;
+  if (!input.jump) ring.style.display = 'none';
+};
+zR.addEventListener('pointerup', endJump);
+zR.addEventListener('pointercancel', endJump);
+zR.addEventListener('lostpointercapture', endJump);
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 
 // ---------- Oyun durumu ----------
@@ -279,7 +331,7 @@ function startGame() {
   resetGame();
   state = 'play';
   show('menu', false); show('over', false); show('pause', false);
-  show('touch', isTouch); show('topBtns', true);
+  resetTouch(); show('touch', isTouch); show('topBtns', true);
   sfx('jump');
 }
 function togglePause() {
